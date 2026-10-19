@@ -1,0 +1,24 @@
+// Mazo Agua/Psíquico/Eléctrico (60 cartas)
+4 Squirtle
+2 Wartortle
+1 Blastoise
+3 Abra
+2 Kadabra
+1 Alakazam
+3 Pikachu
+1 Raichu
+2 Gastly
+1 Haunter
+2 Magikarp
+1 Gyarados
+4 Bill
+1 Professor Oak
+2 Potion
+2 Switch
+1 Gust of Wind
+1 Full Heal
+1 Defender
+1 Energy Retrieval
+12 Water Energy
+8 Psychic Energy
+4 Lightning Energy

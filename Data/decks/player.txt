@@ -1,0 +1,21 @@
+// Mazo Fuego/Planta (60 cartas). Formato: cantidad + nombre exacto o #número
+4 Charmander
+2 Charmeleon
+1 Charizard
+2 Growlithe
+1 Arcanine
+2 Ponyta
+4 Bulbasaur
+2 Ivysaur
+1 Venusaur
+2 Weedle
+4 Bill
+1 Professor Oak
+2 Potion
+2 Switch
+2 PlusPower
+2 Energy Removal
+1 Gust of Wind
+1 Super Potion
+13 Fire Energy
+11 Grass Energy
