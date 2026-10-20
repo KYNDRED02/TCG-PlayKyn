@@ -7,7 +7,8 @@ namespace PokeTCGPlay
 {
     /// <summary>
     /// Gestiona el estado del jugador cuando se sienta en una mesa del juego (InteractablePlayTable),
-    /// espera a que un NPC se siente enfrente y juega la partida de Pokémon TCG.
+    /// espera a que un NPC se siente enfrente, coloca la cámara en vista cenital (top-down) mirando a la mesa física
+    /// y aplica el tapete de Pokémon sobre la mesa.
     /// </summary>
     public static class PlayTableSession
     {
@@ -19,6 +20,8 @@ namespace PokeTCGPlay
 
         static float waitTimer;
         static Vector3 savedStandPos;
+        static Transform topDownCamLoc;
+        static Transform topDownLookTarget;
 
         static readonly FieldInfo fHasStartPlayerPlayCard = AccessTools.Field(typeof(InteractablePlayTable), "m_HasStartPlayerPlayCard");
         static readonly FieldInfo fIsPlayerOccupied = AccessTools.Field(typeof(InteractablePlayTable), "m_IsPlayerOccupied");
@@ -27,11 +30,11 @@ namespace PokeTCGPlay
         public static void SitAtTable(InteractablePlayTable table)
         {
             if (table == null || CurrentTable != null) return;
+            if (DeckBuilderUI.Instance != null && DeckBuilderUI.Instance.IsOpen) return;
 
             var ipc = CSingleton<InteractionPlayerController>.Instance;
             if (ipc == null) return;
 
-            // Determinar qué asiento (0 o 1) está más cerca y disponible
             Vector3 playerPos = ipc.m_PlayerCollider != null ? ipc.m_PlayerCollider.transform.position : ipc.transform.position;
             float d0 = Vector3.Distance(playerPos, table.GetSitLoc(0).position);
             float d1 = Vector3.Distance(playerPos, table.GetSitLoc(1).position);
@@ -54,21 +57,18 @@ namespace PokeTCGPlay
             waitTimer = 0f;
             savedStandPos = playerPos;
 
-            // Ocupar el asiento del jugador
             table.m_IsSeatOccupied[seat] = true;
             table.m_IsSeatBooked[seat] = true;
             table.m_IsQueueOccupied[seat] = true;
             table.m_IsPlayerSeat[seat] = true;
             table.m_CurrentPlayerCount = (table.m_IsSeatOccupied[0] ? 1 : 0) + (table.m_IsSeatOccupied[1] ? 1 : 0);
 
-            // Mostrar el tapete del jugador en la mesa 3D
-            if (table.m_TableGameItemSetList != null && seat < table.m_TableGameItemSetList.Count && table.m_TableGameItemSetList[seat] != null)
-            {
-                table.m_TableGameItemSetList[seat].RandomizeSetup();
-                table.m_TableGameItemSetList[seat].gameObject.SetActive(true);
-            }
+            SpriteCache.EnsureInitialized();
+            SpriteCache.PreloadFromEpl();
 
-            // Sentar físicamente al jugador y orientar la cámara hacia el asiento opuesto
+            // Mostrar el tapete en la mesa 3D con la textura de nuestro Playmat
+            ApplyPlaymatOn3DTable(table, seat);
+
             Transform sitLoc = table.GetSitLoc(seat);
             Transform oppSitLoc = table.GetSitLoc(1 - seat);
             ipc.StopCameraLerp();
@@ -80,10 +80,6 @@ namespace PokeTCGPlay
             InputManager.SetCursorLockMode(CursorLockMode.None);
             Cursor.visible = true;
 
-            SpriteCache.EnsureInitialized();
-            SpriteCache.PreloadFromEpl();
-
-            // ¿Ya hay un NPC sentado en el otro asiento esperando rival?
             int oppSeat = 1 - seat;
             if (table.m_IsSeatOccupied[oppSeat] && table.m_OccupiedCustomer != null && oppSeat < table.m_OccupiedCustomer.Count && table.m_OccupiedCustomer[oppSeat] != null)
             {
@@ -91,7 +87,6 @@ namespace PokeTCGPlay
             }
             else
             {
-                // Dejar m_IsPlayerOccupied = false mientras esperamos para que IsLookingForPlayer(true) sea true y los NPCs vengan a este asiento
                 fIsPlayerOccupied?.SetValue(table, false);
                 fHasStartPlayerPlayCard?.SetValue(table, false);
                 table.m_HasStartPlay = false;
@@ -99,20 +94,65 @@ namespace PokeTCGPlay
             }
         }
 
+        static void ApplyPlaymatOn3DTable(InteractablePlayTable table, int seat)
+        {
+            try
+            {
+                if (table.m_TableGameItemSetList == null || seat >= table.m_TableGameItemSetList.Count) return;
+                var set = table.m_TableGameItemSetList[seat];
+                if (set == null) return;
+                set.RandomizeSetup();
+                set.gameObject.SetActive(true);
+                if (set.m_PlayMatMesh != null && SpriteCache.PlaymatTex != null)
+                {
+                    set.m_PlayMatMesh.gameObject.SetActive(true);
+                    set.m_PlayMatMesh.material.mainTexture = SpriteCache.PlaymatTex;
+                }
+            }
+            catch { }
+        }
+
+        static void EnterTopDownTableCamera(InteractablePlayTable table, int seat)
+        {
+            var ipc = CSingleton<InteractionPlayerController>.Instance;
+            if (ipc == null || table == null) return;
+
+            if (topDownCamLoc == null)
+                topDownCamLoc = new GameObject("PokeTCG_TopDownCamLoc").transform;
+            if (topDownLookTarget == null)
+                topDownLookTarget = new GameObject("PokeTCG_TopDownLookTarget").transform;
+
+            Vector3 sitA = table.GetSitLoc(seat).position;
+            Vector3 sitB = table.GetSitLoc(1 - seat).position;
+            Vector3 center = (sitA + sitB) * 0.5f;
+            Vector3 toCenter = (center - sitA).normalized;
+
+            // Posicionar la cámara justo encima de la mesa mirando verticalmente hacia el centro de la mesa física
+            Vector3 tableSurface = new Vector3(center.x, table.transform.position.y + 0.78f, center.z);
+            topDownCamLoc.position = tableSurface + Vector3.up * 1.42f - toCenter * 0.08f;
+            topDownLookTarget.position = tableSurface + toCenter * 0.02f;
+
+            ipc.SetCameraWorldPositionTarget(topDownCamLoc);
+            ipc.StartAimLookAt(topDownLookTarget, 8f, 0f);
+            ipc.m_IsPlayingTopDownGameMode = true;
+            if (ipc.m_CameraFOVController != null)
+                ipc.m_CameraFOVController.StartLerpToFOV(42f);
+        }
+
         public static void OnOpponentSeated(Customer npc)
         {
             if (CurrentTable == null || npc == null) return;
             CurrentOpponent = npc;
 
-            var ipc = CSingleton<InteractionPlayerController>.Instance;
-            if (ipc != null) ipc.StopAimLookAt();
-
             CurrentTable.m_HasStartPlay = true;
             fHasStartPlayerPlayCard?.SetValue(CurrentTable, true);
             fIsPlayerOccupied?.SetValue(CurrentTable, true);
             CurrentTable.m_CurrentPlayTime = 0f;
-            CurrentTable.m_CurrentPlayTimeMax = 99999f; // La partida dura hasta que termine el duelo de Pokémon TCG
+            CurrentTable.m_CurrentPlayTimeMax = 99999f;
             npc.PlayTableGameStarted();
+
+            ApplyPlaymatOn3DTable(CurrentTable, 1 - PlayerSeat);
+            EnterTopDownTableCamera(CurrentTable, PlayerSeat);
 
             GameUI.Instance?.StartTableMatch(npc);
         }
@@ -140,7 +180,6 @@ namespace PokeTCGPlay
             }
         }
 
-        /// <summary>Si hay clientes dentro de la tienda que aún no están jugando ni pagando, invita a uno a buscar mesa.</summary>
         static void TryInviteShopCustomer()
         {
             try
@@ -180,12 +219,10 @@ namespace PokeTCGPlay
             {
                 if (opp != null)
                 {
-                    // Finalizar el juego de mesa nativo para que el NPC se levante y pague su tarifa de mesa
                     table.ExitPlayerCardGame(playerWon, !playerWon && !finishedMatch);
                 }
                 else
                 {
-                    // Nos levantamos antes de que llegara un NPC: liberar sólo nuestro asiento
                     table.m_IsSeatOccupied[seat] = false;
                     table.m_IsSeatBooked[seat] = false;
                     table.m_IsQueueOccupied[seat] = false;
@@ -201,7 +238,11 @@ namespace PokeTCGPlay
             var ipc = CSingleton<InteractionPlayerController>.Instance;
             if (ipc != null)
             {
+                ipc.SetCameraWorldPositionTarget(null);
+                if (ipc.m_CameraFOVController != null) ipc.m_CameraFOVController.StopLerpFOV();
+                ipc.m_IsPlayingTopDownGameMode = false;
                 ipc.StopAimLookAt();
+                ipc.StopCameraLerp();
                 Transform standTransform = table != null ? table.GetStandLoc(Math.Max(0, seat), true) : null;
                 Vector3 standPos = standTransform != null ? standTransform.position : savedStandPos;
                 InteractionPlayerController.SetPlayerPos(standPos);
@@ -220,7 +261,7 @@ namespace PokeTCGPlay
         public static bool OnRightMouseButtonUp_Prefix(InteractablePlayTable __instance)
         {
             PlayTableSession.SitAtTable(__instance);
-            return false; // Reemplaza la lógica desactivada del juego base
+            return false;
         }
 
         [HarmonyPatch(typeof(InteractablePlayTable), nameof(InteractablePlayTable.CustomerHasReached))]
@@ -241,6 +282,52 @@ namespace PokeTCGPlay
             {
                 GameUI.Instance?.CloseFromTableStop();
             }
+        }
+    }
+
+    /// <summary>
+    /// Parches sobre la Mesa de Creación (InteractableWorkbench / WorkbenchUIScreen) para abrir el Creador de Mazos Pokémon TCG.
+    /// </summary>
+    public static class WorkbenchPatches
+    {
+        [HarmonyPatch(typeof(InteractableWorkbench), nameof(InteractableWorkbench.OnRightMouseButtonUp))]
+        [HarmonyPrefix]
+        public static bool WorkbenchRightClick_Prefix(InteractableWorkbench __instance)
+        {
+            if (PlayTableSession.CurrentTable == null && DeckBuilderUI.Instance != null)
+            {
+                DeckBuilderUI.Instance.OpenFromWorkbench(__instance);
+                return false;
+            }
+            return true;
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), nameof(WorkbenchUIScreen.OnPressEditDeckButton))]
+        [HarmonyPrefix]
+        public static bool OnPressEditDeckButton_Prefix(WorkbenchUIScreen __instance)
+        {
+            if (DeckBuilderUI.Instance != null)
+            {
+                DeckBuilderUI.Instance.OpenFromWorkbenchScreen(__instance);
+                return false;
+            }
+            return true;
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), nameof(WorkbenchUIScreen.OpenScreen))]
+        [HarmonyPostfix]
+        public static void OpenScreen_Postfix()
+        {
+            if (DeckBuilderUI.Instance != null)
+                DeckBuilderUI.Instance.OnWorkbenchScreenOpened();
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), nameof(WorkbenchUIScreen.CloseScreen))]
+        [HarmonyPostfix]
+        public static void CloseScreen_Postfix()
+        {
+            if (DeckBuilderUI.Instance != null)
+                DeckBuilderUI.Instance.OnWorkbenchScreenClosed();
         }
     }
 }

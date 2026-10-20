@@ -13,7 +13,7 @@ using UnityEngine;
 
 namespace PokeTCGPlay
 {
-    [BepInPlugin(GUID, "PokeTCG Play", "0.3.0")]
+    [BepInPlugin(GUID, "PokeTCG Play", "0.4.0")]
     [BepInDependency("EnhancedPrefabLoader.API", BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {
@@ -36,18 +36,20 @@ namespace PokeTCGPlay
 
             try
             {
-                Harmony.CreateAndPatchAll(typeof(PlayTablePatches), GUID);
-                Log.LogInfo("Parches de InteractablePlayTable aplicados (clic derecho en mesa para sentarse).");
+                var h = new Harmony(GUID);
+                h.PatchAll(typeof(PlayTablePatches));
+                h.PatchAll(typeof(WorkbenchPatches));
+                Log.LogInfo("Parches de Mesa de Juego y Mesa de Creación (Workbench) aplicados.");
             }
             catch (Exception e) { Log.LogError("Error aplicando parches Harmony: " + e); }
 
             gameObject.AddComponent<GameUI>();
+            gameObject.AddComponent<DeckBuilderUI>();
         }
     }
 
     /// <summary>
-    /// Carga y retiene en caché los sprites de MyCurio (BS-001..BS-102) usando EnhancedPrefabLoader.API
-    /// e incrementa el contador de referencias en AssetRefTracker para que EPL no los descargue a los 60s.
+    /// Carga y retiene en caché los sprites de MyCurio (BS-001..BS-102 y CardBack) más las texturas de Playmat y Moneda.
     /// </summary>
     public static class SpriteCache
     {
@@ -57,6 +59,11 @@ namespace PokeTCGPlay
         static string bundlePath;
         static bool bundlePathSearched;
         static bool eplHooked;
+        static bool customTexturesLoaded;
+
+        public static Texture2D PlaymatTex { get; private set; }
+        public static Texture2D CoinHeadsTex { get; private set; }
+        public static Texture2D CoinTailsTex { get; private set; }
 
         static readonly MethodInfo getAsyncMethod =
             typeof(StreamingAsset<Sprite>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
@@ -66,6 +73,34 @@ namespace PokeTCGPlay
         static MethodInfo incrementRefMethod;
 
         public static int Count => cache.Count;
+
+        static void LoadCustomTextures()
+        {
+            if (customTexturesLoaded) return;
+            customTexturesLoaded = true;
+            PlaymatTex = LoadPng(Path.Combine(Plugin.DataDir, "images", "playmat.png"));
+            CoinHeadsTex = LoadPng(Path.Combine(Plugin.DataDir, "images", "coin_heads.png"));
+            CoinTailsTex = LoadPng(Path.Combine(Plugin.DataDir, "images", "coin_tails.png"));
+        }
+
+        static Texture2D LoadPng(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return null;
+                byte[] bytes = File.ReadAllBytes(path);
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                ImageConversion.LoadImage(tex, bytes);
+                tex.filterMode = FilterMode.Bilinear;
+                tex.wrapMode = TextureWrapMode.Clamp;
+                return tex;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning($"LoadPng ({path}): {e.Message}");
+                return null;
+            }
+        }
 
         static void PinAssetKey(StreamingAsset<Sprite> sa)
         {
@@ -91,6 +126,7 @@ namespace PokeTCGPlay
 
         public static void EnsureInitialized()
         {
+            LoadCustomTextures();
             if (!eplHooked && Epl.IsAvailable && Epl.Api != null)
             {
                 eplHooked = true;
@@ -133,10 +169,15 @@ namespace PokeTCGPlay
 
         public static void PreloadFromEpl()
         {
+            LoadCustomTextures();
             try
             {
                 if (Enum.TryParse<ECardExpansionType>("MyCurioPokemon-BS", true, out var expType) && Epl.IsAvailable && Epl.Api?.Assets?.CardExpansions != null)
                 {
+                    var cb = Epl.Api.Assets.CardExpansions.GetCardExpansionCardBack(expType);
+                    if (cb != null && !string.IsNullOrEmpty(cb.BundlePath))
+                        RequestStreamingAsset(new StreamingAsset<Sprite>(cb.BundlePath, string.IsNullOrEmpty(cb.AssetName) ? "CardBack" : cb.AssetName));
+
                     var dict = Epl.Api.Assets.CardExpansions.GetCardSprites(expType);
                     if (dict != null && dict.Count > 0)
                     {
@@ -155,6 +196,7 @@ namespace PokeTCGPlay
             string path = FindBundlePath();
             if (!string.IsNullOrEmpty(path))
             {
+                RequestStreamingAsset(new StreamingAsset<Sprite>(path, "CardBack"));
                 foreach (var c in CardDatabase.ByNumber.Values)
                 {
                     if (!string.IsNullOrEmpty(c.Sprite))
@@ -207,5 +249,7 @@ namespace PokeTCGPlay
             }
             return null;
         }
+
+        public static Sprite GetCardBack() => Get("CardBack");
     }
 }

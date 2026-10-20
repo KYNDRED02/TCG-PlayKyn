@@ -140,5 +140,97 @@ namespace PokeTCGPlay
             if (!list.Any(c => c.IsBasicPokemon)) throw new Exception("El mazo necesita al menos un Pokémon Básico.");
             return list;
         }
+
+        public static void Save(string path, List<CardDef> cards)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            var lines = new List<string> { "// Mazo personalizado creado en la Mesa de Creación (60 cartas)" };
+            foreach (var g in cards.GroupBy(c => c.Number).OrderBy(g => g.Key))
+                lines.Add($"{g.Count()} {g.First().Name}");
+            File.WriteAllLines(path, lines, Encoding.UTF8);
+        }
+
+        /// <summary>Genera un mazo aleatorio legal de 60 cartas para el NPC con líneas evolutivas coherentes y energías correspondientes.</summary>
+        public static List<CardDef> GenerateRandomNpcDeck(Random rng = null)
+        {
+            rng = rng ?? new Random();
+            var deck = new List<CardDef>();
+            var energyMap = new Dictionary<string, string>
+            {
+                { "Fire", "Fire Energy" },
+                { "Water", "Water Energy" },
+                { "Grass", "Grass Energy" },
+                { "Lightning", "Lightning Energy" },
+                { "Psychic", "Psychic Energy" },
+                { "Fighting", "Fighting Energy" }
+            };
+            var allTypes = energyMap.Keys.OrderBy(_ => rng.Next()).ToList();
+            string typeA = allTypes[0];
+            string typeB = allTypes[1];
+            var chosenTypes = new HashSet<string> { typeA, typeB, "Colorless" };
+
+            int CountOf(CardDef c) => deck.Count(x => x.Number == c.Number);
+            void AddCopies(CardDef c, int count)
+            {
+                if (c == null) return;
+                for (int i = 0; i < count && deck.Count < 60 && (c.IsBasicEnergy || CountOf(c) < 4); i++)
+                    deck.Add(c);
+            }
+
+            // Seleccionar Pokémon Básicos de esos tipos y sus evoluciones
+            var basics = CardDatabase.ByNumber.Values
+                .Where(c => c.IsBasicPokemon && chosenTypes.Contains(c.Type))
+                .OrderBy(_ => rng.Next())
+                .ToList();
+
+            foreach (var b in basics)
+            {
+                if (deck.Count >= 22) break;
+                int bQty = rng.Next(2, 4); // 2 o 3 copias del básico
+                AddCopies(b, bQty);
+
+                var stage1 = CardDatabase.ByNumber.Values.FirstOrDefault(c => c.Stage == "Stage 1" && c.EvolvesFrom == b.Name);
+                if (stage1 != null && deck.Count < 23)
+                {
+                    AddCopies(stage1, Math.Max(1, bQty - 1));
+                    var stage2 = CardDatabase.ByNumber.Values.FirstOrDefault(c => c.Stage == "Stage 2" && c.EvolvesFrom == stage1.Name);
+                    if (stage2 != null && deck.Count < 24)
+                        AddCopies(stage2, 1);
+                }
+            }
+
+            // Asegurar mínimo 10 Pokémon Básicos
+            while (deck.Count(c => c.IsBasicPokemon) < 10)
+            {
+                var b = basics[rng.Next(basics.Count)];
+                if (CountOf(b) < 4) deck.Add(b);
+                else break;
+            }
+
+            // Añadir 12-14 Entrenadores variados
+            string[] trainerPool = { "Bill", "Professor Oak", "Potion", "Super Potion", "Switch", "Gust of Wind", "PlusPower", "Defender", "Energy Removal", "Full Heal", "Energy Retrieval" };
+            int targetWithTrainers = Math.Min(36, deck.Count + 13);
+            while (deck.Count < targetWithTrainers)
+            {
+                string tName = trainerPool[rng.Next(trainerPool.Length)];
+                if (CardDatabase.ByName.TryGetValue(tName, out var tr) && CountOf(tr) < (tName == "Bill" || tName == "Potion" ? 3 : 2))
+                    deck.Add(tr);
+            }
+
+            // Rellenar el resto hasta 60 con Energías de los tipos de los Pokémon del mazo
+            int countA = Math.Max(1, deck.Count(c => c.Supertype == Supertype.Pokemon && c.Type == typeA));
+            int countB = Math.Max(1, deck.Count(c => c.Supertype == Supertype.Pokemon && c.Type == typeB));
+            int remaining = 60 - deck.Count;
+            int energyA = (int)Math.Round(remaining * (countA / (double)(countA + countB)));
+            int energyB = remaining - energyA;
+
+            CardDef eDefA = CardDatabase.ByName[energyMap[typeA]];
+            CardDef eDefB = CardDatabase.ByName[energyMap[typeB]];
+            for (int i = 0; i < energyA; i++) deck.Add(eDefA);
+            for (int i = 0; i < energyB; i++) deck.Add(eDefB);
+
+            while (deck.Count < 60) deck.Add(eDefA);
+            return deck;
+        }
     }
 }

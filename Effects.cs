@@ -24,7 +24,12 @@ namespace PokeTCGPlay
         {
             if (text.Contains("Poisoned")) { target.Poisoned = true; g.Say($"  {target.Card.Name} queda Envenenado."); }
             var st = ParseStatus(text);
-            if (st != null) { target.Status = st.Value; g.Say($"  {target.Card.Name} queda {st}."); }
+            if (st != null)
+            {
+                target.Status = st.Value;
+                target.StatusTurns = st.Value == Status.Paralyzed ? 1 : 0;
+                g.Say($"  {target.Card.Name} queda {st}.");
+            }
         }
 
         public static void ResolveAttack(Game g, PlayerState p, PokemonInPlay a, AttackDef atk)
