@@ -1,0 +1,4 @@
+{
+  "_comentario": "Correcciones o cartas agregadas a mano. Cada objeto usa el mismo formato que cards.json; solo escribe los campos que quieras cambiar. Se identifica por 'id' (ej. base1-4) o por 'number'.",
+  "cards": []
+}

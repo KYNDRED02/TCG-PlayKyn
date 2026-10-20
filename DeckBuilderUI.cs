@@ -18,6 +18,10 @@ namespace PokeTCGPlay
         bool workbenchScreenVisible;
         bool openedStandalone;
         readonly List<CardDef> currentDeck = new List<CardDef>();
+        DeckDef deckDef = new DeckDef();
+        FormatDef format = new FormatDef();
+        List<string> deckNames = new List<string>();
+        string deckNameEdit = "";
         int filterSupertype = -1; // -1 = Todos, 0 = Pokémon, 1 = Trainer, 2 = Energy
         string filterType = "";
         Vector2 catalogScroll, deckScroll;
@@ -69,6 +73,7 @@ namespace PokeTCGPlay
 
         void OpenCommon()
         {
+            Collection.Invalidate();
             SpriteCache.EnsureInitialized();
             SpriteCache.PreloadFromEpl();
             LoadCurrentPlayerDeck();
@@ -93,36 +98,52 @@ namespace PokeTCGPlay
 
         void LoadCurrentPlayerDeck()
         {
+            deckNames = DeckStore.List();
+            LoadDeck(DeckStore.Active);
+        }
+
+        void LoadDeck(DeckDef d)
+        {
             currentDeck.Clear();
-            try
-            {
-                string p = Path.Combine(Plugin.DataDir, "decks", "player.txt");
-                if (File.Exists(p))
-                    currentDeck.AddRange(DeckLoader.Load(p));
-            }
-            catch (Exception e)
-            {
-                statusMsg = "Aviso al cargar mazo actual: " + e.Message;
-            }
+            deckDef = d ?? new DeckDef { Name = UniqueName("Mi mazo"), Format = FormatRegistry.Default.Id };
+            deckNameEdit = deckDef.Name;
+            format = FormatRegistry.Get(deckDef.Format) ?? FormatRegistry.Default;
+            var missing = new List<string>();
+            currentDeck.AddRange(deckDef.Resolve(missing));
+            if (missing.Count > 0) statusMsg = "<color=#ffd166>Cartas desconocidas ignoradas: " + string.Join(", ", missing) + "</color>";
+        }
+
+        string UniqueName(string baseName)
+        {
+            var names = new HashSet<string>(DeckStore.List(), StringComparer.OrdinalIgnoreCase);
+            string n = baseName; int i = 2;
+            while (names.Contains(n)) n = $"{baseName} {i++}";
+            return n;
         }
 
         void SaveCurrentPlayerDeck()
         {
-            if (currentDeck.Count != 60)
-            {
-                statusMsg = $"<color=#ff6b6b>El mazo tiene {currentDeck.Count}/60 cartas (debe tener exactamente 60).</color>";
-                return;
-            }
-            if (!currentDeck.Any(c => c.IsBasicPokemon))
-            {
-                statusMsg = "<color=#ff6b6b>El mazo debe incluir al menos 1 Pokémon Básico.</color>";
-                return;
-            }
             try
             {
-                string p = Path.Combine(Plugin.DataDir, "decks", "player.txt");
-                DeckLoader.Save(p, currentDeck);
-                statusMsg = "<color=#66ff99>¡Mazo de 60 cartas guardado correctamente en player.txt!</color>";
+                string newName = (deckNameEdit ?? "").Trim();
+                if (newName.Length == 0) { statusMsg = "<color=#ff6b6b>Escribe un nombre para el mazo.</color>"; return; }
+                if (!string.Equals(newName, deckDef.Name, StringComparison.Ordinal))
+                {
+                    if (DeckStore.List().Contains(newName, StringComparer.OrdinalIgnoreCase)) { statusMsg = "<color=#ff6b6b>Ya existe un mazo con ese nombre.</color>"; return; }
+                    DeckStore.Delete(deckDef.Name);
+                    deckDef.Name = newName;
+                }
+                deckDef.Format = format.Id;
+                deckDef.SetCards(currentDeck);
+                DeckStore.Save(deckDef);
+                deckNames = DeckStore.List();
+                var errors = DeckValidator.Validate(currentDeck, format);
+                if (errors.Count == 0)
+                {
+                    DeckStore.SetActive(deckDef.Name);
+                    statusMsg = $"<color=#66ff99>Mazo '{deckDef.Name}' guardado y seleccionado para jugar.</color>";
+                }
+                else statusMsg = $"<color=#ffd166>Guardado (incompleto, no se puede jugar aún): {errors[0]}</color>";
             }
             catch (Exception e)
             {
@@ -132,28 +153,26 @@ namespace PokeTCGPlay
 
         void AddCardToDeck(CardDef c)
         {
-            if (currentDeck.Count >= 60)
+            if (DeckValidator.RemainingAllowed(c, currentDeck, format) <= 0)
             {
-                statusMsg = "<color=#ffd166>Ya tienes 60 cartas en el mazo. Quita alguna antes de añadir más.</color>";
-                return;
-            }
-            int copies = currentDeck.Count(x => x.Number == c.Number);
-            if (!c.IsBasicEnergy && copies >= 4)
-            {
-                statusMsg = $"<color=#ffd166>Máximo 4 copias permitidas de {c.Name}.</color>";
+                int owned = Collection.Owned(c);
+                string why = currentDeck.Count >= format.DeckSize ? $"El mazo ya tiene {format.DeckSize} cartas."
+                    : owned != int.MaxValue && currentDeck.Count(x => x.Id == c.Id) >= owned ? $"Solo tienes {owned} copia(s) de {c.Name} en tu colección."
+                    : $"Máximo {format.MaxCopies} copias de {c.Name}.";
+                statusMsg = $"<color=#ffd166>{why}</color>";
                 return;
             }
             currentDeck.Add(c);
-            statusMsg = $"Añadido: {c.Name} ({copies + 1} en el mazo) — Total: {currentDeck.Count}/60";
+            statusMsg = $"Añadido: {c.Name} — Total: {currentDeck.Count}/{format.DeckSize}";
         }
 
         void RemoveCardFromDeck(CardDef c)
         {
-            int idx = currentDeck.FindLastIndex(x => x.Number == c.Number);
+            int idx = currentDeck.FindLastIndex(x => x.Id == c.Id);
             if (idx >= 0)
             {
                 currentDeck.RemoveAt(idx);
-                statusMsg = $"Quitado: {c.Name} — Total: {currentDeck.Count}/60";
+                statusMsg = $"Quitado: {c.Name} — Total: {currentDeck.Count}/{format.DeckSize}";
             }
         }
 
@@ -212,7 +231,7 @@ namespace PokeTCGPlay
             GUILayout.FlexibleSpace();
             GUILayout.Label(statusMsg, GameUI.SubHeaderStyle);
             GUILayout.Space(16);
-            if (GUILayout.Button("Guardar Mazo (60)", GameUI.BtnStyle, GUILayout.Width(170), GUILayout.Height(34)))
+            if (GUILayout.Button("Guardar Mazo", GameUI.BtnStyle, GUILayout.Width(150), GUILayout.Height(34)))
                 SaveCurrentPlayerDeck();
             GUILayout.Space(8);
             if (GUILayout.Button("Cerrar", GameUI.BtnStyle, GUILayout.Width(110), GUILayout.Height(34)))
@@ -224,7 +243,42 @@ namespace PokeTCGPlay
             }
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(8);
+            GUILayout.Space(6);
+
+            // Mazos y formato
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("<b>Mazo:</b>", GameUI.SubHeaderStyle, GUILayout.Width(50));
+            if (GUILayout.Button("◀", GameUI.BtnStyle, GUILayout.Width(30), GUILayout.Height(26))) CycleDeck(-1);
+            deckNameEdit = GUILayout.TextField(deckNameEdit ?? "", 40, GUILayout.Width(220), GUILayout.Height(26));
+            if (GUILayout.Button("▶", GameUI.BtnStyle, GUILayout.Width(30), GUILayout.Height(26))) CycleDeck(1);
+            GUILayout.Label($"({deckNames.Count} guardados{(string.Equals(Plugin.ActiveDeck?.Value, deckDef.Name, StringComparison.OrdinalIgnoreCase) ? ", <color=#80ed99>activo</color>" : "")})", GameUI.SubHeaderStyle, GUILayout.Width(150));
+            if (GUILayout.Button("Nuevo", GameUI.BtnStyle, GUILayout.Width(80), GUILayout.Height(26)))
+            {
+                LoadDeck(null);
+                statusMsg = "Nuevo mazo vacío. Pulsa 'Guardar Mazo' para conservarlo.";
+            }
+            if (GUILayout.Button("Duplicar", GameUI.BtnStyle, GUILayout.Width(90), GUILayout.Height(26)))
+            {
+                deckDef = new DeckDef { Name = UniqueName(deckDef.Name + " copia"), Format = format.Id };
+                deckNameEdit = deckDef.Name;
+                statusMsg = "Copia creada. Pulsa 'Guardar Mazo' para conservarla.";
+            }
+            if (GUILayout.Button("Borrar", GameUI.BtnStyle, GUILayout.Width(80), GUILayout.Height(26)))
+            {
+                DeckStore.Delete(deckDef.Name);
+                deckNames = DeckStore.List();
+                statusMsg = $"Mazo '{deckDef.Name}' borrado.";
+                LoadDeck(deckNames.Count > 0 ? DeckStore.Load(deckNames[0]) : null);
+            }
+            GUILayout.Space(24);
+            GUILayout.Label("<b>Formato:</b>", GameUI.SubHeaderStyle, GUILayout.Width(70));
+            foreach (var f in FormatRegistry.Formats)
+                if (FilterBtn(f.Name, f == format)) { format = f; statusMsg = $"Formato: {f.Name}. {f.Description}"; }
+            GUILayout.FlexibleSpace();
+            GUILayout.Label(Collection.Enforced ? "<color=#9ecbff>Solo cartas de tu colección</color>" : "<color=#ffd166>Colección sin restricción</color>", GameUI.SubHeaderStyle);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
 
             // Filtros
             GUILayout.BeginHorizontal();
@@ -241,12 +295,6 @@ namespace PokeTCGPlay
                 if (FilterBtn(tp, filterType == tp)) filterType = tp;
 
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Autogenerar Mazo Aleatorio", GameUI.BtnStyle, GUILayout.Width(220), GUILayout.Height(28)))
-            {
-                currentDeck.Clear();
-                currentDeck.AddRange(DeckLoader.GenerateRandomNpcDeck());
-                statusMsg = "<color=#9ecbff>Se ha generado un mazo equilibrado de 60 cartas. Pulsa 'Guardar Mazo' para conservarlo.</color>";
-            }
             if (GUILayout.Button("Vaciar Mazo", GameUI.BtnStyle, GUILayout.Width(120), GUILayout.Height(28)))
             {
                 currentDeck.Clear();
@@ -264,10 +312,15 @@ namespace PokeTCGPlay
 
             // --- Catálogo de Cartas ---
             GUILayout.BeginVertical(GUI.skin.box, GUILayout.Width(leftPanelW), GUILayout.ExpandHeight(true));
-            var filtered = CardDatabase.ByNumber.Values.Where(c =>
+            var filtered = CardDatabase.All.Where(c =>
+                c.IsPlayable && format.Allows(c) && Collection.Owned(c) > 0 &&
                 (filterSupertype == -1 || (int)c.Supertype == filterSupertype) &&
                 (string.IsNullOrEmpty(filterType) || c.Type == filterType || (c.Supertype == Supertype.Energy && c.EnergyProvides == filterType))
-            ).OrderBy(c => c.Number).ToList();
+            ).ToList();
+            if (filtered.Count == 0)
+                GUILayout.Label(Collection.Enforced
+                    ? "<color=#ffd166>No tienes cartas de este formato/filtro en tu colección. Abre sobres de las expansiones de MyCurio para conseguirlas.</color>"
+                    : "Sin cartas para este filtro.", GameUI.SubHeaderStyle);
 
             float cardW = 128f, cardH = 178f;
             int cols = Mathf.Max(1, (int)((leftPanelW - 40f) / (cardW + 12f)));
@@ -279,7 +332,9 @@ namespace PokeTCGPlay
                 for (int j = 0; j < cols && (i + j) < filtered.Count; j++)
                 {
                     var card = filtered[i + j];
-                    int countInDeck = currentDeck.Count(x => x.Number == card.Number);
+                    int countInDeck = currentDeck.Count(x => x.Id == card.Id);
+                    int owned = Collection.Owned(card);
+                    string ownedTxt = owned == int.MaxValue ? "∞" : owned.ToString();
                     GUILayout.BeginVertical(GUILayout.Width(cardW + 6));
                     Rect r = GUILayoutUtility.GetRect(cardW, cardH);
                     int click = GameUI.DrawCardWithInput(r, card, countInDeck > 0, zoomCard == null);
@@ -292,7 +347,7 @@ namespace PokeTCGPlay
                         zoomAnim = 0f;
                         zoomClosing = false;
                     }
-                    GUILayout.Label($"<b>#{card.Number} {card.Name}</b>\nEn mazo: <color=#80ed99><b>{countInDeck}</b></color>", GameUI.CardLabelStyle, GUILayout.Width(cardW));
+                    GUILayout.Label($"<b>{card.Name}</b> <color=#9ecbff>{card.Id}</color>\nEn mazo: <color=#80ed99><b>{countInDeck}</b></color> / Tienes: <b>{ownedTxt}</b>", GameUI.CardLabelStyle, GUILayout.Width(cardW));
                     GUILayout.EndVertical();
                     GUILayout.Space(6);
                 }
@@ -310,18 +365,20 @@ namespace PokeTCGPlay
             int nEvo = currentDeck.Count(c => c.Supertype == Supertype.Pokemon && !c.IsBasicPokemon);
             int nTr = currentDeck.Count(c => c.Supertype == Supertype.Trainer);
             int nEn = currentDeck.Count(c => c.Supertype == Supertype.Energy);
-            string colorCount = currentDeck.Count == 60 && nBasic > 0 ? "#80ed99" : "#ffd166";
-            GUILayout.Label($"<size=18><b>Tu Mazo: <color={colorCount}>{currentDeck.Count} / 60</color> cartas</b></size>", GameUI.HeaderStyle);
+            var errs = DeckValidator.Validate(currentDeck, format);
+            string colorCount = errs.Count == 0 ? "#80ed99" : "#ffd166";
+            GUILayout.Label($"<size=18><b>Tu Mazo: <color={colorCount}>{currentDeck.Count} / {format.DeckSize}</color> cartas</b></size>", GameUI.HeaderStyle);
             GUILayout.Label($"Básicos: <b>{nBasic}</b>  |  Evoluciones: <b>{nEvo}</b>  |  Entrenadores: <b>{nTr}</b>  |  Energías: <b>{nEn}</b>", GameUI.SubHeaderStyle);
+            GUILayout.Label(errs.Count == 0 ? "<color=#80ed99>✔ Mazo válido para jugar</color>" : $"<color=#ffd166>⚠ {errs[0]}{(errs.Count > 1 ? $" (+{errs.Count - 1})" : "")}</color>", GameUI.SubHeaderStyle);
             GUILayout.Space(6);
 
             deckScroll = GUILayout.BeginScrollView(deckScroll, GUILayout.ExpandHeight(true));
-            foreach (var grp in currentDeck.GroupBy(c => c.Number).OrderBy(g => g.First().Supertype).ThenBy(g => g.Key).ToList())
+            foreach (var grp in currentDeck.GroupBy(c => c.Id).OrderBy(g => g.First().Supertype).ThenBy(g => g.First().SetId).ThenBy(g => g.First().Number).ToList())
             {
                 var c = grp.First();
                 int qty = grp.Count();
                 GUILayout.BeginHorizontal(GUI.skin.box);
-                GUILayout.Label($"<b>{qty}x</b>  #{c.Number:000} {c.Name} <color=#9ecbff>({(c.Supertype == Supertype.Pokemon ? c.Stage : c.Supertype.ToString())})</color>", GameUI.SubHeaderStyle);
+                GUILayout.Label($"<b>{qty}x</b>  {c.Name} <color=#9ecbff>{c.Id} ({(c.Supertype == Supertype.Pokemon ? c.Stage : c.Supertype.ToString())})</color>", GameUI.SubHeaderStyle);
                 GUILayout.FlexibleSpace();
                 if (GUILayout.Button("?", GameUI.BtnStyle, GUILayout.Width(28), GUILayout.Height(24)))
                 {
@@ -348,6 +405,16 @@ namespace PokeTCGPlay
                 if (GameUI.DrawElevatedZoomOverlay(zoomCard, null, zoomOriginRect, zoomAnim))
                     zoomClosing = true;
             }
+        }
+
+        void CycleDeck(int dir)
+        {
+            deckNames = DeckStore.List();
+            if (deckNames.Count == 0) { statusMsg = "No hay mazos guardados."; return; }
+            int i = deckNames.FindIndex(n => string.Equals(n, deckDef.Name, StringComparison.OrdinalIgnoreCase));
+            i = ((i < 0 ? 0 : i + dir) % deckNames.Count + deckNames.Count) % deckNames.Count;
+            LoadDeck(DeckStore.Load(deckNames[i]));
+            statusMsg = $"Mazo cargado: {deckDef.Name}";
         }
 
         bool FilterBtn(string text, bool active)

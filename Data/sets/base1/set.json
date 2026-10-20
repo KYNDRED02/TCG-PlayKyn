@@ -1,0 +1,11 @@
+{
+  "id": "base1",
+  "name": "Base Set",
+  "order": 1,
+  "mycurioExpansion": "MyCurioPokemon-BS",
+  "spritePrefix": "BS-",
+  "spriteDigits": 3,
+  "effectsImplemented": true,
+  "cardsFile": "cards.json",
+  "overridesFile": "overrides.json"
+}

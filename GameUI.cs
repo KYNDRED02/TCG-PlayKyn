@@ -85,13 +85,17 @@ namespace PokeTCGPlay
                 SpriteCache.EnsureInitialized();
                 SpriteCache.PreloadFromEpl();
 
-                string playerDeckPath = Path.Combine(Plugin.DataDir, "decks", "player.txt");
-                List<CardDef> playerDeck = File.Exists(playerDeckPath)
-                    ? DeckLoader.Load(playerDeckPath)
-                    : DeckLoader.GenerateRandomNpcDeck();
+                var active = DeckStore.Active;
+                if (active == null) throw new Exception("No tienes un mazo. Créalo en la Mesa de Creación (Workbench).");
+                var format = FormatRegistry.Get(active.Format) ?? FormatRegistry.Default;
+                var missing = new List<string>();
+                List<CardDef> playerDeck = active.Resolve(missing);
+                var errors = DeckValidator.Validate(playerDeck, format);
+                if (missing.Count > 0) errors.Insert(0, $"Cartas desconocidas: {string.Join(", ", missing)}");
+                if (errors.Count > 0) throw new Exception($"Tu mazo '{active.Name}' no es válido: {errors[0]}");
 
-                // El mazo del NPC se genera aleatoriamente en cada partida
-                List<CardDef> npcDeck = DeckLoader.GenerateRandomNpcDeck();
+                // El mazo del NPC se genera aleatoriamente en cada partida, con el mismo formato
+                List<CardDef> npcDeck = DeckLoader.GenerateRandomNpcDeck(null, format);
 
                 flightQueue.Clear();
                 currentFlight = null;
@@ -117,6 +121,7 @@ namespace PokeTCGPlay
             catch (Exception e)
             {
                 message = e.Message;
+                ShowToast(e.Message, 6f);
                 Plugin.Log.LogError(e);
             }
         }

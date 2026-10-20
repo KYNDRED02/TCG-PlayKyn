@@ -1,0 +1,10 @@
+{
+  "Id": "unlimited",
+  "Name": "Unlimited",
+  "Description": "Todas las expansiones instaladas y jugables.",
+  "Sets": [ "*" ],
+  "Banned": [],
+  "DeckSize": 60,
+  "MaxCopies": 4,
+  "MinBasicPokemon": 1
+}

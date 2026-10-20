@@ -1,0 +1,10 @@
+{
+  "Id": "base1",
+  "Name": "Base Set",
+  "Description": "Solo cartas de Base Set, reglas clásicas.",
+  "Sets": [ "base1" ],
+  "Banned": [],
+  "DeckSize": 60,
+  "MaxCopies": 4,
+  "MinBasicPokemon": 1
+}

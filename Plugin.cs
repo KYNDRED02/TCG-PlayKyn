@@ -21,16 +21,27 @@ namespace PokeTCGPlay
         public static ManualLogSource Log;
         public static string DataDir;
         internal static ConfigEntry<KeyboardShortcut> ToggleKey;
+        internal static ConfigEntry<bool> RequireOwnedCards;
+        internal static ConfigEntry<bool> FreeBasicEnergy;
+        internal static ConfigEntry<string> DefaultFormat;
+        internal static ConfigEntry<string> ActiveDeck;
 
         void Awake()
         {
             Log = Logger;
             DataDir = Path.Combine(Path.GetDirectoryName(Info.Location), "Data");
             ToggleKey = Config.Bind("General", "DebugToggleKey", new KeyboardShortcut(KeyCode.F8), "Tecla opcional de depuración.");
+            RequireOwnedCards = Config.Bind("Coleccion", "RequireOwnedCards", true, "Solo permite usar en los mazos las cartas que tienes en tu álbum (obtenidas en sobres).");
+            FreeBasicEnergy = Config.Bind("Coleccion", "FreeBasicEnergy", true, "Las Energías Básicas no necesitan estar en tu colección.");
+            DefaultFormat = Config.Bind("Mazos", "DefaultFormat", "base1", "Formato por defecto (id de Data/formats/*.json).");
+            ActiveDeck = Config.Bind("Mazos", "ActiveDeck", "", "Nombre del mazo que usas al jugar.");
             try
             {
-                CardDatabase.Load(DataDir);
-                Log.LogInfo($"Cargadas {CardDatabase.ByNumber.Count} cartas; con sprite MyCurio: {CardDatabase.ByNumber.Values.Count(c => c.Sprite != null)}");
+                string pluginsDir = Path.GetDirectoryName(Path.GetDirectoryName(Info.Location));
+                CardDatabase.Load(DataDir, pluginsDir);
+                FormatRegistry.Load(DataDir);
+                DeckStore.MigrateLegacy(DataDir);
+                Log.LogInfo($"Cargadas {CardDatabase.All.Count} cartas de {CardDatabase.Sets.Count} expansiones; formatos: {string.Join(", ", FormatRegistry.Formats.Select(f => f.Name))}; mazos: {DeckStore.List().Count}");
             }
             catch (Exception e) { Log.LogError("Error cargando datos: " + e); }
 
@@ -135,79 +146,64 @@ namespace PokeTCGPlay
             }
         }
 
+        /// <summary>Bundle del reverso de carta: el de la primera expansión con MyCurio (Base Set).</summary>
         static string FindBundlePath()
         {
-            if (bundlePathSearched && !string.IsNullOrEmpty(bundlePath)) return bundlePath;
+            if (bundlePathSearched) return bundlePath;
             bundlePathSearched = true;
-            try
-            {
-                if (Epl.IsAvailable && Epl.Api?.BundleRegistry?.BundleInfo != null)
-                {
-                    foreach (var kv in Epl.Api.BundleRegistry.BundleInfo)
-                    {
-                        if (kv.Value != null &&
-                            (string.Equals(kv.Value.Name, "MyCurioPokemon-BS", StringComparison.OrdinalIgnoreCase) ||
-                             (kv.Value.BundlePath != null && kv.Value.BundlePath.IndexOf("base01", StringComparison.OrdinalIgnoreCase) >= 0)))
-                        {
-                            bundlePath = kv.Value.BundlePath;
-                            return bundlePath;
-                        }
-                    }
-                }
-            }
-            catch { }
-
-            try
-            {
-                string pluginsDir = Path.GetDirectoryName(Path.GetDirectoryName(Plugin.DataDir));
-                var files = Directory.GetFiles(pluginsDir, "mycurio-pokemon-base01", SearchOption.AllDirectories);
-                if (files.Length > 0) bundlePath = files[0];
-            }
-            catch { }
-            return bundlePath;
+            foreach (var s in CardDatabase.Sets)
+                if (!string.IsNullOrEmpty(s.MyCurioExpansion) && MyCurioIndex.Expansions.TryGetValue(s.MyCurioExpansion, out var e) && e.BundlePath != null)
+                    return bundlePath = e.BundlePath;
+            return bundlePath = MyCurioIndex.Expansions.Values.Select(e => e.BundlePath).FirstOrDefault(p => p != null);
         }
 
+        /// <summary>Precarga las imágenes de todas las cartas registradas, desde los bundles de MyCurio.</summary>
         public static void PreloadFromEpl()
         {
             LoadCustomTextures();
+            var requested = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                if (Enum.TryParse<ECardExpansionType>("MyCurioPokemon-BS", true, out var expType) && Epl.IsAvailable && Epl.Api?.Assets?.CardExpansions != null)
+                if (Epl.IsAvailable && Epl.Api?.Assets?.CardExpansions != null)
                 {
-                    var cb = Epl.Api.Assets.CardExpansions.GetCardExpansionCardBack(expType);
-                    if (cb != null && !string.IsNullOrEmpty(cb.BundlePath))
-                        RequestStreamingAsset(new StreamingAsset<Sprite>(cb.BundlePath, string.IsNullOrEmpty(cb.AssetName) ? "CardBack" : cb.AssetName));
-
-                    var dict = Epl.Api.Assets.CardExpansions.GetCardSprites(expType);
-                    if (dict != null && dict.Count > 0)
+                    bool backDone = false;
+                    foreach (var exKey in CardDatabase.Sets.Select(s => s.MyCurioExpansion).Where(x => !string.IsNullOrEmpty(x)).Distinct())
                     {
+                        if (!Collection.TryParseExpansion(exKey, out var expType)) continue;
+                        if (!backDone)
+                        {
+                            var cb = Epl.Api.Assets.CardExpansions.GetCardExpansionCardBack(expType);
+                            if (cb != null && !string.IsNullOrEmpty(cb.BundlePath))
+                            {
+                                RequestStreamingAsset(new StreamingAsset<Sprite>(cb.BundlePath, string.IsNullOrEmpty(cb.AssetName) ? "CardBack" : cb.AssetName), "CardBack");
+                                backDone = true;
+                            }
+                        }
+                        var dict = Epl.Api.Assets.CardExpansions.GetCardSprites(expType);
+                        if (dict == null) continue;
                         foreach (var kv in dict)
                         {
                             var sa = kv.Value;
-                            if (sa == null || string.IsNullOrEmpty(sa.AssetName)) continue;
+                            if (sa == null || string.IsNullOrEmpty(sa.AssetName) || !CardDatabase.SpriteBundle.ContainsKey(sa.AssetName)) continue;
                             RequestStreamingAsset(sa);
+                            requested.Add(sa.AssetName);
                         }
-                        return;
                     }
                 }
             }
-            catch { }
+            catch (Exception e) { Plugin.Log?.LogWarning("PreloadFromEpl: " + e.Message); }
 
-            string path = FindBundlePath();
-            if (!string.IsNullOrEmpty(path))
-            {
-                RequestStreamingAsset(new StreamingAsset<Sprite>(path, "CardBack"));
-                foreach (var c in CardDatabase.ByNumber.Values)
-                {
-                    if (!string.IsNullOrEmpty(c.Sprite))
-                        RequestStreamingAsset(new StreamingAsset<Sprite>(path, c.Sprite));
-                }
-            }
+            // Respaldo: pedir directamente al bundle de MyCurio lo que EPL no devolvió
+            string back = FindBundlePath();
+            if (!string.IsNullOrEmpty(back)) RequestStreamingAsset(new StreamingAsset<Sprite>(back, "CardBack"));
+            foreach (var kv in CardDatabase.SpriteBundle)
+                if (!requested.Contains(kv.Key))
+                    RequestStreamingAsset(new StreamingAsset<Sprite>(kv.Value, kv.Key));
         }
 
-        static void RequestStreamingAsset(StreamingAsset<Sprite> sa)
+        static void RequestStreamingAsset(StreamingAsset<Sprite> sa, string cacheKey = null)
         {
-            string key = sa?.AssetName;
+            string key = cacheKey ?? sa?.AssetName;
             if (string.IsNullOrEmpty(key)) return;
             if (cache.TryGetValue(key, out var existing) && existing != null && existing.texture != null) return;
             if (!pending.Add(key)) return;
@@ -242,11 +238,9 @@ namespace PokeTCGPlay
 
             EnsureInitialized();
 
-            string path = FindBundlePath();
+            string path = name == "CardBack" ? FindBundlePath() : (CardDatabase.SpriteBundle.TryGetValue(name, out var p) ? p : null);
             if (!string.IsNullOrEmpty(path) && !pending.Contains(name))
-            {
                 RequestStreamingAsset(new StreamingAsset<Sprite>(path, name));
-            }
             return null;
         }
 
