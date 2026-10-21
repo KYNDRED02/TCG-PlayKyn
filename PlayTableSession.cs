@@ -35,6 +35,30 @@ namespace PokeTCGPlay
             var ipc = CSingleton<InteractionPlayerController>.Instance;
             if (ipc == null) return;
 
+            // Validar mazo activo ANTES de sentar al jugador en la mesa (evita bloquear la cámara si el mazo es inválido)
+            SpriteCache.EnsureInitialized();
+            SpriteCache.PreloadFromEpl();
+            Collection.Invalidate();
+
+            var active = DeckStore.Active;
+            if (active == null)
+            {
+                GameUI.PlayClickSound(2);
+                GameUI.Instance?.ShowToast("No tienes un mazo activo. Abre la Mesa de Creación (Workbench) para crearlo.", 5.5f);
+                return;
+            }
+            var format = FormatRegistry.Get(active.Format) ?? FormatRegistry.Default;
+            var missing = new System.Collections.Generic.List<string>();
+            var playerDeck = active.Resolve(missing);
+            var errors = DeckValidator.Validate(playerDeck, format);
+            if (missing.Count > 0) errors.Insert(0, $"Cartas desconocidas: {string.Join(", ", missing)}");
+            if (errors.Count > 0)
+            {
+                GameUI.PlayClickSound(2);
+                GameUI.Instance?.ShowToast($"Tu mazo '{active.Name}' no es válido: {errors[0]} — Edítalo en la Workbench.", 6.5f);
+                return;
+            }
+
             Vector3 playerPos = ipc.m_PlayerCollider != null ? ipc.m_PlayerCollider.transform.position : ipc.transform.position;
             float d0 = Vector3.Distance(playerPos, table.GetSitLoc(0).position);
             float d1 = Vector3.Distance(playerPos, table.GetSitLoc(1).position);
@@ -66,8 +90,8 @@ namespace PokeTCGPlay
             SpriteCache.EnsureInitialized();
             SpriteCache.PreloadFromEpl();
 
-            // Mostrar el tapete en la mesa 3D con la textura de nuestro Playmat
-            ApplyPlaymatOn3DTable(table, seat);
+            // F1: Montar el Playmat 3D y todos los anclajes sobre la superficie real de la mesa
+            TableView.Instance?.AttachToTable(table, seat);
 
             Transform sitLoc = table.GetSitLoc(seat);
             Transform oppSitLoc = table.GetSitLoc(1 - seat);
@@ -122,21 +146,32 @@ namespace PokeTCGPlay
             if (topDownLookTarget == null)
                 topDownLookTarget = new GameObject("PokeTCG_TopDownLookTarget").transform;
 
-            Vector3 sitA = table.GetSitLoc(seat).position;
-            Vector3 sitB = table.GetSitLoc(1 - seat).position;
-            Vector3 center = (sitA + sitB) * 0.5f;
-            Vector3 toCenter = (center - sitA).normalized;
-
-            // Posicionar la cámara justo encima de la mesa mirando verticalmente hacia el centro de la mesa física
-            Vector3 tableSurface = new Vector3(center.x, table.transform.position.y + 0.78f, center.z);
-            topDownCamLoc.position = tableSurface + Vector3.up * 1.42f - toCenter * 0.08f;
-            topDownLookTarget.position = tableSurface + toCenter * 0.02f;
+            var tv = TableView.Instance;
+            if (tv != null && tv.PlaymatRoot != null)
+            {
+                Vector3 matCenter = tv.PlaymatRoot.position + Vector3.up * TableView.MatThickness;
+                Vector3 forward = tv.PlaymatRoot.forward;
+                // Cámara cenital ligeramente inclinada (~87°) para encuadrar el Playmat 3D completo y ver la madera de la mesa
+                topDownCamLoc.position = matCenter + Vector3.up * 1.16f - forward * 0.05f;
+                topDownCamLoc.rotation = Quaternion.LookRotation((matCenter - topDownCamLoc.position).normalized, forward);
+                topDownLookTarget.position = matCenter + forward * 0.01f;
+            }
+            else
+            {
+                Vector3 sitA = table.GetSitLoc(seat).position;
+                Vector3 sitB = table.GetSitLoc(1 - seat).position;
+                Vector3 center = (sitA + sitB) * 0.5f;
+                Vector3 toCenter = (center - sitA).normalized;
+                Vector3 tableSurface = new Vector3(center.x, table.transform.position.y + 0.785f, center.z);
+                topDownCamLoc.position = tableSurface + Vector3.up * 1.18f - toCenter * 0.05f;
+                topDownLookTarget.position = tableSurface + toCenter * 0.01f;
+            }
 
             ipc.SetCameraWorldPositionTarget(topDownCamLoc);
-            ipc.StartAimLookAt(topDownLookTarget, 8f, 0f);
+            ipc.StartAimLookAt(topDownLookTarget, 7.5f, 0f);
             ipc.m_IsPlayingTopDownGameMode = true;
             if (ipc.m_CameraFOVController != null)
-                ipc.m_CameraFOVController.StartLerpToFOV(42f);
+                ipc.m_CameraFOVController.StartLerpToFOV(40f);
         }
 
         public static void OnOpponentSeated(Customer npc)
@@ -151,7 +186,13 @@ namespace PokeTCGPlay
             CurrentTable.m_CurrentPlayTimeMax = 99999f;
             npc.PlayTableGameStarted();
 
-            ApplyPlaymatOn3DTable(CurrentTable, 1 - PlayerSeat);
+            if (TableView.Instance != null)
+            {
+                if (TableView.Instance.Table != CurrentTable)
+                    TableView.Instance.AttachToTable(CurrentTable, PlayerSeat);
+                else
+                    TableView.Instance.HideDefaultTableMats();
+            }
             EnterTopDownTableCamera(CurrentTable, PlayerSeat);
 
             GameUI.Instance?.StartTableMatch(npc);
@@ -215,6 +256,8 @@ namespace PokeTCGPlay
             PlayerSeat = -1;
             CurrentOpponent = null;
 
+            TableView.Instance?.DetachFromTable();
+
             if (table != null && seat >= 0)
             {
                 if (opp != null)
@@ -265,13 +308,18 @@ namespace PokeTCGPlay
         }
 
         [HarmonyPatch(typeof(InteractablePlayTable), nameof(InteractablePlayTable.CustomerHasReached))]
-        [HarmonyPostfix]
-        public static void CustomerHasReached_Postfix(InteractablePlayTable __instance, Customer customer, int seatIndex)
+        [HarmonyFinalizer]
+        public static Exception CustomerHasReached_Finalizer(Exception __exception, InteractablePlayTable __instance, Customer customer, int seatIndex)
         {
-            if (PlayTableSession.CurrentTable == __instance && seatIndex != PlayTableSession.PlayerSeat && customer != null)
+            if (PlayTableSession.CurrentTable == __instance)
             {
-                PlayTableSession.OnOpponentSeated(customer);
+                if (seatIndex != PlayTableSession.PlayerSeat && customer != null)
+                {
+                    PlayTableSession.OnOpponentSeated(customer);
+                }
+                return null;
             }
+            return __exception;
         }
 
         [HarmonyPatch(typeof(InteractablePlayTable), "StopTableGame")]
@@ -328,6 +376,139 @@ namespace PokeTCGPlay
         {
             if (DeckBuilderUI.Instance != null)
                 DeckBuilderUI.Instance.OnWorkbenchScreenClosed();
+        }
+    }
+
+    /// <summary>
+    /// Parche de compatibilidad automática con PlayTableVariety:
+    /// 1) Evita que LoadTextureFromBundle bloquee el AssetBundle en EPL de forma asíncrona antes de llamar a AssetBundle.LoadFromFile (lo que generaba atlas en negro de 20,547 bytes).
+    /// 2) Asegura que los materiales de atlas creados en el menú principal sin MAT_PlayCard cargado usen iluminación limpia y no se vean negros en las mesas de los NPC.
+    /// </summary>
+    public static class PlayTableVarietyCompat
+    {
+        static FieldInfo fOpenedBakeBundles;
+
+        public static void Apply(Harmony h)
+        {
+            try
+            {
+                var ptvType = AccessTools.TypeByName("PlayTableVariety.PlayTableVarietyPlugin");
+                if (ptvType == null) return;
+
+                fOpenedBakeBundles = AccessTools.Field(ptvType, "s_OpenedBakeBundles");
+
+                var mLoadTex = AccessTools.Method(ptvType, "LoadTextureFromBundle");
+                if (mLoadTex != null)
+                {
+                    h.Patch(mLoadTex, prefix: new HarmonyMethod(typeof(PlayTableVarietyCompat), nameof(LoadTextureFromBundle_Prefix)));
+                }
+
+                var mBuildMat = AccessTools.Method(ptvType, "BuildAtlasMaterial");
+                if (mBuildMat != null)
+                {
+                    h.Patch(mBuildMat, postfix: new HarmonyMethod(typeof(PlayTableVarietyCompat), nameof(BuildAtlasMaterial_Postfix)));
+                }
+
+                Plugin.Log?.LogInfo("Compatibilidad con PlayTableVariety activada (corrección de carga de bundles y materiales en mesas NPC).");
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning("PlayTableVarietyCompat: " + e.Message);
+            }
+        }
+
+        public static bool LoadTextureFromBundle_Prefix(string bundlePath, string assetName, ref Texture2D __result)
+        {
+            __result = null;
+            if (string.IsNullOrEmpty(bundlePath) || string.IsNullOrEmpty(assetName)) return false;
+
+            try
+            {
+                var dict = fOpenedBakeBundles?.GetValue(null) as System.Collections.Generic.Dictionary<string, AssetBundle>;
+                AssetBundle bundle = null;
+
+                if (dict != null && dict.TryGetValue(bundlePath, out var cached) && cached != null)
+                {
+                    bundle = cached;
+                }
+                else
+                {
+                    string fileNoExt = System.IO.Path.GetFileNameWithoutExtension(bundlePath);
+                    string fileName = System.IO.Path.GetFileName(bundlePath);
+                    foreach (var b in AssetBundle.GetAllLoadedAssetBundles())
+                    {
+                        if (b == null) continue;
+                        if (string.Equals(b.name, fileNoExt, StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(b.name, fileName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            bundle = b;
+                            break;
+                        }
+                    }
+
+                    if (bundle == null && System.IO.File.Exists(bundlePath))
+                    {
+                        bundle = AssetBundle.LoadFromFile(bundlePath);
+                        if (bundle != null && dict != null)
+                            dict[bundlePath] = bundle;
+                    }
+                }
+
+                if (bundle == null) return false;
+
+                var sp = bundle.LoadAsset<Sprite>(assetName);
+                if (sp != null && sp.texture != null)
+                {
+                    __result = BlitReadable(sp.texture, sp.rect);
+                    return false;
+                }
+
+                var tex = bundle.LoadAsset<Texture2D>(assetName);
+                if (tex != null)
+                {
+                    __result = BlitReadable(tex, new Rect(0, 0, tex.width, tex.height));
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning($"PlayTableVarietyCompat.LoadTextureFromBundle [{assetName}]: {e.Message}");
+            }
+            return false;
+        }
+
+        static Texture2D BlitReadable(Texture2D src, Rect rect)
+        {
+            int w = Mathf.Max(1, Mathf.RoundToInt(rect.width));
+            int h = Mathf.RoundToInt(rect.height) > 0 ? Mathf.RoundToInt(rect.height) : src.height;
+            RenderTexture rt = RenderTexture.GetTemporary(src.width, src.height, 0, RenderTextureFormat.Default, RenderTextureReadWrite.Default);
+            Graphics.Blit(src, rt);
+            RenderTexture prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var readable = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            int rx = Mathf.Clamp(Mathf.RoundToInt(rect.x), 0, Math.Max(0, src.width - w));
+            int ry = Mathf.Clamp(src.height - Mathf.RoundToInt(rect.y) - h, 0, Math.Max(0, src.height - h));
+            readable.ReadPixels(new Rect(rx, ry, w, h), 0, 0);
+            readable.Apply();
+            RenderTexture.active = prev;
+            RenderTexture.ReleaseTemporary(rt);
+            return readable;
+        }
+
+        public static void BuildAtlasMaterial_Postfix(ref Material __result)
+        {
+            if (__result == null) return;
+            try
+            {
+                Texture mainTex = __result.mainTexture;
+                // Si el material se creó en la pantalla de título con Toony Colors Pro 2 sin rampa inicializada, asegurar colores claros o shader limpio
+                if (__result.HasProperty("_Color")) __result.SetColor("_Color", Color.white);
+                if (__result.HasProperty("_BaseColor")) __result.SetColor("_BaseColor", Color.white);
+                if (__result.HasProperty("_HColor")) __result.SetColor("_HColor", Color.white);
+                if (__result.HasProperty("_SColor")) __result.SetColor("_SColor", new Color(0.78f, 0.78f, 0.82f, 1f));
+                if (mainTex != null) __result.mainTexture = mainTex;
+            }
+            catch { }
         }
     }
 }

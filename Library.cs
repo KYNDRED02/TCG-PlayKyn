@@ -86,15 +86,17 @@ namespace PokeTCGPlay
             if (mapBuilt) return;
             if (!Epl.IsAvailable || Epl.Api == null || !Epl.Api.IsBundleLoadingComplete) return;
             mapBuilt = true;
-            foreach (var exKey in CardDatabase.Sets.Select(s => s.MyCurioExpansion).Where(x => !string.IsNullOrEmpty(x)).Distinct())
+            var allExpKeys = CardDatabase.Sets.Select(s => s.MyCurioExpansion)
+                .Concat(MyCurioIndex.Expansions.Keys)
+                .Where(x => !string.IsNullOrEmpty(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var exKey in allExpKeys)
             {
                 try
                 {
                     if (!TryParseExpansion(exKey, out var exp))
-                    {
-                        Plugin.Log?.LogWarning($"Colección: no se encontró el enum ECardExpansionType para '{exKey}'.");
                         continue;
-                    }
                     var dict = Epl.Api.Assets.CardExpansions.GetCardSprites(exp);
                     if (dict == null) continue;
                     foreach (var kv in dict)
@@ -114,22 +116,22 @@ namespace PokeTCGPlay
             float now = UnityEngine.Time.realtimeSinceStartup;
             if (now - cacheTime > 3f) { cache.Clear(); cacheTime = now; }
             if (cache.TryGetValue(c.Id, out int v)) return v;
-            v = ReadOwned(c);
+            v = ReadOwnedBySprite(c.Sprite, c.MyCurioBorder, c.MyCurioFoil);
             cache[c.Id] = v;
             return v;
         }
 
-        static int ReadOwned(CardDef c)
+        public static int ReadOwnedBySprite(string sprite, string borderName = "Base", bool isFoil = false)
         {
             try
             {
                 BuildMap();
-                if (string.IsNullOrEmpty(c.Sprite) || !spriteMap.TryGetValue(c.Sprite, out var key)) return 0;
+                if (string.IsNullOrEmpty(sprite) || !spriteMap.TryGetValue(sprite, out var key)) return 0;
 
                 int total = 0;
                 var seenSaveIndices = new HashSet<int>();
-                var cd = new CardData { expansionType = key.Key, monsterType = key.Value, isFoil = c.MyCurioFoil };
-                if (Enum.TryParse<ECardBorderType>(c.MyCurioBorder ?? "Base", true, out var border)) cd.borderType = border;
+                var cd = new CardData { expansionType = key.Key, monsterType = key.Value, isFoil = isFoil };
+                if (Enum.TryParse<ECardBorderType>(borderName ?? "Base", true, out var border)) cd.borderType = border;
 
                 void AccumulateVariant(CardData variant)
                 {
@@ -191,7 +193,7 @@ namespace PokeTCGPlay
             }
             catch (Exception e)
             {
-                Plugin.Log?.LogWarning($"ReadOwned({c?.Id}): {e.Message}");
+                Plugin.Log?.LogWarning($"ReadOwnedBySprite({sprite}): {e.Message}");
                 return 0;
             }
         }
@@ -341,6 +343,302 @@ namespace PokeTCGPlay
             int byOwned = owned == int.MaxValue ? int.MaxValue : owned - deck.Count(x => x.Id == c.Id);
             int bySize = format.DeckSize - deck.Count;
             return Math.Max(0, Math.Min(byRule, Math.Min(byOwned, bySize)));
+        }
+    }
+
+    // ───────────────────────────── Importador PTCGO / PTCG Live (.txt en vivo) ─────────────────────────────
+
+    public class MissingCardReportItem
+    {
+        public string CardName;
+        public string RequestedSetCode;
+        public string RequestedNumber;
+        public int Wanted;
+        public int Owned;
+        public int Missing => Math.Max(0, Wanted - Owned);
+        public string ExpansionWhereToFind;
+        public bool InstalledInMyCurio;
+        public bool RulesReadyInMod;
+        public string Note;
+    }
+
+    public class PtcgoImportReport
+    {
+        public string FileName;
+        public string SuggestedDeckName;
+        public int TotalRequestedCards;
+        public readonly List<CardDef> ResolvedPlayableCards = new List<CardDef>();
+        public readonly List<MissingCardReportItem> MissingOrUnavailable = new List<MissingCardReportItem>();
+        public readonly List<MissingCardReportItem> AllParsedItems = new List<MissingCardReportItem>();
+    }
+
+    /// <summary>
+    /// Importador de mazos en formato texto de PTCGO / PTCG Live sin reiniciar el juego.
+    /// Funciona igual que Phone Overhaul: abre la carpeta de importación en Windows Explorer,
+    /// pegas tus archivos .txt y al abrir/actualizar en la Workbench se detectan al instante.
+    /// </summary>
+    public static class PtcgoImporter
+    {
+        public static string ImportDir => Path.Combine(BepInEx.Paths.ConfigPath, "PokeTCGPlay", "import");
+
+        public static void EnsureFolderExists()
+        {
+            try
+            {
+                Directory.CreateDirectory(ImportDir);
+            }
+            catch { }
+        }
+
+        public static void OpenImportFolder()
+        {
+            try
+            {
+                EnsureFolderExists();
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"\"{ImportDir}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning("No se pudo abrir la carpeta de importación: " + e.Message);
+            }
+        }
+
+        public static List<string> ListTxtFiles()
+        {
+            EnsureFolderExists();
+            if (!Directory.Exists(ImportDir)) return new List<string>();
+            return Directory.GetFiles(ImportDir, "*.txt", SearchOption.TopDirectoryOnly)
+                .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        static readonly System.Text.RegularExpressions.Regex RxSectionHeader =
+            new System.Text.RegularExpressions.Regex(@"^(Pok[eé]mon|Trainer|Entrenador|Energy|Energ[ií]a|Total\s+Cards)\s*[:\-]",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        // Formato PTCGO / PTCG Live: "3 Buneary PFL 83" o "* 2 Mega Lopunny ex PFL 84" o "2 Basic Fire Energy SVE 10"
+        static readonly System.Text.RegularExpressions.Regex RxPtcgoLine =
+            new System.Text.RegularExpressions.Regex(@"^\*?\s*(\d+)\s*x?\s+(.+?)\s+([A-Za-z0-9\-]{2,7})\s+([A-Za-z0-9\-]+)\s*$");
+
+        static readonly System.Text.RegularExpressions.Regex RxSimpleCountLine =
+            new System.Text.RegularExpressions.Regex(@"^\*?\s*(\d+)\s*x?\s+(.+?)\s*$");
+
+        static string MapBasicEnergyName(string rawName)
+        {
+            if (string.IsNullOrWhiteSpace(rawName)) return rawName;
+            string n = rawName.Trim();
+            // PTCG Live exporta "Basic Fire Energy" o "Basic {R} Energy"
+            if (n.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase) && n.EndsWith(" Energy", StringComparison.OrdinalIgnoreCase))
+            {
+                n = n.Substring(6).Trim();
+            }
+            return n;
+        }
+
+        public static PtcgoImportReport ImportFromFile(string filePath)
+        {
+            Collection.Invalidate();
+            var report = new PtcgoImportReport
+            {
+                FileName = Path.GetFileName(filePath),
+                SuggestedDeckName = Path.GetFileNameWithoutExtension(filePath)
+            };
+            if (!File.Exists(filePath)) return report;
+
+            string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
+            foreach (string rawLine in lines)
+            {
+                string line = (rawLine ?? "").Trim();
+                if (line.Length == 0 || line.StartsWith("#") || line.StartsWith("//")) continue;
+                if (RxSectionHeader.IsMatch(line)) continue;
+
+                int count = 0;
+                string cardName = null;
+                string setCode = "";
+                string colNumStr = "";
+
+                var m = RxPtcgoLine.Match(line);
+                if (m.Success)
+                {
+                    int.TryParse(m.Groups[1].Value, out count);
+                    cardName = m.Groups[2].Value.Trim();
+                    setCode = m.Groups[3].Value.Trim();
+                    colNumStr = m.Groups[4].Value.Trim();
+                }
+                else
+                {
+                    var m2 = RxSimpleCountLine.Match(line);
+                    if (m2.Success)
+                    {
+                        int.TryParse(m2.Groups[1].Value, out count);
+                        cardName = m2.Groups[2].Value.Trim();
+                    }
+                }
+
+                if (count <= 0 || string.IsNullOrEmpty(cardName)) continue;
+                report.TotalRequestedCards += count;
+
+                string lookupName = MapBasicEnergyName(cardName);
+                int.TryParse(System.Text.RegularExpressions.Regex.Match(colNumStr ?? "", @"\d+").Value, out int colNum);
+
+                // 1) Buscar en MyCurio (tanto por código de expansión + número como por nombre en todas las expansiones instaladas)
+                var exactMcEntry = MyCurioIndex.FindEntryBySetAndNumber(setCode, colNum);
+                var allMcEntries = MyCurioIndex.FindEntriesByName(lookupName);
+                if (exactMcEntry != null && !allMcEntries.Any(e => string.Equals(e.Sprite, exactMcEntry.Sprite, StringComparison.OrdinalIgnoreCase)))
+                    allMcEntries.Insert(0, exactMcEntry);
+
+                // 2) Buscar en CardDatabase (cartas con reglas en el mod)
+                CardDef matchedDef = null;
+                if (!string.IsNullOrEmpty(setCode) && colNum > 0)
+                {
+                    string tryId = $"{setCode.ToLowerInvariant()}-{colNum}";
+                    CardDatabase.ById.TryGetValue(tryId, out matchedDef);
+                    if (matchedDef == null && exactMcEntry != null)
+                        matchedDef = CardDatabase.All.FirstOrDefault(c => string.Equals(c.Sprite, exactMcEntry.Sprite, StringComparison.OrdinalIgnoreCase));
+                }
+                if (matchedDef == null)
+                {
+                    CardDatabase.ByName.TryGetValue(lookupName, out matchedDef);
+                    if (matchedDef == null)
+                        matchedDef = CardDatabase.All.FirstOrDefault(c =>
+                            string.Equals(MyCurioIndex.NormalizeName(c.Name), MyCurioIndex.NormalizeName(lookupName), StringComparison.OrdinalIgnoreCase));
+                }
+
+                // 3) Calcular cuántas copias tiene el jugador en su colección
+                int owned = 0;
+                if (matchedDef != null && matchedDef.IsBasicEnergy && Collection.FreeBasicEnergy)
+                {
+                    owned = int.MaxValue;
+                }
+                else
+                {
+                    var countedSprites = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    if (matchedDef != null && !string.IsNullOrEmpty(matchedDef.Sprite) && countedSprites.Add(matchedDef.Sprite))
+                        owned += Collection.ReadOwnedBySprite(matchedDef.Sprite, matchedDef.MyCurioBorder, matchedDef.MyCurioFoil);
+                    foreach (var mcEntry in allMcEntries)
+                    {
+                        if (countedSprites.Add(mcEntry.Sprite))
+                            owned += Collection.ReadOwnedBySprite(mcEntry.Sprite, mcEntry.Border, mcEntry.Foil);
+                    }
+                }
+
+                // 4) Determinar en qué expansión(es) se puede conseguir esta carta
+                bool inMyCurio = allMcEntries.Count > 0 || (matchedDef != null && matchedDef.HasMyCurioArt);
+                string whereToFind;
+                if (matchedDef != null && matchedDef.IsBasicEnergy && Collection.FreeBasicEnergy)
+                {
+                    whereToFind = "Energía Básica (Incluida gratis por defecto)";
+                    inMyCurio = true;
+                }
+                else if (allMcEntries.Count > 0)
+                {
+                    var groupedByExp = allMcEntries
+                        .GroupBy(e => e.ExpansionName)
+                        .Select(g => $"{g.Key} ({string.Join(", ", g.Select(x => x.Sprite).Distinct())})");
+                    whereToFind = "Sobres MyCurio: " + string.Join(" | ", groupedByExp);
+                }
+                else
+                {
+                    string origSetName = (!string.IsNullOrEmpty(setCode) && MyCurioIndex.PtcgoCodeNames.TryGetValue(setCode, out string sn))
+                        ? $"{sn} [{setCode}]"
+                        : (!string.IsNullOrEmpty(setCode) ? setCode : "Expansión desconocida");
+                    whereToFind = $"No instalada en tus mods de MyCurio (Set original: {origSetName})";
+                }
+
+                bool rulesReady = matchedDef != null && matchedDef.IsPlayable;
+                string note = "";
+                if (matchedDef == null)
+                    note = inMyCurio ? "Arte disponible en MyCurio (falta agregar sus datos de juego en Data/sets)" : "Expansión no instalada";
+                else if (!matchedDef.IsPlayable)
+                    note = matchedDef.UnsupportedReason;
+
+                var item = new MissingCardReportItem
+                {
+                    CardName = cardName,
+                    RequestedSetCode = setCode,
+                    RequestedNumber = colNumStr,
+                    Wanted = count,
+                    Owned = owned,
+                    ExpansionWhereToFind = whereToFind,
+                    InstalledInMyCurio = inMyCurio,
+                    RulesReadyInMod = rulesReady,
+                    Note = note
+                };
+                report.AllParsedItems.Add(item);
+
+                if (owned < count || !rulesReady)
+                {
+                    report.MissingOrUnavailable.Add(item);
+                }
+
+                // Añadir al mazo las copias que tengan definición en CardDatabase
+                if (matchedDef != null)
+                {
+                    for (int i = 0; i < count; i++)
+                        report.ResolvedPlayableCards.Add(matchedDef);
+                }
+            }
+
+            return report;
+        }
+
+        /// <summary>Analiza el mazo actual en el editor y devuelve las cartas que faltan en la colección y en qué sobres salen.</summary>
+        public static PtcgoImportReport AnalyzeDeck(string deckName, IEnumerable<CardDef> deck)
+        {
+            Collection.Invalidate();
+            var report = new PtcgoImportReport
+            {
+                FileName = deckName,
+                SuggestedDeckName = deckName
+            };
+            foreach (var grp in deck.GroupBy(c => c.Id))
+            {
+                var c = grp.First();
+                int count = grp.Count();
+                report.TotalRequestedCards += count;
+
+                int owned = Collection.Owned(c);
+                var allMcEntries = MyCurioIndex.FindEntriesByName(c.Name);
+                string whereToFind;
+                if (c.IsBasicEnergy && Collection.FreeBasicEnergy)
+                {
+                    whereToFind = "Energía Básica (Incluida gratis)";
+                }
+                else if (allMcEntries.Count > 0)
+                {
+                    var groupedByExp = allMcEntries
+                        .GroupBy(e => e.ExpansionName)
+                        .Select(g => $"{g.Key} ({string.Join(", ", g.Select(x => x.Sprite).Distinct())})");
+                    whereToFind = "Sobres MyCurio: " + string.Join(" | ", groupedByExp);
+                }
+                else
+                {
+                    var setDef = CardDatabase.GetSet(c.SetId);
+                    whereToFind = setDef != null ? $"Sobres MyCurio: {setDef.Name} ({c.Sprite})" : c.SetId;
+                }
+
+                var item = new MissingCardReportItem
+                {
+                    CardName = c.Name,
+                    RequestedSetCode = c.SetId.ToUpperInvariant(),
+                    RequestedNumber = c.NumberText,
+                    Wanted = count,
+                    Owned = owned,
+                    ExpansionWhereToFind = whereToFind,
+                    InstalledInMyCurio = c.HasMyCurioArt || allMcEntries.Count > 0,
+                    RulesReadyInMod = c.IsPlayable,
+                    Note = c.UnsupportedReason
+                };
+                report.AllParsedItems.Add(item);
+                if (owned < count || !c.IsPlayable)
+                    report.MissingOrUnavailable.Add(item);
+            }
+            return report;
         }
     }
 }

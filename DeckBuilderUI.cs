@@ -33,6 +33,13 @@ namespace PokeTCGPlay
         float zoomAnim; // 0..1
         bool zoomClosing;
 
+        // Importador en vivo de archivos .txt estilo PTCGO / PTCG Live y Reporte de Faltantes
+        bool showImportModal;
+        List<string> importTxtFiles = new List<string>();
+        PtcgoImportReport lastImportReport;
+        Vector2 importFilesScroll;
+        Vector2 importReportScroll;
+
         void Awake()
         {
             Instance = this;
@@ -76,6 +83,7 @@ namespace PokeTCGPlay
             Collection.Invalidate();
             SpriteCache.EnsureInitialized();
             SpriteCache.PreloadFromEpl();
+            importTxtFiles = PtcgoImporter.ListTxtFiles();
             LoadCurrentPlayerDeck();
             zoomCard = null;
             zoomAnim = 0f;
@@ -88,6 +96,7 @@ namespace PokeTCGPlay
         {
             IsOpen = false;
             zoomCard = null;
+            showImportModal = false;
             if (openedStandalone)
             {
                 openedStandalone = false;
@@ -196,6 +205,7 @@ namespace PokeTCGPlay
             if (Input.GetKeyDown(KeyCode.Escape))
             {
                 if (zoomCard != null) zoomClosing = true;
+                else if (showImportModal) showImportModal = false;
                 else CloseBuilder();
             }
         }
@@ -205,12 +215,13 @@ namespace PokeTCGPlay
             GameUI.EnsureStyles();
             GUI.depth = -1100;
 
-            // Si el jugador abrió la Mesa de Creación del juego (WorkbenchUIScreen), mostrar botón superior para abrir el creador de mazos Pokémon
+            // Si el jugador abrió la Mesa de Creación del juego (WorkbenchUIScreen), mostrar botón en la esquina superior derecha para no cubrir el texto de la workbench
             if (workbenchScreenVisible && !IsOpen)
             {
-                Rect btnRect = new Rect((Screen.width - 360f) * 0.5f, 18f, 360f, 44f);
-                if (GUI.Button(btnRect, "⚡ Armar Mazo Pokémon TCG (60 cartas)", GameUI.BtnStyle))
+                Rect btnRect = new Rect(Screen.width - 350f - 24f, 20f, 350f, 44f);
+                if (GUI.Button(btnRect, "⚡ Editar Mazo Pokémon TCG", GameUI.BtnGoldStyle))
                 {
+                    GameUI.PlayClickSound(1);
                     OpenCommon();
                 }
                 return;
@@ -231,11 +242,15 @@ namespace PokeTCGPlay
             GUILayout.FlexibleSpace();
             GUILayout.Label(statusMsg, GameUI.SubHeaderStyle);
             GUILayout.Space(16);
-            if (GUILayout.Button("Guardar Mazo", GameUI.BtnStyle, GUILayout.Width(150), GUILayout.Height(34)))
-                SaveCurrentPlayerDeck();
-            GUILayout.Space(8);
-            if (GUILayout.Button("Cerrar", GameUI.BtnStyle, GUILayout.Width(110), GUILayout.Height(34)))
+            if (GUILayout.Button("✔ Guardar Mazo", GameUI.BtnGreenStyle, GUILayout.Width(160), GUILayout.Height(36)))
             {
+                GameUI.PlayClickSound(1);
+                SaveCurrentPlayerDeck();
+            }
+            GUILayout.Space(8);
+            if (GUILayout.Button("✖ Cerrar", GameUI.BtnRedStyle, GUILayout.Width(115), GUILayout.Height(36)))
+            {
+                GameUI.PlayClickSound(2);
                 CloseBuilder();
                 GUILayout.EndHorizontal();
                 GUILayout.EndArea();
@@ -246,42 +261,66 @@ namespace PokeTCGPlay
             GUILayout.Space(6);
 
             // Mazos y formato
-            GUILayout.BeginHorizontal();
+            GUILayout.BeginHorizontal(GameUI.SubBoxStyle);
             GUILayout.Label("<b>Mazo:</b>", GameUI.SubHeaderStyle, GUILayout.Width(50));
-            if (GUILayout.Button("◀", GameUI.BtnStyle, GUILayout.Width(30), GUILayout.Height(26))) CycleDeck(-1);
-            deckNameEdit = GUILayout.TextField(deckNameEdit ?? "", 40, GUILayout.Width(220), GUILayout.Height(26));
-            if (GUILayout.Button("▶", GameUI.BtnStyle, GUILayout.Width(30), GUILayout.Height(26))) CycleDeck(1);
+            if (GUILayout.Button("◀", GameUI.BtnStyle, GUILayout.Width(32), GUILayout.Height(28))) { GameUI.PlayClickSound(0); CycleDeck(-1); }
+            deckNameEdit = GUILayout.TextField(deckNameEdit ?? "", 40, GameUI.InputFieldStyle, GUILayout.Width(220), GUILayout.Height(28));
+            if (GUILayout.Button("▶", GameUI.BtnStyle, GUILayout.Width(32), GUILayout.Height(28))) { GameUI.PlayClickSound(0); CycleDeck(1); }
             GUILayout.Label($"({deckNames.Count} guardados{(string.Equals(Plugin.ActiveDeck?.Value, deckDef.Name, StringComparison.OrdinalIgnoreCase) ? ", <color=#80ed99>activo</color>" : "")})", GameUI.SubHeaderStyle, GUILayout.Width(150));
-            if (GUILayout.Button("Nuevo", GameUI.BtnStyle, GUILayout.Width(80), GUILayout.Height(26)))
+            if (GUILayout.Button("Nuevo", GameUI.BtnStyle, GUILayout.Width(85), GUILayout.Height(28)))
             {
+                GameUI.PlayClickSound(0);
                 LoadDeck(null);
                 statusMsg = "Nuevo mazo vacío. Pulsa 'Guardar Mazo' para conservarlo.";
             }
-            if (GUILayout.Button("Duplicar", GameUI.BtnStyle, GUILayout.Width(90), GUILayout.Height(26)))
+            if (GUILayout.Button("Duplicar", GameUI.BtnStyle, GUILayout.Width(95), GUILayout.Height(28)))
             {
+                GameUI.PlayClickSound(0);
                 deckDef = new DeckDef { Name = UniqueName(deckDef.Name + " copia"), Format = format.Id };
                 deckNameEdit = deckDef.Name;
                 statusMsg = "Copia creada. Pulsa 'Guardar Mazo' para conservarla.";
             }
-            if (GUILayout.Button("Borrar", GameUI.BtnStyle, GUILayout.Width(80), GUILayout.Height(26)))
+            if (GUILayout.Button("Borrar", GameUI.BtnRedStyle, GUILayout.Width(80), GUILayout.Height(28)))
             {
+                GameUI.PlayClickSound(2);
                 DeckStore.Delete(deckDef.Name);
                 deckNames = DeckStore.List();
                 statusMsg = $"Mazo '{deckDef.Name}' borrado.";
                 LoadDeck(deckNames.Count > 0 ? DeckStore.Load(deckNames[0]) : null);
             }
-            GUILayout.Space(24);
-            GUILayout.Label("<b>Formato:</b>", GameUI.SubHeaderStyle, GUILayout.Width(70));
+            GUILayout.Space(8);
+            if (GUILayout.Button($"📥 Importar .txt ({importTxtFiles.Count})", GameUI.BtnGoldStyle, GUILayout.Width(165), GUILayout.Height(28)))
+            {
+                GameUI.PlayClickSound(1);
+                importTxtFiles = PtcgoImporter.ListTxtFiles();
+                if (lastImportReport == null)
+                    lastImportReport = PtcgoImporter.AnalyzeDeck(deckDef.Name, currentDeck);
+                showImportModal = !showImportModal;
+            }
+            if (GUILayout.Button("📂 Carpeta .txt", GameUI.BtnStyle, GUILayout.Width(130), GUILayout.Height(28)))
+            {
+                GameUI.PlayClickSound(0);
+                PtcgoImporter.OpenImportFolder();
+                statusMsg = "Carpeta de importación abierta en Windows. Pega tus .txt ahí y reabre/refresca.";
+            }
+            if (GUILayout.Button("📋 Ver Faltantes", GameUI.BtnStyle, GUILayout.Width(135), GUILayout.Height(28)))
+            {
+                GameUI.PlayClickSound(0);
+                importTxtFiles = PtcgoImporter.ListTxtFiles();
+                lastImportReport = PtcgoImporter.AnalyzeDeck(deckDef.Name, currentDeck);
+                showImportModal = true;
+            }
+            GUILayout.Space(12);
+            GUILayout.Label("<b>Formato:</b>", GameUI.SubHeaderStyle, GUILayout.Width(65));
             foreach (var f in FormatRegistry.Formats)
                 if (FilterBtn(f.Name, f == format)) { format = f; statusMsg = $"Formato: {f.Name}. {f.Description}"; }
             GUILayout.FlexibleSpace();
-            GUILayout.Label(Collection.Enforced ? "<color=#9ecbff>Solo cartas de tu colección</color>" : "<color=#ffd166>Colección sin restricción</color>", GameUI.SubHeaderStyle);
             GUILayout.EndHorizontal();
 
             GUILayout.Space(6);
 
             // Filtros
-            GUILayout.BeginHorizontal();
+            GUILayout.BeginHorizontal(GameUI.SubBoxStyle);
             GUILayout.Label("<b>Categoría:</b>", GameUI.SubHeaderStyle, GUILayout.Width(80));
             if (FilterBtn("Todas", filterSupertype == -1)) filterSupertype = -1;
             if (FilterBtn("Pokémon", filterSupertype == 0)) filterSupertype = 0;
@@ -295,8 +334,19 @@ namespace PokeTCGPlay
                 if (FilterBtn(tp, filterType == tp)) filterType = tp;
 
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Vaciar Mazo", GameUI.BtnStyle, GUILayout.Width(120), GUILayout.Height(28)))
+            if (GUILayout.Button("🧹 Quitar no poseídas", GameUI.BtnStyle, GUILayout.Width(165), GUILayout.Height(28)))
             {
+                GameUI.PlayClickSound(0);
+                RemoveInvalidFromDeck();
+            }
+            if (GUILayout.Button("⚡ Autocompletar (Mis Cartas)", GameUI.BtnGoldStyle, GUILayout.Width(215), GUILayout.Height(28)))
+            {
+                GameUI.PlayClickSound(1);
+                AutoFillFromCollection();
+            }
+            if (GUILayout.Button("Vaciar Mazo", GameUI.BtnRedStyle, GUILayout.Width(115), GUILayout.Height(28)))
+            {
+                GameUI.PlayClickSound(2);
                 currentDeck.Clear();
                 statusMsg = "Mazo vaciado.";
             }
@@ -311,7 +361,7 @@ namespace PokeTCGPlay
             float leftPanelW = win.width - 36f - rightPanelW - 16f;
 
             // --- Catálogo de Cartas ---
-            GUILayout.BeginVertical(GUI.skin.box, GUILayout.Width(leftPanelW), GUILayout.ExpandHeight(true));
+            GUILayout.BeginVertical(GameUI.SubBoxStyle, GUILayout.Width(leftPanelW), GUILayout.ExpandHeight(true));
             var filtered = CardDatabase.All.Where(c =>
                 c.IsPlayable && format.Allows(c) && Collection.Owned(c) > 0 &&
                 (filterSupertype == -1 || (int)c.Supertype == filterSupertype) &&
@@ -360,7 +410,7 @@ namespace PokeTCGPlay
             GUILayout.Space(12);
 
             // --- Lista del Mazo Actual ---
-            GUILayout.BeginVertical(GUI.skin.box, GUILayout.Width(rightPanelW), GUILayout.ExpandHeight(true));
+            GUILayout.BeginVertical(GameUI.SubBoxStyle, GUILayout.Width(rightPanelW), GUILayout.ExpandHeight(true));
             int nBasic = currentDeck.Count(c => c.IsBasicPokemon);
             int nEvo = currentDeck.Count(c => c.Supertype == Supertype.Pokemon && !c.IsBasicPokemon);
             int nTr = currentDeck.Count(c => c.Supertype == Supertype.Trainer);
@@ -377,20 +427,27 @@ namespace PokeTCGPlay
             {
                 var c = grp.First();
                 int qty = grp.Count();
-                GUILayout.BeginHorizontal(GUI.skin.box);
+                GUILayout.BeginHorizontal(GameUI.SubBoxStyle);
                 GUILayout.Label($"<b>{qty}x</b>  {c.Name} <color=#9ecbff>{c.Id} ({(c.Supertype == Supertype.Pokemon ? c.Stage : c.Supertype.ToString())})</color>", GameUI.SubHeaderStyle);
                 GUILayout.FlexibleSpace();
-                if (GUILayout.Button("?", GameUI.BtnStyle, GUILayout.Width(28), GUILayout.Height(24)))
+                if (GUILayout.Button("?", GameUI.BtnStyle, GUILayout.Width(30), GUILayout.Height(26)))
                 {
+                    GameUI.PlayClickSound(0);
                     zoomOriginRect = new Rect(Screen.width * 0.7f, Screen.height * 0.5f, 120f, 168f);
                     zoomCard = c;
                     zoomAnim = 0f;
                     zoomClosing = false;
                 }
-                if (GUILayout.Button("-", GameUI.BtnStyle, GUILayout.Width(28), GUILayout.Height(24)))
+                if (GUILayout.Button("-", GameUI.BtnRedStyle, GUILayout.Width(30), GUILayout.Height(26)))
+                {
+                    GameUI.PlayClickSound(0);
                     RemoveCardFromDeck(c);
-                if (GUILayout.Button("+", GameUI.BtnStyle, GUILayout.Width(28), GUILayout.Height(24)))
+                }
+                if (GUILayout.Button("+", GameUI.BtnGreenStyle, GUILayout.Width(30), GUILayout.Height(26)))
+                {
+                    GameUI.PlayClickSound(0);
                     AddCardToDeck(c);
+                }
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndScrollView();
@@ -399,12 +456,265 @@ namespace PokeTCGPlay
             GUILayout.EndHorizontal();
             GUILayout.EndArea();
 
+            // Modal de Importación .txt estilo PTCGO / PTCG Live + Reporte de Cartas Faltantes y Expansiones
+            if (showImportModal)
+            {
+                DrawImportAndMissingModal(win);
+            }
+
             // Zoom elevado con animación
             if (zoomCard != null)
             {
                 if (GameUI.DrawElevatedZoomOverlay(zoomCard, null, zoomOriginRect, zoomAnim))
                     zoomClosing = true;
             }
+        }
+
+        void DrawImportAndMissingModal(Rect parentWin)
+        {
+            float mw = Mathf.Min(parentWin.width - 60f, 1340f);
+            float mh = Mathf.Min(parentWin.height - 60f, 820f);
+            Rect mRect = new Rect((Screen.width - mw) * 0.5f, (Screen.height - mh) * 0.5f, mw, mh);
+            GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "");
+            GUI.Box(mRect, "", GameUI.BoxBgStyle);
+
+            GUILayout.BeginArea(new Rect(mRect.x + 18, mRect.y + 14, mRect.width - 36, mRect.height - 28));
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("<size=20><b>📥 Importador de Mazos (.txt PTCGO / PTCG Live) y Buscador de Expansiones</b></size>", GameUI.HeaderStyle);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("📂 Abrir Carpeta .txt", GameUI.BtnGoldStyle, GUILayout.Width(175), GUILayout.Height(34)))
+            {
+                GameUI.PlayClickSound(0);
+                PtcgoImporter.OpenImportFolder();
+            }
+            GUILayout.Space(6);
+            if (GUILayout.Button("🔄 Refrescar Carpeta", GameUI.BtnStyle, GUILayout.Width(165), GUILayout.Height(34)))
+            {
+                GameUI.PlayClickSound(0);
+                importTxtFiles = PtcgoImporter.ListTxtFiles();
+                Collection.Invalidate();
+                if (lastImportReport != null && !string.IsNullOrEmpty(lastImportReport.FileName))
+                {
+                    string p = Path.Combine(PtcgoImporter.ImportDir, lastImportReport.FileName);
+                    if (File.Exists(p)) lastImportReport = PtcgoImporter.ImportFromFile(p);
+                    else lastImportReport = PtcgoImporter.AnalyzeDeck(deckDef.Name, currentDeck);
+                }
+            }
+            GUILayout.Space(6);
+            if (GUILayout.Button("✖ Cerrar Ventana", GameUI.BtnRedStyle, GUILayout.Width(145), GUILayout.Height(34)))
+            {
+                GameUI.PlayClickSound(2);
+                showImportModal = false;
+                GUILayout.EndHorizontal();
+                GUILayout.EndArea();
+                return;
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(4);
+            GUILayout.Label($"<color=#9ecbff>Carpeta en vivo (sin cerrar el juego):</color> <b>{PtcgoImporter.ImportDir}</b> — Pega tus archivos <b>.txt</b> ahí y al reabrir o pulsar Refrescar aparecerán aquí.", GameUI.SubHeaderStyle);
+            GUILayout.Space(8);
+
+            GUILayout.BeginHorizontal();
+
+            // Columna izquierda: archivos .txt detectados en la carpeta
+            float leftW = 360f;
+            GUILayout.BeginVertical(GameUI.SubBoxStyle, GUILayout.Width(leftW), GUILayout.ExpandHeight(true));
+            GUILayout.Label($"<size=16><b>Archivos .txt detectados ({importTxtFiles.Count})</b></size>", GameUI.HeaderStyle);
+            GUILayout.Space(4);
+            if (GUILayout.Button("📋 Analizar mi mazo actual", GameUI.BtnStyle, GUILayout.Height(30)))
+            {
+                GameUI.PlayClickSound(0);
+                lastImportReport = PtcgoImporter.AnalyzeDeck(deckDef.Name, currentDeck);
+            }
+            GUILayout.Space(6);
+
+            importFilesScroll = GUILayout.BeginScrollView(importFilesScroll, GUILayout.ExpandHeight(true));
+            if (importTxtFiles.Count == 0)
+            {
+                GUILayout.Label("<color=#ffd166>No hay archivos .txt en la carpeta todavía.\n\nPulsa '📂 Abrir Carpeta .txt', pega tu archivo (ej. mega_lopunny-deck.txt) y pulsa '🔄 Refrescar Carpeta' o cierra y vuelve a abrir la Workbench.</color>", GameUI.SubHeaderStyle);
+            }
+            else
+            {
+                foreach (var file in importTxtFiles)
+                {
+                    string fname = Path.GetFileName(file);
+                    GUILayout.BeginHorizontal(GameUI.SubBoxStyle);
+                    GUILayout.Label($"<b>{fname}</b>", GameUI.SubHeaderStyle, GUILayout.Width(205));
+                    if (GUILayout.Button("📥 Importar", GameUI.BtnGreenStyle, GUILayout.Height(28)))
+                    {
+                        GameUI.PlayClickSound(1);
+                        ImportTxtFile(file);
+                    }
+                    GUILayout.EndHorizontal();
+                }
+            }
+            GUILayout.EndScrollView();
+            GUILayout.EndVertical();
+
+            GUILayout.Space(12);
+
+            // Columna derecha: Reporte detallado de cartas faltantes y en qué expansión de MyCurio salen
+            GUILayout.BeginVertical(GameUI.SubBoxStyle, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+            if (lastImportReport == null)
+            {
+                GUILayout.Label("Selecciona un archivo <b>.txt</b> a la izquierda para importarlo y ver qué cartas te faltan y en qué sobres de MyCurio se consiguen.", GameUI.SubHeaderStyle);
+            }
+            else
+            {
+                int missEntries = lastImportReport.MissingOrUnavailable.Count;
+                int totalMissingCopies = lastImportReport.MissingOrUnavailable.Sum(x => x.Missing);
+                GUILayout.Label($"<size=17><b>Reporte de Mazo: {lastImportReport.FileName}</b> ({lastImportReport.TotalRequestedCards} cartas en lista)</size>", GameUI.HeaderStyle);
+                if (missEntries == 0)
+                {
+                    GUILayout.Label("<color=#80ed99><b>✔ ¡Tienes todas las cartas necesarias en tu colección y están listas para jugar!</b></color>", GameUI.SubHeaderStyle);
+                }
+                else
+                {
+                    GUILayout.Label($"<color=#ffd166><b>⚠ Te faltan {totalMissingCopies} copia(s) en tu colección (o requieren otra expansión) en {missEntries} entrada(s):</b></color>", GameUI.SubHeaderStyle);
+                }
+                GUILayout.Space(6);
+
+                importReportScroll = GUILayout.BeginScrollView(importReportScroll, GUILayout.ExpandHeight(true));
+                foreach (var item in lastImportReport.AllParsedItems)
+                {
+                    bool enoughOwned = item.Owned >= item.Wanted;
+                    string ownedStr = item.Owned == int.MaxValue ? "∞" : item.Owned.ToString();
+                    string codeTag = !string.IsNullOrEmpty(item.RequestedSetCode)
+                        ? $" <color=#9ecbff>[{item.RequestedSetCode} {item.RequestedNumber}]</color>"
+                        : "";
+
+                    string statusBadge;
+                    if (!enoughOwned)
+                        statusBadge = $"<color=#ff6b6b><b>Te faltan {item.Missing}</b> (tienes {ownedStr} / pide {item.Wanted})</color>";
+                    else
+                        statusBadge = $"<color=#80ed99><b>Tienes {ownedStr}/{item.Wanted}</b></color>";
+
+                    if (!item.RulesReadyInMod && !string.IsNullOrEmpty(item.Note))
+                        statusBadge += $"   <color=#ffd166>[{item.Note}]</color>";
+
+                    string expColor = item.InstalledInMyCurio ? "#9ecbff" : "#ffd166";
+
+                    GUILayout.BeginVertical(GameUI.SubBoxStyle);
+                    GUILayout.Label($"<b>{item.Wanted}x {item.CardName}</b>{codeTag}   —   {statusBadge}", GameUI.SubHeaderStyle);
+                    GUILayout.Label($"   📦 <color={expColor}><b>Dónde conseguirla:</b> {item.ExpansionWhereToFind}</color>", GameUI.CardLabelStyle);
+                    GUILayout.EndVertical();
+                    GUILayout.Space(3);
+                }
+                GUILayout.EndScrollView();
+            }
+            GUILayout.EndVertical();
+
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+        }
+
+        void ImportTxtFile(string filePath)
+        {
+            lastImportReport = PtcgoImporter.ImportFromFile(filePath);
+            currentDeck.Clear();
+            currentDeck.AddRange(lastImportReport.ResolvedPlayableCards);
+            string baseName = string.IsNullOrWhiteSpace(lastImportReport.SuggestedDeckName) ? "Mazo importado" : lastImportReport.SuggestedDeckName;
+            deckDef = new DeckDef { Name = UniqueName(baseName), Format = format.Id };
+            deckNameEdit = deckDef.Name;
+
+            int miss = lastImportReport.MissingOrUnavailable.Sum(x => x.Missing);
+            if (miss == 0 && lastImportReport.MissingOrUnavailable.Count == 0)
+                statusMsg = $"<color=#80ed99>Mazo '{deckDef.Name}' importado completo ({currentDeck.Count} cartas). Pulsa '✔ Guardar Mazo'.</color>";
+            else
+                statusMsg = $"<color=#ffd166>Importado '{deckDef.Name}': revisa en el reporte qué cartas te faltan y en qué sobres salen.</color>";
+        }
+
+        void RemoveInvalidFromDeck()
+        {
+            Collection.Invalidate();
+            var valid = new List<CardDef>();
+            int removed = 0;
+            foreach (var c in currentDeck)
+            {
+                if (DeckValidator.RemainingAllowed(c, valid, format) > 0)
+                    valid.Add(c);
+                else
+                    removed++;
+            }
+            currentDeck.Clear();
+            currentDeck.AddRange(valid);
+            statusMsg = removed > 0
+                ? $"<color=#80ed99>Se quitaron {removed} cartas que no tienes o exceden el límite ({currentDeck.Count}/{format.DeckSize}).</color>"
+                : "Todas las cartas actuales del mazo están en tu colección.";
+        }
+
+        void AutoFillFromCollection()
+        {
+            RemoveInvalidFromDeck();
+            var pool = CardDatabase.All.Where(c => c.IsPlayable && format.Allows(c) && Collection.Owned(c) > 0).ToList();
+
+            // 1. Añadir Pokémon Básicos que el jugador posea (hasta ~16 Pokémon básicos)
+            var basics = pool.Where(c => c.IsBasicPokemon).OrderByDescending(c => c.Hp).ToList();
+            foreach (var b in basics)
+            {
+                if (currentDeck.Count(x => x.IsBasicPokemon) >= 16 || currentDeck.Count >= format.DeckSize) break;
+                while (DeckValidator.RemainingAllowed(b, currentDeck, format) > 0 &&
+                       currentDeck.Count(x => x.IsBasicPokemon) < 16 &&
+                       currentDeck.Count < format.DeckSize)
+                {
+                    currentDeck.Add(b);
+                }
+            }
+
+            // 2. Añadir Evoluciones cuyas pre-evoluciones estén en el mazo
+            for (int pass = 0; pass < 2; pass++)
+            {
+                var evos = pool.Where(c => c.Supertype == Supertype.Pokemon && !c.IsBasicPokemon).ToList();
+                foreach (var evo in evos)
+                {
+                    if (currentDeck.Count(x => x.Supertype == Supertype.Pokemon) >= 22 || currentDeck.Count >= format.DeckSize) break;
+                    if (!currentDeck.Any(x => string.Equals(x.Name, evo.EvolvesFrom, StringComparison.OrdinalIgnoreCase))) continue;
+                    while (DeckValidator.RemainingAllowed(evo, currentDeck, format) > 0 &&
+                           currentDeck.Count(x => x.Supertype == Supertype.Pokemon) < 22 &&
+                           currentDeck.Count < format.DeckSize)
+                    {
+                        currentDeck.Add(evo);
+                    }
+                }
+            }
+
+            // 3. Añadir Entrenadores que posea el jugador (hasta ~14 entrenadores)
+            var trainers = pool.Where(c => c.Supertype == Supertype.Trainer).ToList();
+            foreach (var tr in trainers)
+            {
+                if (currentDeck.Count(x => x.Supertype == Supertype.Trainer) >= 14 || currentDeck.Count >= format.DeckSize) break;
+                while (DeckValidator.RemainingAllowed(tr, currentDeck, format) > 0 &&
+                       currentDeck.Count(x => x.Supertype == Supertype.Trainer) < 14 &&
+                       currentDeck.Count < format.DeckSize)
+                {
+                    currentDeck.Add(tr);
+                }
+            }
+
+            // 4. Completar hasta 60 cartas con Energías Básicas de los tipos de los Pokémon del mazo
+            var pokeTypes = currentDeck.Where(c => c.Supertype == Supertype.Pokemon && !string.IsNullOrEmpty(c.Type) && c.Type != "Colorless")
+                                       .Select(c => c.Type)
+                                       .Distinct()
+                                       .ToList();
+            var basicEnergies = pool.Where(c => c.IsBasicEnergy && pokeTypes.Contains(c.EnergyProvides)).ToList();
+            if (basicEnergies.Count == 0)
+                basicEnergies = pool.Where(c => c.IsBasicEnergy).ToList();
+
+            int eIdx = 0;
+            while (currentDeck.Count < format.DeckSize && basicEnergies.Count > 0 && eIdx < 200)
+            {
+                var en = basicEnergies[eIdx % basicEnergies.Count];
+                if (DeckValidator.RemainingAllowed(en, currentDeck, format) > 0)
+                    currentDeck.Add(en);
+                eIdx++;
+            }
+
+            if (currentDeck.Count == format.DeckSize && currentDeck.Any(c => c.IsBasicPokemon))
+                statusMsg = "<color=#80ed99>⚡ Mazo completado a 60 cartas con tu colección. Pulsa '✔ Guardar Mazo'.</color>";
+            else
+                statusMsg = "<color=#ffd166>Abre al menos 1 sobre para tener un Pokémon Básico en tu colección.</color>";
         }
 
         void CycleDeck(int dir)
@@ -419,10 +729,8 @@ namespace PokeTCGPlay
 
         bool FilterBtn(string text, bool active)
         {
-            Color prev = GUI.backgroundColor;
-            if (active) GUI.backgroundColor = new Color(0.3f, 0.85f, 0.55f);
-            bool clicked = GUILayout.Button(text, GameUI.BtnStyle, GUILayout.Height(26));
-            GUI.backgroundColor = prev;
+            bool clicked = GUILayout.Button(text, active ? GameUI.BtnGoldStyle : GameUI.BtnStyle, GUILayout.Height(28));
+            if (clicked) GameUI.PlayClickSound(0);
             return clicked;
         }
     }

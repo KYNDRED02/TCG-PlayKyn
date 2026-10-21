@@ -50,10 +50,13 @@ namespace PokeTCGPlay
                 var h = new Harmony(GUID);
                 h.PatchAll(typeof(PlayTablePatches));
                 h.PatchAll(typeof(WorkbenchPatches));
+                PlayTableVarietyCompat.Apply(h);
                 Log.LogInfo("Parches de Mesa de Juego y Mesa de Creación (Workbench) aplicados.");
             }
             catch (Exception e) { Log.LogError("Error aplicando parches Harmony: " + e); }
 
+            gameObject.AddComponent<TableView>();
+            gameObject.AddComponent<BoardAnimator>();
             gameObject.AddComponent<GameUI>();
             gameObject.AddComponent<DeckBuilderUI>();
         }

@@ -85,14 +85,130 @@ namespace PokeTCGPlay
     /// </summary>
     public static class MyCurioIndex
     {
-        public class Entry { public string Name, Sprite, Border, Rarity; public bool Foil; }
+        public class Entry { public string Name, Sprite, Border, Rarity, ExpansionKey, ExpansionName; public bool Foil; }
         public class Expansion
         {
-            public string Key, Name, JsonPath, BundlePath, CardBackSprite;
+            public string Key, Name, JsonPath, BundlePath, CardBackSprite, SpritePrefix;
             public readonly Dictionary<string, Entry> BySprite = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+            public readonly List<Entry> AllEntries = new List<Entry>();
         }
 
         public static readonly Dictionary<string, Expansion> Expansions = new Dictionary<string, Expansion>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Mapeo de códigos PTCGO / PTCG Live a claves de expansión de MyCurio.</summary>
+        public static readonly Dictionary<string, string> PtcgoCodeToMyCurio = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "BS", "MyCurioPokemon-BS" }, { "BS1", "MyCurioPokemon-BS" }, { "BASE", "MyCurioPokemon-BS" }, { "BASE1", "MyCurioPokemon-BS" },
+            { "JU", "MyCurioPokemon-JU" }, { "JNG", "MyCurioPokemon-JU" }, { "BASE2", "MyCurioPokemon-JU" },
+            { "FO", "MyCurioPokemon-FO" }, { "FOS", "MyCurioPokemon-FO" }, { "BASE3", "MyCurioPokemon-FO" },
+            { "B2", "MyCurioPokemon-B2" }, { "BS2", "MyCurioPokemon-B2" }, { "BASE4", "MyCurioPokemon-B2" },
+            { "TR", "MyCurioPokemon-TR" }, { "RO", "MyCurioPokemon-TR" }, { "BASE5", "MyCurioPokemon-TR" },
+            { "G1", "MyCurioPokemon-G1" }, { "GYH", "MyCurioPokemon-G1" }, { "GYM1", "MyCurioPokemon-G1" },
+            { "G2", "MyCurioPokemon-G2" }, { "GYC", "MyCurioPokemon-G2" }, { "GYM2", "MyCurioPokemon-G2" },
+            { "MEG", "MyCurioPokemon-ME01" }, { "ME01", "MyCurioPokemon-ME01" }, { "ME1", "MyCurioPokemon-ME01" },
+            { "PFL", "MyCurioPokemon-ME02" }, { "ME02", "MyCurioPokemon-ME02" }, { "ME2", "MyCurioPokemon-ME02" },
+            { "ASC", "MyCurioPokemon-ME025" }, { "ME025", "MyCurioPokemon-ME025" }, { "ME2.5", "MyCurioPokemon-ME025" },
+            { "POR", "MyCurioPokemon-ME03" }, { "ME03", "MyCurioPokemon-ME03" }, { "ME3", "MyCurioPokemon-ME03" },
+            { "CRI", "MyCurioPokemon-ME04" }, { "ME04", "MyCurioPokemon-ME04" }, { "ME4", "MyCurioPokemon-ME04" },
+            { "PBL", "MyCurioPokemon-ME05" }, { "ME05", "MyCurioPokemon-ME05" }, { "ME5", "MyCurioPokemon-ME05" },
+            { "30C", "MyCurioPokemon-ME30TH" }, { "ME30TH", "MyCurioPokemon-ME30TH" }, { "30TH", "MyCurioPokemon-ME30TH" },
+            { "MEP", "MyCurioPokemon-MEP" }
+        };
+
+        /// <summary>Nombres legibles de códigos PTCGO/PTCG Live para informar al usuario en qué expansión sale una carta.</summary>
+        public static readonly Dictionary<string, string> PtcgoCodeNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "BS", "Base Set" }, { "BS1", "Base Set" }, { "BASE1", "Base Set" },
+            { "JU", "Jungle" }, { "JNG", "Jungle" },
+            { "FO", "Fossil" }, { "FOS", "Fossil" },
+            { "B2", "Base Set 2" }, { "BS2", "Base Set 2" },
+            { "TR", "Team Rocket" }, { "RO", "Team Rocket" },
+            { "G1", "Gym Heroes" }, { "GYH", "Gym Heroes" },
+            { "G2", "Gym Challenge" }, { "GYC", "Gym Challenge" },
+            { "MEG", "Mega Evolution (MyCurio ME01)" },
+            { "PFL", "Phantasmal Flames (MyCurio ME02)" },
+            { "ASC", "Ascended Heroes (MyCurio ME025)" },
+            { "POR", "Perfect Order (MyCurio ME03)" },
+            { "CRI", "Chaos Rising (MyCurio ME04)" },
+            { "PBL", "Pitch Black (MyCurio ME05)" },
+            { "30C", "30th Celebration (MyCurio ME30TH)" },
+            { "MEP", "MEP Black Star Promos (MyCurio MEP)" },
+            { "TEF", "Temporal Forces" },
+            { "JTG", "Journey Together" },
+            { "SCR", "Stellar Crown" },
+            { "WHT", "White Flare" },
+            { "BLK", "Black Bolt" },
+            { "SSP", "Surging Sparks" },
+            { "PRE", "Prismatic Evolutions" },
+            { "SVI", "Scarlet & Violet" },
+            { "PAL", "Paldea Evolved" },
+            { "OBF", "Obsidian Flames" },
+            { "MEW", "Pokémon 151" },
+            { "PAR", "Paradox Rift" },
+            { "PAF", "Paldean Fates" },
+            { "TWM", "Twilight Masquerade" },
+            { "SFA", "Shrouded Fable" },
+            { "SVE", "Scarlet & Violet Basic Energy" }
+        };
+
+        public static string NormalizeName(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return "";
+            string norm = s.Trim()
+                .Replace("é", "e").Replace("É", "E")
+                .Replace("’", "'").Replace("`", "'");
+            return norm;
+        }
+
+        public static Expansion ResolvePtcgoExpansion(string ptcgoCode)
+        {
+            if (string.IsNullOrWhiteSpace(ptcgoCode)) return null;
+            if (PtcgoCodeToMyCurio.TryGetValue(ptcgoCode.Trim(), out string mcKey) && Expansions.TryGetValue(mcKey, out var exp))
+                return exp;
+            if (Expansions.TryGetValue(ptcgoCode.Trim(), out var direct))
+                return direct;
+            if (Expansions.TryGetValue("MyCurioPokemon-" + ptcgoCode.Trim(), out var pref))
+                return pref;
+            return null;
+        }
+
+        public static Entry FindEntryBySetAndNumber(string ptcgoCode, int number)
+        {
+            var exp = ResolvePtcgoExpansion(ptcgoCode);
+            if (exp == null || number <= 0) return null;
+            string prefix = exp.SpritePrefix ?? "";
+            string sp3 = $"{prefix}{number:D3}";
+            if (exp.BySprite.TryGetValue(sp3, out var e3)) return e3;
+            string spRaw = $"{prefix}{number}";
+            if (exp.BySprite.TryGetValue(spRaw, out var eRaw)) return eRaw;
+            return null;
+        }
+
+        public static List<Entry> FindEntriesByName(string cardName)
+        {
+            var results = new List<Entry>();
+            if (string.IsNullOrWhiteSpace(cardName)) return results;
+            string target = NormalizeName(cardName);
+            var seenSprites = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var exp in Expansions.Values)
+            {
+                // Solo expansiones de Pokémon (ignorar One Piece u otros juegos si están instalados)
+                if (exp.Key.IndexOf("OnePiece", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    exp.Key.StartsWith("OP", StringComparison.OrdinalIgnoreCase) ||
+                    exp.Key.StartsWith("EB", StringComparison.OrdinalIgnoreCase) ||
+                    exp.Key.StartsWith("PRB", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                foreach (var entry in exp.BySprite.Values)
+                {
+                    if (string.Equals(NormalizeName(entry.Name), target, StringComparison.OrdinalIgnoreCase) && seenSprites.Add(entry.Sprite))
+                    {
+                        results.Add(entry);
+                    }
+                }
+            }
+            return results;
+        }
 
         public static void Scan(string pluginsDir)
         {
@@ -125,14 +241,24 @@ namespace PokeTCGPlay
                         {
                             string sp = (string)c["Sprite"];
                             if (string.IsNullOrEmpty(sp)) continue;
-                            e.BySprite[sp] = new Entry
+                            if (string.IsNullOrEmpty(e.SpritePrefix))
+                            {
+                                int dash = sp.IndexOf('-');
+                                if (dash > 0) e.SpritePrefix = sp.Substring(0, dash + 1);
+                            }
+                            var entry = new Entry
                             {
                                 Name = (string)c["Name"],
                                 Sprite = sp,
                                 Border = (string)c["BorderType"] ?? "Base",
                                 Foil = (bool?)c["IsFoil"] ?? false,
-                                Rarity = (string)c["Rarity"] ?? ""
+                                Rarity = (string)c["Rarity"] ?? "",
+                                ExpansionKey = key,
+                                ExpansionName = e.Name
                             };
+                            if (!e.BySprite.ContainsKey(sp))
+                                e.BySprite[sp] = entry;
+                            e.AllEntries.Add(entry);
                         }
                         Expansions[key] = e;
                     }
