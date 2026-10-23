@@ -154,16 +154,25 @@ namespace PokeTCGPlay
             Say("Elige Cara (Pikachu) o Cruz (Pokéball) para lanzar la moneda inicial.");
         }
 
-        /// <summary>Lanza la moneda inicial según la elección del jugador y pasa a la fase de Preparación.</summary>
+        /// <summary>Calcula el resultado de la moneda inicial (el paso a Setup y colocación del NPC ocurren cuando la moneda aterriza en la mesa).</summary>
         public bool PerformStartCoinToss(bool playerChoseHeads)
         {
             bool coinHeads = Rng.Next(2) == 0;
             bool playerWon = coinHeads == playerChoseHeads;
             CurrentIndex = playerWon ? 0 : 1;
+            return coinHeads;
+        }
+
+        /// <summary>Se invoca cuando la moneda inicial ya cayó sobre la mesa y se mostró su resultado.</summary>
+        public void OnStartCoinLanded(bool coinHeads)
+        {
             Say($"Moneda inicial: salió {(coinHeads ? "CARA (Pikachu)" : "CRUZ (Pokéball)")}. ¡Inicia {Current.Name}!");
             Phase = Phase.Setup;
-            AI.DoSetup(this, Players[1]);
-            return coinHeads;
+            // Si el NPC ganó la tirada, coloca sus Pokémon Básicos recién ahora que cayó la moneda
+            if (CurrentIndex == 1 && !Players[1].SetupDone)
+            {
+                AI.DoSetup(this, Players[1]);
+            }
         }
 
         public void Shuffle(List<CardDef> l) { for (int i = l.Count - 1; i > 0; i--) { int j = Rng.Next(i + 1); (l[i], l[j]) = (l[j], l[i]); } }
@@ -192,6 +201,11 @@ namespace PokeTCGPlay
                 p.Active = pip;
                 p.Hand.RemoveAt(handIdx);
                 Emit(AnimKind.ToActive, p, c, -1);
+                // Si el jugador inició y acaba de colocar su Activo, ahora el NPC coloca sus Básicos
+                if (!p.IsAI && !Players[1].SetupDone)
+                {
+                    AI.DoSetup(this, Players[1]);
+                }
             }
             else if (p.Bench.Count < 5)
             {
@@ -208,6 +222,10 @@ namespace PokeTCGPlay
         {
             if (p.Active == null) return "Elige un Pokémon Activo.";
             p.SetupDone = true;
+            if (!Players[1].SetupDone)
+            {
+                AI.DoSetup(this, Players[1]);
+            }
             if (Players.All(x => x.SetupDone)) { Phase = Phase.Main; Turn = 1; StartTurn(); }
             return null;
         }

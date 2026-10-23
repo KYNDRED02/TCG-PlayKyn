@@ -16,6 +16,16 @@ namespace PokeTCGPlay
         public CardDef Card { get; private set; }
         public bool FaceDown { get; private set; }
 
+        // F4: Metadatos de interacción 3D para Raycast (Mano 3D, Pokémon en mesa, Descarte)
+        public int HandIndex { get; set; } = -1;
+        public int OwnerIndex { get; set; } = -1;
+        public PokemonInPlay BoundPip { get; set; }
+        public bool IsDiscardTop { get; set; }
+        public float CurrentScale { get; private set; } = 1f;
+        public float CurrentYaw { get; private set; }
+        public bool IsRaycastEnabled { get; private set; } = true;
+        public BoxCollider HitCollider { get; private set; }
+
         Transform visualRoot;
         MeshRenderer coreRenderer;
         MeshRenderer frontRenderer;
@@ -105,6 +115,12 @@ namespace PokeTCGPlay
             visualRoot = new GameObject("CardBody").transform;
             visualRoot.SetParent(transform, false);
 
+            // F4: Collider 3D (trigger) para Raycast de mano y mesa (gira solidario con visualRoot)
+            HitCollider = visualRoot.gameObject.AddComponent<BoxCollider>();
+            HitCollider.isTrigger = true;
+            HitCollider.size = new Vector3(w, CardThickness * 5f, l);
+            HitCollider.center = Vector3.zero;
+
             // Núcleo con grosor físico de cartulina
             var coreGo = new GameObject("CoreEdge");
             coreGo.transform.SetParent(visualRoot, false);
@@ -145,18 +161,52 @@ namespace PokeTCGPlay
         {
             Card = card;
             FaceDown = faceDown;
+            HandIndex = -1;
+            OwnerIndex = -1;
+            BoundPip = null;
+            IsDiscardTop = false;
+            CurrentScale = scale;
+            CurrentYaw = yawDegrees;
+            IsRaycastEnabled = true;
+            if (HitCollider != null) HitCollider.enabled = true;
 
             transform.localScale = new Vector3(scale, 1f, scale);
             visualRoot.localRotation = Quaternion.Euler(0f, yawDegrees, faceDown ? 180f : 0f);
             if (shadowRenderer != null)
+            {
+                shadowRenderer.enabled = true;
                 shadowRenderer.transform.localRotation = Quaternion.Euler(90f, yawDegrees, 0f);
+            }
             if (highlightRenderer != null)
             {
                 highlightRenderer.enabled = highlight;
+                if (highlightMat != null)
+                    highlightMat.color = new Color(1f, 0.84f, 0.18f, 0.90f);
                 highlightRenderer.transform.localRotation = Quaternion.Euler(90f, yawDegrees, 0f);
             }
 
             RefreshTextures();
+        }
+
+        public void SetHighlight(bool enabled, Color color)
+        {
+            if (highlightRenderer == null) return;
+            highlightRenderer.enabled = enabled;
+            if (enabled && highlightMat != null)
+                highlightMat.color = color;
+        }
+
+        public void SetShadowEnabled(bool enabled)
+        {
+            if (shadowRenderer != null)
+                shadowRenderer.enabled = enabled;
+        }
+
+        public void SetRaycastEnabled(bool enabled)
+        {
+            IsRaycastEnabled = enabled;
+            if (HitCollider != null)
+                HitCollider.enabled = enabled;
         }
 
         public void RefreshTextures()
@@ -347,6 +397,8 @@ namespace PokeTCGPlay
         readonly Transform poolRoot;
         readonly List<CardView> activeCards = new List<CardView>();
         readonly Stack<CardView> inactiveCards = new Stack<CardView>();
+
+        public List<CardView> ActiveCards => activeCards;
 
         public CardViewPool(Transform parent)
         {

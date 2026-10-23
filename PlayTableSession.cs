@@ -151,10 +151,10 @@ namespace PokeTCGPlay
             {
                 Vector3 matCenter = tv.PlaymatRoot.position + Vector3.up * TableView.MatThickness;
                 Vector3 forward = tv.PlaymatRoot.forward;
-                // Cámara cenital ligeramente inclinada (~87°) para encuadrar el Playmat 3D completo y ver la madera de la mesa
-                topDownCamLoc.position = matCenter + Vector3.up * 1.16f - forward * 0.05f;
-                topDownCamLoc.rotation = Quaternion.LookRotation((matCenter - topDownCamLoc.position).normalized, forward);
-                topDownLookTarget.position = matCenter + forward * 0.01f;
+                // Vista en primera persona desde los ojos del jugador sentado en la silla mirando el tapete y al oponente
+                topDownCamLoc.position = matCenter - forward * 0.54f + Vector3.up * 0.52f;
+                topDownLookTarget.position = matCenter - forward * 0.04f - Vector3.up * 0.02f;
+                topDownCamLoc.rotation = Quaternion.LookRotation((topDownLookTarget.position - topDownCamLoc.position).normalized, Vector3.up);
             }
             else
             {
@@ -163,15 +163,15 @@ namespace PokeTCGPlay
                 Vector3 center = (sitA + sitB) * 0.5f;
                 Vector3 toCenter = (center - sitA).normalized;
                 Vector3 tableSurface = new Vector3(center.x, table.transform.position.y + 0.785f, center.z);
-                topDownCamLoc.position = tableSurface + Vector3.up * 1.18f - toCenter * 0.05f;
-                topDownLookTarget.position = tableSurface + toCenter * 0.01f;
+                topDownCamLoc.position = tableSurface - toCenter * 0.54f + Vector3.up * 0.52f;
+                topDownLookTarget.position = tableSurface - toCenter * 0.04f - Vector3.up * 0.02f;
             }
 
             ipc.SetCameraWorldPositionTarget(topDownCamLoc);
             ipc.StartAimLookAt(topDownLookTarget, 7.5f, 0f);
             ipc.m_IsPlayingTopDownGameMode = true;
             if (ipc.m_CameraFOVController != null)
-                ipc.m_CameraFOVController.StartLerpToFOV(40f);
+                ipc.m_CameraFOVController.StartLerpToFOV(52f);
         }
 
         public static void OnOpponentSeated(Customer npc)

@@ -40,9 +40,19 @@ namespace PokeTCGPlay
         public Flight3D Current { get; private set; }
         CardView flyingCard;
         Vector3 prevWorldPos;
+        Vector3? customNextHandOrigin;
 
         public bool IsAnimating => Current != null || queue.Count > 0;
         public string CurrentCaption => Current?.Caption;
+
+        /// <summary>
+        /// F4: Permite que cuando el jugador juega o suelta (Drag & Drop) una carta desde una posición 3D concreta,
+        /// el vuelo 3D inicie exactamente desde esa posición en el mundo.
+        /// </summary>
+        public void SetNextHandOrigin(Vector3 worldPos)
+        {
+            customNextHandOrigin = worldPos;
+        }
 
         void Awake()
         {
@@ -64,6 +74,7 @@ namespace PokeTCGPlay
         {
             queue.Clear();
             Current = null;
+            customNextHandOrigin = null;
             if (flyingCard != null)
                 flyingCard.gameObject.SetActive(false);
         }
@@ -73,6 +84,7 @@ namespace PokeTCGPlay
             if (flyingCard != null) return;
             flyingCard = CardView.Create(transform);
             flyingCard.gameObject.name = "PokeTCG_FlyingCard3D";
+            flyingCard.SetRaycastEnabled(false);
             flyingCard.gameObject.SetActive(false);
         }
 
@@ -84,7 +96,12 @@ namespace PokeTCGPlay
             int p = Mathf.Clamp(ev.PlayerIndex, 0, 1);
             Quaternion playerRot = tv.ActiveAnchor[p] != null ? tv.ActiveAnchor[p].rotation : tv.PlaymatRoot.rotation;
 
-            Vector3 handPos = tv.HandAnchor[p] != null ? tv.HandAnchor[p].position : tv.PlaymatRoot.position;
+            int handCount = game != null && game.Players[p] != null ? game.Players[p].Hand.Count : 1;
+            Vector3 handSlotPos = tv.GetHandCardWorldPos(p, Mathf.Max(0, handCount - 1), Mathf.Max(1, handCount));
+            Vector3 handPos = (p == 0 && customNextHandOrigin.HasValue) ? customNextHandOrigin.Value : handSlotPos;
+            if (p == 0 && customNextHandOrigin.HasValue)
+                customNextHandOrigin = null;
+
             Vector3 activePos = tv.ActiveAnchor[p] != null ? tv.ActiveAnchor[p].position : tv.PlaymatRoot.position;
             Vector3 oppActivePos = tv.ActiveAnchor[1 - p] != null ? tv.ActiveAnchor[1 - p].position : tv.PlaymatRoot.position;
             Vector3 deckPos = tv.DeckAnchor[p] != null ? tv.DeckAnchor[p].position : tv.PlaymatRoot.position;
@@ -419,6 +436,7 @@ namespace PokeTCGPlay
             // Determinar si en este instante del giro 3D se debe mostrar el reverso o el frente
             bool showBack = flipZ > 90f;
             flyingCard.Setup(Current.Card, showBack, scale, true, 0f);
+            flyingCard.SetRaycastEnabled(false);
             flyingCard.transform.position = worldPos;
 
             // Rotación combinada: orientación del jugador + inclinación por velocidad + giro 3D de flip
