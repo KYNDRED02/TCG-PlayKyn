@@ -103,6 +103,8 @@ namespace PokeTCGPlay
         public readonly Random Rng = new Random();
         public Action<AnimEvent> OnAnim;
         public bool PendingAiTurn;
+        public bool PendingAiSetup;
+        bool openingDealt;
 
         public PlayerState Current => Players[CurrentIndex];
         public PlayerState Opponent => Players[1 - CurrentIndex];
@@ -138,23 +140,18 @@ namespace PokeTCGPlay
             Players[1] = new PlayerState { Name = "Cliente", IsAI = true, Deck = new List<CardDef>(deckB) };
             foreach (var p in Players)
             {
-                int mulligans = 0;
-                while (true)
+                int safety = 0;
+                while (safety++ < 50)
                 {
                     Shuffle(p.Deck);
-                    Draw(p, 7, silent: true);
-                    if (p.Hand.Any(c => c.IsBasicPokemon)) break;
-                    Say($"{p.Name} no tiene Básicos: mulligan.");
-                    p.Deck.AddRange(p.Hand); p.Hand.Clear(); mulligans++;
+                    if (p.Deck.Take(7).Any(c => c.IsBasicPokemon)) break;
                 }
-                p.Prizes.AddRange(p.Deck.Take(6)); p.Deck.RemoveRange(0, 6);
-                if (mulligans > 0) Draw(OpponentOf(p), mulligans);
             }
             Phase = Phase.CoinToss;
             Say("Elige Cara (Pikachu) o Cruz (Pokéball) para lanzar la moneda inicial.");
         }
 
-        /// <summary>Calcula el resultado de la moneda inicial (el paso a Setup y colocación del NPC ocurren cuando la moneda aterriza en la mesa).</summary>
+        /// <summary>Calcula el resultado de la moneda inicial (el reparto de mano inicial, paso a Setup y colocación del NPC ocurren cuando la moneda aterriza en la mesa).</summary>
         public bool PerformStartCoinToss(bool playerChoseHeads)
         {
             bool coinHeads = Rng.Next(2) == 0;
@@ -168,8 +165,35 @@ namespace PokeTCGPlay
         {
             Say($"Moneda inicial: salió {(coinHeads ? "CARA (Pikachu)" : "CRUZ (Pokéball)")}. ¡Inicia {Current.Name}!");
             Phase = Phase.Setup;
-            // Si el NPC ganó la tirada, coloca sus Pokémon Básicos recién ahora que cayó la moneda
+
+            if (!openingDealt)
+            {
+                openingDealt = true;
+                // Robar las 7 cartas iniciales del jugador con animación hacia pantalla, revelación y bajada a la mano
+                Draw(Players[0], 7, silent: false);
+                Players[0].Prizes.AddRange(Players[0].Deck.Take(6));
+                Players[0].Deck.RemoveRange(0, Math.Min(6, Players[0].Deck.Count));
+
+                // Mano inicial y premios del NPC
+                Draw(Players[1], 7, silent: true);
+                if (Players[1].Hand.Count > 0)
+                    Emit(AnimKind.Draw, Players[1], Players[1].Hand[Players[1].Hand.Count - 1]);
+                Players[1].Prizes.AddRange(Players[1].Deck.Take(6));
+                Players[1].Deck.RemoveRange(0, Math.Min(6, Players[1].Deck.Count));
+            }
+
+            // Si el NPC ganó la tirada, esperará a que termine el robo inicial para bajar su Pokémon Básico
             if (CurrentIndex == 1 && !Players[1].SetupDone)
+            {
+                PendingAiSetup = true;
+            }
+        }
+
+        public void ExecutePendingAiSetup()
+        {
+            if (!PendingAiSetup) return;
+            PendingAiSetup = false;
+            if (Phase == Phase.Setup && !Players[1].SetupDone)
             {
                 AI.DoSetup(this, Players[1]);
             }

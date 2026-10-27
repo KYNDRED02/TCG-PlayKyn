@@ -34,6 +34,9 @@ namespace PokeTCGPlay
             public string Caption;
             public bool SlideUnderAtEnd; // true para Energías que se deslizan debajo del Pokémon
             public bool PulseScaleAtEnd; // true para Evoluciones que se posan encima
+            public bool RevealAtScreen;  // true para robos del jugador: vuela a pantalla de espaldas, gira, espera 0.5s y baja a la mano
+            public int HandSlotIndex = -1;
+            public int HandTotalCount = 1;
         }
 
         readonly Queue<Flight3D> queue = new Queue<Flight3D>();
@@ -44,6 +47,39 @@ namespace PokeTCGPlay
 
         public bool IsAnimating => Current != null || queue.Count > 0;
         public string CurrentCaption => Current?.Caption;
+
+        /// <summary>
+        /// Devuelve cuántas cartas robadas o tomadas de premios de `playerIndex` siguen en vuelo hacia su mano.
+        /// </summary>
+        public int GetPendingHandArrivals(int playerIndex)
+        {
+            int count = 0;
+            if (Current != null && Current.PlayerIndex == playerIndex &&
+                (Current.Kind == AnimKind.Draw || Current.Kind == AnimKind.TakePrize))
+            {
+                count++;
+            }
+            foreach (var f in queue)
+            {
+                if (f.PlayerIndex == playerIndex && (f.Kind == AnimKind.Draw || f.Kind == AnimKind.TakePrize))
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Devuelve cuántos robos desde el mazo de `playerIndex` aún están en la cola de vuelo.
+        /// </summary>
+        public int GetPendingDeckDraws(int playerIndex)
+        {
+            int count = 0;
+            foreach (var f in queue)
+            {
+                if (f.PlayerIndex == playerIndex && f.Kind == AnimKind.Draw)
+                    count++;
+            }
+            return count;
+        }
 
         /// <summary>
         /// F4: Permite que cuando el jugador juega o suelta (Drag & Drop) una carta desde una posición 3D concreta,
@@ -126,13 +162,16 @@ namespace PokeTCGPlay
                         EndWorldPos = handPos,
                         BaseRotation = playerRot,
                         StartScale = 1f,
-                        EndScale = 1.04f,
-                        // Sale boca abajo del tope del mazo y gira 180° en el aire si es del jugador
+                        EndScale = p == 0 ? 0.88f : 0.76f,
+                        // Para el jugador: vuela hacia la pantalla viéndose por detrás, gira 180°, se mantiene 0.5s y baja a la mano
                         StartFlipZ = 180f,
                         EndFlipZ = p == 0 ? 0f : 180f,
                         ArcHeight = 0.085f,
-                        Duration = 0.40f,
-                        Caption = p == 0 ? $"Robas {ev.Card?.Name}" : "Cliente roba 1 carta"
+                        Duration = p == 0 ? 1.10f : 0.38f,
+                        RevealAtScreen = (p == 0),
+                        HandSlotIndex = Mathf.Max(0, handCount - 1),
+                        HandTotalCount = Mathf.Max(1, handCount),
+                        Caption = p == 0 ? $"Robas: {ev.Card?.Name}" : "Cliente roba 1 carta"
                     });
                     break;
 
@@ -360,13 +399,16 @@ namespace PokeTCGPlay
                             EndWorldPos = handPos,
                             BaseRotation = playerRot,
                             StartScale = 0.86f,
-                            EndScale = 1.04f,
-                            // Sale boca abajo desde los Premios y se voltea en el aire para el jugador
+                            EndScale = p == 0 ? 0.88f : 0.76f,
+                            // Sale boca abajo desde los Premios, vuela a pantalla de espaldas, gira y se muestra 0.5s antes de bajar a la mano
                             StartFlipZ = 180f,
                             EndFlipZ = p == 0 ? 0f : 180f,
                             ArcHeight = 0.090f,
-                            Duration = 0.46f,
-                            Caption = p == 0 ? $"Tomas 1 Premio ({ev.Card?.Name})" : "Cliente toma 1 Premio"
+                            Duration = p == 0 ? 1.12f : 0.44f,
+                            RevealAtScreen = (p == 0),
+                            HandSlotIndex = Mathf.Max(0, handCount - 1),
+                            HandTotalCount = Mathf.Max(1, handCount),
+                            Caption = p == 0 ? $"Tomas 1 Premio: {ev.Card?.Name}" : "Cliente toma 1 Premio"
                         });
                         break;
                     }
@@ -393,6 +435,20 @@ namespace PokeTCGPlay
 
             Current.Elapsed += Time.deltaTime;
             float rawT = Mathf.Clamp01(Current.Elapsed / Mathf.Max(0.05f, Current.Duration));
+
+            // F5: Robo hacia la pantalla (viéndose por el reverso -> vuelta de 180° -> pausa de 0.5s -> bajada a la mano)
+            if (Current.RevealAtScreen)
+            {
+                UpdateScreenRevealFlight(rawT);
+                if (rawT >= 1f)
+                {
+                    Current = null;
+                    if (queue.Count == 0 && flyingCard != null)
+                        flyingCard.gameObject.SetActive(false);
+                }
+                return;
+            }
+
             float easedT = EaseOutCubic(rawT);
 
             // Posición interpolada con arco parabólico 3D
@@ -436,6 +492,7 @@ namespace PokeTCGPlay
             // Determinar si en este instante del giro 3D se debe mostrar el reverso o el frente
             bool showBack = flipZ > 90f;
             flyingCard.Setup(Current.Card, showBack, scale, true, 0f);
+            flyingCard.SetShadowEnabled(true);
             flyingCard.SetRaycastEnabled(false);
             flyingCard.transform.position = worldPos;
 
@@ -449,6 +506,96 @@ namespace PokeTCGPlay
                 if (queue.Count == 0 && flyingCard != null)
                     flyingCard.gameObject.SetActive(false);
             }
+        }
+
+        /// <summary>
+        /// F5: Anima el robo de una carta del jugador en 4 etapas:
+        /// 1) Vuela desde el Mazo hacia la pantalla viéndose por detrás (reverso).
+        /// 2) Da una vuelta de 180° frente a la pantalla para revelar qué carta es.
+        /// 3) Se mantiene visible durante medio segundo (0.50s).
+        /// 4) Baja suavemente hacia su lugar en el abanico 3D de la mano.
+        /// </summary>
+        void UpdateScreenRevealFlight(float rawT)
+        {
+            var cam = TableView.GetActiveCamera();
+            var tv = TableView.Instance;
+
+            Vector3 screenPos;
+            Quaternion screenFrontRot;
+            if (cam != null)
+            {
+                screenPos = cam.transform.position + cam.transform.forward * 0.34f - cam.transform.up * 0.010f;
+                screenFrontRot = Quaternion.LookRotation(cam.transform.up, -cam.transform.forward);
+            }
+            else
+            {
+                screenPos = Current.StartWorldPos + Vector3.up * 0.26f;
+                screenFrontRot = Current.BaseRotation;
+            }
+
+            Quaternion deckBackRot = Current.BaseRotation * Quaternion.Euler(0f, 0f, 180f);
+            Quaternion screenBackRot = screenFrontRot * Quaternion.Euler(0f, 0f, 180f);
+
+            float tSec = Current.Elapsed;
+            const float flyToScreenEnd = 0.24f;
+            const float flipEnd = 0.40f;
+            const float holdEnd = 0.90f; // 0.40 -> 0.90 = 0.50s exactos de revelación frente a la pantalla
+
+            Vector3 worldPos;
+            Quaternion worldRot;
+            float scale;
+
+            if (tSec < flyToScreenEnd)
+            {
+                // Etapa 1: Vuela desde el tope del mazo hacia la pantalla viéndose desde la parte de atrás
+                float u = EaseOutCubic(Mathf.Clamp01(tSec / flyToScreenEnd));
+                worldPos = Vector3.Lerp(Current.StartWorldPos, screenPos, u) + Vector3.up * (Mathf.Sin(u * Mathf.PI) * 0.042f);
+                worldRot = Quaternion.Slerp(deckBackRot, screenBackRot, u);
+                scale = Mathf.Lerp(Current.StartScale, 1.15f, u);
+            }
+            else if (tSec < flipEnd)
+            {
+                // Etapa 2: Da una vuelta de 180° frente a la pantalla para revelar qué carta es
+                float u = EaseInOutCubic(Mathf.Clamp01((tSec - flyToScreenEnd) / (flipEnd - flyToScreenEnd)));
+                float flipDeg = Mathf.Lerp(180f, 0f, u);
+                worldPos = screenPos - (cam != null ? cam.transform.forward : Vector3.forward) * (Mathf.Sin(u * Mathf.PI) * 0.018f);
+                worldRot = screenFrontRot * Quaternion.Euler(0f, 0f, flipDeg);
+                scale = 1.15f + Mathf.Sin(u * Mathf.PI) * 0.06f;
+            }
+            else if (tSec < holdEnd)
+            {
+                // Etapa 3: Se mantiene medio segundo (0.50s) frente a la pantalla mostrando la carta revelada
+                float u = Mathf.Clamp01((tSec - flipEnd) / (holdEnd - flipEnd));
+                float breathe = Mathf.Sin(u * Mathf.PI);
+                worldPos = screenPos + (cam != null ? cam.transform.up : Vector3.up) * (breathe * 0.004f);
+                worldRot = screenFrontRot * Quaternion.Euler(Mathf.Sin(u * Mathf.PI * 2f) * 1.6f, 0f, 0f);
+                scale = 1.15f;
+            }
+            else
+            {
+                // Etapa 4: Baja suavemente desde la pantalla hasta su posición en el abanico de la mano
+                float dropDur = Mathf.Max(0.12f, Current.Duration - holdEnd);
+                float u = EaseInOutCubic(Mathf.Clamp01((tSec - holdEnd) / dropDur));
+                Vector3 targetHandPos = (tv != null && Current.HandSlotIndex >= 0)
+                    ? tv.GetHandCardWorldPos(0, Current.HandSlotIndex, Current.HandTotalCount)
+                    : Current.EndWorldPos;
+                Quaternion targetHandRot = (tv != null && tv.HandAnchor[0] != null)
+                    ? tv.GetHandCardWorldRot(0, Current.HandSlotIndex, Current.HandTotalCount)
+                    : Current.BaseRotation;
+
+                worldPos = Vector3.Lerp(screenPos, targetHandPos, u);
+                worldRot = Quaternion.Slerp(screenFrontRot, targetHandRot, u);
+                scale = Mathf.Lerp(1.15f, Current.EndScale, u);
+            }
+
+            // Configuramos con faceDown = false para que tanto FrontFace (+Y) como BackFace (-Y) tengan su textura lista;
+            // cuando worldRot está girado 180° en Z, la cámara ve BackFace; al girar a 0°, ve FrontFace.
+            flyingCard.Setup(Current.Card, false, scale, true, 0f);
+            flyingCard.SetShadowEnabled(false);
+            flyingCard.SetRaycastEnabled(false);
+            flyingCard.transform.position = worldPos;
+            flyingCard.transform.rotation = worldRot;
+            prevWorldPos = worldPos;
         }
 
         static float EaseOutCubic(float x)

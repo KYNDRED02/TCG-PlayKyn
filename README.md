@@ -32,12 +32,12 @@ El desarrollo está estructurado paso a paso de **F0 a F10**:
 | **F2** | **Cartas 3D sobre la Mesa** | Renderizado de cartas 3D (`CardView`) con grosor físico, texturas de MyCurio, bloques de mazo escalables (`DeckStack3D`), apilado de energías/evoluciones y rotación por Condiciones Especiales. | ✅ Completado |
 | **F3** | **Animador 3D (`BoardAnimator`)** | Vuelos parabólicos en 3D con inclinación dinámica, giro de 180° al robar cartas o tomar premios, deslizamiento de energías, pulso de evolución, embestida de ataque y caída al descarte. | ✅ Completado |
 | **F4** | **Mano e Input 3D** | Abanico 3D de la mano del jugador y del NPC, detección por raycast 3D (hover/elevación), selección y arrastre de cartas hacia zonas válidas de la mesa e inspección con clic derecho. | ✅ Completado |
-| **F5** | **Dados, Moneda y Contadores 3D** | Moneda 3D con lanzamiento físico para efectos de *Cara/Cruz*, dados y contadores 3D de daño sobre los Pokémon y marcadores 3D de Veneno/Quemadura. | 🔜 Siguiente |
-| **F6** | **Cámara y HUD Mínimo** | Controles de cámara en la mesa (`Tab` para vista cenital táctica, zoom con rueda, enfoque al centro) y HUD ligero no intrusivo para turno, fase y acciones de ataque/retirada. | ⏳ Pendiente |
-| **F7** | **Motor de Reglas e Intérprete de Efectos** | Soporte completo de reglas (Mulligan, debilidad/resistencia, estados alterados, entrenadores/estadios) e intérprete declarativo en JSON para añadir ataques y habilidades fácilmente. | ⏳ Pendiente |
-| **F8** | **IA del Oponente (NPC) y Mazos Temáticos** | Generación de mazos temáticos para los clientes según el nivel de la tienda y toma de decisiones del NPC con pausas naturales y animaciones 3D. | ⏳ Pendiente |
-| **F9** | **Economía de Tienda y Reputación** | Flujo completo de fin de partida con pantalla de resultados, entrega de XP y reseña positiva al ganar, o pérdida de la tarifa de mesa si gana el NPC. | ⏳ Pendiente |
-| **F10** | **Audio, Pulido y Herramientas de Expansión** | Efectos de sonido en mesa (barajar, robar, moneda, impacto), comando para generar plantillas JSON de nuevas expansiones de MyCurio y pulido de rendimiento. | ⏳ Pendiente |
+| **F5** | **Inspección 3D, Mazo Realista y Robo a Pantalla** | Pila 3D de Mazo realista en capas escalonadas, animación de robo hacia la pantalla viéndose por detrás con vuelta de 180° y pausa de `0.5s`, abanico bajo sin tapar la Banca e inspección 3D con giro interactivo e iconos de energía. | ✅ Completado |
+| **F6** | **HUD de Estado y Contadores 3D** | Contador de daño (fichas 3D / números flotantes), iconos de estado animados con pulso, tinte de color, contador de turnos y rotación física de cartas por condición especial. | 🔜 Siguiente |
+| **F7** | **Moneda 3D** | Moneda cilíndrica 3D con caras Pikachu/Pokéball, lanzamiento físico con curva y rebote sobre la mesa. | ⏳ Pendiente |
+| **F8** | **Flujo de Partida, IA y Recompensas** | Flujo completo de partida, IA del NPC y recompensas de tienda (XP + reseñas positivas al ganar, o pérdida de la tarifa de mesa si gana el NPC). | ⏳ Pendiente |
+| **F9** | **Deck Builder 3D** | Constructor de mazos 3D en la Workbench con filtros, validación por formato y colección real del jugador. | ⏳ Pendiente |
+| **F10** | **Audio, Pulido y Herramientas de Expansión** | Efectos de sonido en mesa (barajar, robar, moneda, impacto), sacudida de cámara en KO y opciones de configuración. | ⏳ Pendiente |
 
 ---
 

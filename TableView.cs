@@ -74,10 +74,16 @@ namespace PokeTCGPlay
         readonly float[] handLiftAnims = new float[64];
         readonly float[] handSpreadAnims = new float[64];
         float handDeployAnim;
+        float handTrayLiftAnim;
         CardView dragCardView;
         Vector3 smoothDragWorldPos;
         Vector3 prevDragWorldPos;
         bool dragPosInitialized;
+
+        // F5: Inspección 3D de Carta (elevación física 3D hacia cámara con giro interactivo y telón 3D oscurecido detrás)
+        CardView inspectCardView;
+        GameObject inspectBackdropGo;
+        Material inspectBackdropMat;
 
         public bool IsBoard3DReady => PlaymatRoot != null && cardPool != null;
 
@@ -209,7 +215,11 @@ namespace PokeTCGPlay
             deckStacks[1] = null;
             dragCardView = null;
             dragPosInitialized = false;
+            inspectCardView = null;
+            inspectBackdropGo = null;
+            inspectBackdropMat = null;
             handDeployAnim = 0f;
+            handTrayLiftAnim = 0f;
             Array.Clear(handLiftAnims, 0, handLiftAnims.Length);
             Array.Clear(handSpreadAnims, 0, handSpreadAnims.Length);
             if (PlaymatRoot != null)
@@ -349,10 +359,11 @@ namespace PokeTCGPlay
             CoinAnchor = CreateNormalizedAnchor("CoinCenter", 0.50f, 0.50f, 0.0018f, false, true, 1.35f);
             AttachSlotCollider(CoinAnchor, TableSlotKind.PlayfieldCenter, 0, -1, 1.45f);
 
-            // F4: Anclajes 3D de Mano para la cámara desde los ojos del jugador sentado
-            // (Jugador: sostenida frente a la vista en el borde inferior; NPC: sostenida frente al asiento opuesto)
-            HandAnchor[0] = CreateNormalizedAnchor("Hand_Player", 0.50f, 0.965f, 0.140f, false, false, 1f);
-            HandAnchor[0].localRotation = Quaternion.Euler(-36f, 0f, 0f);
+            // F4 & F5: Anclajes 3D de Mano para la cámara desde los ojos del jugador sentado
+            // (Jugador: más baja en el borde inferior para NO tapar la Banca y solo elevarse al pasar el cursor;
+            //  NPC: sostenida frente al asiento opuesto)
+            HandAnchor[0] = CreateNormalizedAnchor("Hand_Player", 0.50f, 1.075f, 0.036f, false, false, 1f);
+            HandAnchor[0].localRotation = Quaternion.Euler(-40f, 0f, 0f);
             HandAnchor[1] = CreateNormalizedAnchor("Hand_NPC", 0.50f, 0.020f, 0.055f, true, false, 1f);
             HandAnchor[1].localRotation = Quaternion.Euler(28f, 180f, 0f);
 
@@ -368,12 +379,28 @@ namespace PokeTCGPlay
             dragCardView.gameObject.name = "PokeTCG_DragCard3D";
             dragCardView.SetRaycastEnabled(false);
             dragCardView.gameObject.SetActive(false);
+
+            // F5: Telón 3D oscurecido y Carta 3D dedicada para la Inspección 3D con clic derecho
+            inspectBackdropGo = new GameObject("PokeTCG_InspectBackdrop3D");
+            inspectBackdropGo.transform.SetParent(PlaymatRoot, false);
+            inspectBackdropGo.AddComponent<MeshFilter>().sharedMesh = sharedQuadMesh;
+            var bdRenderer = inspectBackdropGo.AddComponent<MeshRenderer>();
+            inspectBackdropMat = CardView.CreateUnlitMaterial(new Color(0.02f, 0.03f, 0.06f, 0.72f), null, true);
+            bdRenderer.sharedMaterial = inspectBackdropMat;
+            bdRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            inspectBackdropGo.SetActive(false);
+
+            inspectCardView = CardView.Create(PlaymatRoot);
+            inspectCardView.gameObject.name = "PokeTCG_InspectCard3D";
+            inspectCardView.SetRaycastEnabled(false);
+            inspectCardView.SetShadowEnabled(false);
+            inspectCardView.gameObject.SetActive(false);
         }
 
         /// <summary>
-        /// F2 & F4: Sincroniza todas las cartas en 3D sobre el tapete físico (Mazos con altura dinámica,
-        /// Descartes apilados con desorden leve, Premios boca abajo, Activos, Banca, Energías adheridas debajo,
-        /// Mano 3D en abanico para Jugador y NPC, y Carta arrastrada en 3D).
+        /// F2, F4 & F5: Sincroniza todas las cartas en 3D sobre el tapete físico (Mazos realistas en capas,
+        /// Descartes apilados, Premios boca abajo, Activos, Banca, Energías debajo, Mano 3D en abanico,
+        /// Carta arrastrada en 3D e Inspección 3D elevada frente a cámara).
         /// </summary>
         public void SyncBoard3D(
             Game game,
@@ -385,7 +412,10 @@ namespace PokeTCGPlay
             int selectedHandIdx = -1,
             int draggingHandIdx = -1,
             Vector3 targetDragWorldPos = default,
-            bool isOverValidDropSlot = false)
+            bool isOverValidDropSlot = false,
+            Vector3 zoomOriginWorldPos = default,
+            Quaternion zoomOriginWorldRot = default,
+            float zoomOriginScale = 1f)
         {
             if (PlaymatRoot == null || cardPool == null) return;
             cardPool.BeginFrame();
@@ -396,6 +426,10 @@ namespace PokeTCGPlay
                 deckStacks[1]?.Sync(0);
                 if (dragCardView != null && dragCardView.gameObject.activeSelf)
                     dragCardView.gameObject.SetActive(false);
+                if (inspectCardView != null && inspectCardView.gameObject.activeSelf)
+                    inspectCardView.gameObject.SetActive(false);
+                if (inspectBackdropGo != null && inspectBackdropGo.activeSelf)
+                    inspectBackdropGo.SetActive(false);
                 dragPosInitialized = false;
                 return;
             }
@@ -405,8 +439,9 @@ namespace PokeTCGPlay
                 var ps = game.Players[p];
                 if (ps == null) continue;
 
-                // 1) Mazo como pila 3D cuya altura depende de las cartas restantes
-                deckStacks[p]?.Sync(ps.Deck.Count);
+                // 1) Mazo como pila 3D en capas cuya altura depende de las cartas aún presentes en el mazo
+                int pendingDraws = BoardAnimator.Instance != null ? BoardAnimator.Instance.GetPendingDeckDraws(p) : 0;
+                deckStacks[p]?.Sync(ps.Deck.Count + pendingDraws);
 
                 // 2) Descarte apilado en 3D con desorden leve (hasta las últimas 6 cartas visibles)
                 int dCount = ps.Discard.Count;
@@ -414,6 +449,10 @@ namespace PokeTCGPlay
                 for (int k = startD; k < dCount; k++)
                 {
                     var dCard = ps.Discard[k];
+                    bool isTop = (k == dCount - 1);
+                    if (isTop && zoomedPip == null && zoomedCard == dCard && zoomAnim > 0.02f)
+                        continue;
+
                     int layer = k - startD;
                     int seed = k * 7919 + p * 131;
                     float offX = k == 0 ? 0f : (((seed % 11) - 5) / 5f) * 0.0024f;
@@ -424,8 +463,8 @@ namespace PokeTCGPlay
                     if (cv != null)
                     {
                         cv.OwnerIndex = p;
-                        cv.IsDiscardTop = (k == dCount - 1);
-                        cv.SetRaycastEnabled(k == dCount - 1);
+                        cv.IsDiscardTop = isTop;
+                        cv.SetRaycastEnabled(isTop);
                     }
                 }
 
@@ -450,11 +489,14 @@ namespace PokeTCGPlay
                 SyncPokemonSlot3D(p, ActiveAnchor[p], ps.Active, 1.08f, true, false, zoomedPip, zoomAnim);
             }
 
-            // 6) F4: Mano 3D en abanico para el Jugador (frente a cámara) y el NPC (boca abajo en el borde superior)
+            // 6) F4 & F5: Mano 3D en abanico (más baja en reposo para no tapar la Banca; se eleva al pasar el cursor)
             SyncHands3D(game, zoomedCard, zoomedPip, zoomAnim, hoveredHandIdx, selectedHandIdx, draggingHandIdx);
 
             // 7) F4: Carta 3D arrastrada por el jugador sobre el tapete con inclinación física
             SyncDragCard3D(game, draggingHandIdx, targetDragWorldPos, isOverValidDropSlot);
+
+            // 8) F5: Carta 3D en Inspección (sube hacia la cámara con giro interactivo y telón 3D oscurecido detrás)
+            SyncInspectCard3D(zoomedCard, zoomAnim, zoomOriginWorldPos, zoomOriginWorldRot, zoomOriginScale);
         }
 
         void SyncPokemonSlot3D(int ownerIdx, Transform anchor, PokemonInPlay pip, float scale, bool isActive, bool highlight, PokemonInPlay zoomedPip, float zoomAnim)
@@ -521,9 +563,8 @@ namespace PokeTCGPlay
         }
 
         /// <summary>
-        /// F4: Renderiza la mano del Jugador y del NPC en 3D en disposición de abanico,
-        /// con animación de despliegue, respiración sutil, elevación suave al hacer hover o seleccionar,
-        /// y separación animada de cartas vecinas.
+        /// F4 & F5: Renderiza la mano del Jugador y del NPC en 3D en disposición de abanico,
+        /// manteniéndose baja en reposo para no cubrir la Banca y elevándose al pasar el cursor por encima.
         /// </summary>
         void SyncHands3D(
             Game game,
@@ -534,12 +575,14 @@ namespace PokeTCGPlay
             int selectedHandIdx,
             int draggingHandIdx)
         {
-            var curFlight = BoardAnimator.Instance?.Current;
             float targetDeploy = game.Phase == Phase.CoinToss ? 0.35f : 1f;
             handDeployAnim = Mathf.MoveTowards(handDeployAnim, targetDeploy, Time.deltaTime * 2.8f);
             float deploySmooth = Mathf.SmoothStep(0f, 1f, handDeployAnim);
 
             int focusIdx = (hoveredHandIdx >= 0 && draggingHandIdx < 0) ? hoveredHandIdx : selectedHandIdx;
+            float targetTrayLift = (hoveredHandIdx >= 0 || selectedHandIdx >= 0) ? 1f : 0f;
+            handTrayLiftAnim = Mathf.MoveTowards(handTrayLiftAnim, targetTrayLift, Time.deltaTime * 8.5f);
+            float trayLiftSmooth = Mathf.SmoothStep(0f, 1f, handTrayLiftAnim);
 
             for (int p = 0; p < 2; p++)
             {
@@ -547,22 +590,18 @@ namespace PokeTCGPlay
                 if (ps == null || HandAnchor[p] == null) continue;
 
                 int n = ps.Hand.Count;
-                for (int i = 0; i < n; i++)
+                int pendingArrivals = BoardAnimator.Instance != null ? BoardAnimator.Instance.GetPendingHandArrivals(p) : 0;
+                int visibleCount = Mathf.Max(0, n - pendingArrivals);
+
+                for (int i = 0; i < visibleCount; i++)
                 {
                     var card = ps.Hand[i];
-
-                    // Si la carta está volando hacia la mano (Draw o TakePrize), aún no se dibuja en el abanico estático
-                    if (curFlight != null && curFlight.PlayerIndex == p && curFlight.Card == card &&
-                        (curFlight.Kind == AnimKind.Draw || curFlight.Kind == AnimKind.TakePrize) && i == n - 1)
-                    {
-                        continue;
-                    }
 
                     if (p == 0)
                     {
                         // Si está siendo arrastrada en 3D o inspeccionada con clic derecho, no se dibuja en el abanico
                         if (i == draggingHandIdx) continue;
-                        if (zoomedPip == null && zoomedCard == card && zoomAnim > 0.05f) continue;
+                        if (zoomedPip == null && zoomedCard == card && zoomAnim > 0.02f) continue;
 
                         bool isHovered = (i == hoveredHandIdx && draggingHandIdx < 0);
                         bool isSelected = (i == selectedHandIdx);
@@ -574,7 +613,7 @@ namespace PokeTCGPlay
                         float liftT = i < handLiftAnims.Length ? Mathf.SmoothStep(0f, 1f, handLiftAnims[i]) : targetLift;
 
                         float targetSpread = 0f;
-                        if (focusIdx >= 0 && focusIdx < n && i != focusIdx)
+                        if (focusIdx >= 0 && focusIdx < visibleCount && i != focusIdx)
                         {
                             float dist = Mathf.Abs(i - focusIdx);
                             float push = Mathf.Clamp01(1.25f / dist) * 0.022f;
@@ -586,7 +625,7 @@ namespace PokeTCGPlay
                         }
                         float spreadX = i < handSpreadAnims.Length ? handSpreadAnims[i] : targetSpread;
 
-                        ComputeHandCardTransform(0, i, n, focusIdx, liftT, out Vector3 localPos, out float yawDeg, out float scale, spreadX, deploySmooth);
+                        ComputeHandCardTransform(0, i, visibleCount, focusIdx, liftT, out Vector3 localPos, out float yawDeg, out float scale, spreadX, deploySmooth, trayLiftSmooth);
                         bool highlight = isHovered || isSelected;
                         var cv = cardPool.Spawn(HandAnchor[0], localPos, card, false, scale, highlight, yawDeg);
                         if (cv != null)
@@ -603,7 +642,7 @@ namespace PokeTCGPlay
                     else
                     {
                         // Mano 3D del NPC (boca abajo en el borde superior del tapete)
-                        ComputeHandCardTransform(1, i, n, -1, 0f, out Vector3 localPos, out float yawDeg, out float scale, 0f, deploySmooth);
+                        ComputeHandCardTransform(1, i, visibleCount, -1, 0f, out Vector3 localPos, out float yawDeg, out float scale, 0f, deploySmooth, 0f);
                         var cv = cardPool.Spawn(HandAnchor[1], localPos, card, true, scale, false, yawDeg);
                         if (cv != null)
                         {
@@ -628,15 +667,16 @@ namespace PokeTCGPlay
             out float yawDeg,
             out float scale,
             float customSpreadX = float.NaN,
-            float deployFactor = 1f)
+            float deployFactor = 1f,
+            float trayLift = 0f)
         {
             float t = count <= 1 ? 0f : (index / (float)(count - 1)) * 2f - 1f; // -1 (izq) .. +1 (der)
 
             if (playerIdx == 0)
             {
-                float baseScale = 0.86f;
+                float baseScale = 0.82f;
                 float maxSpanX = 0.44f * deployFactor;
-                float idealStep = 0.056f * deployFactor;
+                float idealStep = 0.055f * deployFactor;
                 float totalW = count <= 1 ? 0f : Mathf.Min(maxSpanX, (count - 1) * idealStep);
                 float x = count <= 1 ? 0f : (-totalW * 0.5f + index * (totalW / (count - 1)));
 
@@ -651,17 +691,18 @@ namespace PokeTCGPlay
                     x += index < hoveredIdx ? -push : push;
                 }
 
-                float archZ = -(t * t) * Mathf.Min(0.022f, (count - 1) * 0.0028f) * deployFactor;
-                float maxYaw = Mathf.Min(16f, (count - 1) * 2.4f) * deployFactor;
-                yawDeg = t * maxYaw * (1f - liftT * 0.92f);
+                float archZ = -(t * t) * Mathf.Min(0.020f, (count - 1) * 0.0026f) * deployFactor;
+                float maxYaw = Mathf.Min(15f, (count - 1) * 2.3f) * deployFactor;
+                yawDeg = t * maxYaw * (1f - liftT * 0.94f);
 
-                // Respiración sutil en mano + escalera fina en Y para evitar z-fighting + elevación al hacer hover/selección
-                float idleWave = Mathf.Sin(Time.time * 2.2f + index * 0.55f) * 0.0014f * (1f - liftT);
-                float y = index * 0.0015f + liftT * 0.024f + idleWave;
-                float z = archZ + liftT * 0.042f;
+                // En reposo el abanico se mantiene más bajo para no tapar la Banca;
+                // al pasar el cursor por encima (trayLift / liftT) se eleva suavemente para seleccionar la carta.
+                float idleWave = Mathf.Sin(Time.time * 2.2f + index * 0.55f) * 0.0012f * (1f - liftT);
+                float y = index * 0.0015f + trayLift * 0.008f + liftT * 0.032f + idleWave;
+                float z = archZ + trayLift * 0.012f + liftT * 0.058f;
 
                 localPos = new Vector3(x, y, z);
-                scale = Mathf.Lerp(baseScale, 1.12f, liftT);
+                scale = Mathf.Lerp(baseScale, 1.14f, liftT);
             }
             else
             {
@@ -690,8 +731,94 @@ namespace PokeTCGPlay
             int clampedIdx = Mathf.Clamp(index, 0, clampedCount - 1);
             float lift = (p == 0 && clampedIdx < handLiftAnims.Length) ? Mathf.SmoothStep(0f, 1f, handLiftAnims[clampedIdx]) : 0f;
             float spread = (p == 0 && clampedIdx < handSpreadAnims.Length) ? handSpreadAnims[clampedIdx] : 0f;
-            ComputeHandCardTransform(p, clampedIdx, clampedCount, -1, lift, out Vector3 localPos, out _, out _, spread, Mathf.SmoothStep(0f, 1f, handDeployAnim));
+            float tray = p == 0 ? Mathf.SmoothStep(0f, 1f, handTrayLiftAnim) : 0f;
+            ComputeHandCardTransform(p, clampedIdx, clampedCount, -1, lift, out Vector3 localPos, out _, out _, spread, Mathf.SmoothStep(0f, 1f, handDeployAnim), tray);
             return HandAnchor[p].TransformPoint(localPos);
+        }
+
+        /// <summary>
+        /// Devuelve la rotación en el mundo 3D de la carta `index` dentro del abanico de la mano de `playerIdx`.
+        /// </summary>
+        public Quaternion GetHandCardWorldRot(int playerIdx, int index, int count)
+        {
+            int p = Mathf.Clamp(playerIdx, 0, 1);
+            if (HandAnchor[p] == null)
+                return PlaymatRoot != null ? PlaymatRoot.rotation : Quaternion.identity;
+            int clampedCount = Mathf.Max(1, count);
+            int clampedIdx = Mathf.Clamp(index, 0, clampedCount - 1);
+            float lift = (p == 0 && clampedIdx < handLiftAnims.Length) ? Mathf.SmoothStep(0f, 1f, handLiftAnims[clampedIdx]) : 0f;
+            ComputeHandCardTransform(p, clampedIdx, clampedCount, -1, lift, out _, out float yawDeg, out _, 0f, Mathf.SmoothStep(0f, 1f, handDeployAnim), 0f);
+            return HandAnchor[p].rotation * Quaternion.Euler(0f, yawDeg, 0f);
+        }
+
+        /// <summary>
+        /// F5: Eleva en 3D la carta inspeccionada desde su posición en la mesa o mano hacia la cámara con giro interactivo,
+        /// oscureciendo el fondo 3D detrás de la carta y devolviéndola a su sitio al cerrar.
+        /// </summary>
+        void SyncInspectCard3D(
+            CardDef zoomedCard,
+            float zoomAnim,
+            Vector3 originWorldPos,
+            Quaternion originWorldRot,
+            float originScale)
+        {
+            if (inspectCardView == null || inspectBackdropGo == null) return;
+            var cam = GetActiveCamera();
+            if (zoomedCard == null || zoomAnim <= 0.005f || cam == null)
+            {
+                if (inspectCardView.gameObject.activeSelf)
+                    inspectCardView.gameObject.SetActive(false);
+                if (inspectBackdropGo.activeSelf)
+                    inspectBackdropGo.SetActive(false);
+                return;
+            }
+
+            if (!inspectCardView.gameObject.activeSelf)
+                inspectCardView.gameObject.SetActive(true);
+            if (!inspectBackdropGo.activeSelf)
+                inspectBackdropGo.SetActive(true);
+
+            float smooth = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(zoomAnim));
+
+            // 1) Telón 3D oscurecido colocado entre la mesa y la carta inspeccionada para que la carta 3D brille al frente
+            inspectBackdropGo.transform.position = cam.transform.position + cam.transform.forward * 0.37f;
+            inspectBackdropGo.transform.rotation = cam.transform.rotation;
+            inspectBackdropGo.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
+            if (inspectBackdropMat != null)
+                inspectBackdropMat.color = new Color(0.02f, 0.03f, 0.06f, 0.74f * smooth);
+
+            // 2) Posición objetivo en 3D frente a la cámara (ligeramente a la izquierda para dejar espacio al panel lateral F5)
+            Vector3 targetPos = cam.transform.position
+                              + cam.transform.forward * 0.295f
+                              - cam.transform.right * 0.082f
+                              + cam.transform.up * 0.003f;
+
+            // 3) Rotación objetivo en 3D mirando a la cámara + giro leve interactivo con el ratón
+            Quaternion faceCamRot = Quaternion.LookRotation(cam.transform.up, -cam.transform.forward);
+            float mx = Mathf.Clamp((Input.mousePosition.x / Mathf.Max(1f, Screen.width)) * 2f - 1f, -1f, 1f);
+            float my = Mathf.Clamp((Input.mousePosition.y / Mathf.Max(1f, Screen.height)) * 2f - 1f, -1f, 1f);
+            float flightSpin = Mathf.Sin(smooth * Mathf.PI) * 16f;
+            Quaternion tilt = Quaternion.Euler(
+                -my * 7f * smooth,
+                (mx * 9f + Mathf.Sin(Time.time * 1.7f) * 2.2f) * smooth,
+                -mx * 4.5f * smooth + flightSpin);
+            Quaternion targetRot = faceCamRot * tilt;
+
+            Vector3 startPos = originWorldPos.sqrMagnitude > 0.001f ? originWorldPos : PlaymatRoot.position;
+            Quaternion startRot = originWorldRot.x == 0f && originWorldRot.y == 0f && originWorldRot.z == 0f && originWorldRot.w == 0f
+                ? PlaymatRoot.rotation
+                : originWorldRot;
+
+            Vector3 curPos = Vector3.Lerp(startPos, targetPos, smooth) + cam.transform.up * (Mathf.Sin(smooth * Mathf.PI) * 0.028f);
+            Quaternion curRot = Quaternion.Slerp(startRot, targetRot, smooth);
+            float curScale = Mathf.Lerp(Mathf.Max(0.75f, originScale), 1.30f, smooth);
+
+            inspectCardView.Setup(zoomedCard, false, curScale, true, 0f);
+            inspectCardView.SetShadowEnabled(false);
+            inspectCardView.SetRaycastEnabled(false);
+            inspectCardView.SetHighlight(true, new Color(1f, 0.88f, 0.26f, 0.88f * smooth));
+            inspectCardView.transform.position = curPos;
+            inspectCardView.transform.rotation = curRot;
         }
 
         /// <summary>

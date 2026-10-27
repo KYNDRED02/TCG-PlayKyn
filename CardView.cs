@@ -285,26 +285,60 @@ namespace PokeTCGPlay
     }
 
     /// <summary>
-    /// F2: Pila 3D física para el Mazo (Deck), cuya altura en metros escala dinámicamente según las cartas restantes (0..60).
+    /// F2 & F5: Pila 3D física realista para el Mazo (Deck), compuesta por múltiples capas/paquetes de cartas
+    /// con micro-desplazamientos orgánicos, cantos laminados visibles y bordes azules del reverso asomando entre capas.
     /// </summary>
     public class DeckStack3D
     {
+        const int MaxSlices = 14;
+
+        struct DeckSlice
+        {
+            public GameObject Root;
+            public Transform Block;
+            public Transform TopCard;
+            public float OffX;
+            public float OffZ;
+            public float Yaw;
+            public float Weight;
+        }
+
         public GameObject Root { get; private set; }
-        Transform blockTransform;
-        Transform topCardTransform;
-        MeshRenderer topCardRenderer;
+        readonly DeckSlice[] slices = new DeckSlice[MaxSlices];
         MeshRenderer shadowRenderer;
         Material topMat;
 
         static Texture2D sDeckSideTex;
         static Material sDeckSideMat;
 
+        // Desplazamientos orgánicos (en metros y grados) que imitan un mazo real barajado a mano como en la foto de referencia
+        static readonly float[] sPresetOffX =
+        {
+            -0.0005f, -0.0011f, -0.0003f,  0.0008f,  0.0002f, -0.0009f, -0.0014f,
+            -0.0004f,  0.0007f, -0.0006f, -0.0016f, -0.0021f,  0.0006f,  0.0009f
+        };
+        static readonly float[] sPresetOffZ =
+        {
+             0.0003f, -0.0004f, -0.0009f, -0.0002f,  0.0006f,  0.0009f,  0.0002f,
+            -0.0006f, -0.0003f,  0.0005f,  0.0008f,  0.0004f, -0.0005f, -0.0002f
+        };
+        static readonly float[] sPresetYaw =
+        {
+            -0.4f,  0.6f,  0.9f, -0.5f, -0.8f,  0.4f,  1.1f,
+             0.3f, -0.7f,  0.5f,  1.2f, -0.6f,  0.8f,  0.3f
+        };
+        static readonly float[] sPresetWeight =
+        {
+            1.35f, 1.30f, 1.25f, 1.20f, 1.15f, 1.10f, 1.00f,
+            0.95f, 0.85f, 0.75f, 0.65f, 0.55f, 0.45f, 0.38f
+        };
+
         public DeckStack3D(Transform anchor)
         {
             CardView.EnsureSharedResources();
             if (sDeckSideTex == null)
             {
-                sDeckSideTex = MakeDeckEdgesTex(32, 128);
+                sDeckSideTex = MakeDeckEdgesTex(64, 256);
                 sDeckSideMat = CardView.CreateUnlitMaterial(Color.white, sDeckSideTex, false);
             }
 
@@ -316,36 +350,49 @@ namespace PokeTCGPlay
             Root.transform.localPosition = Vector3.zero;
             Root.transform.localRotation = Quaternion.identity;
 
-            // Sombra en la base del mazo
+            // Sombra suave y profunda en la base del mazo físico
             var shGo = GameObject.CreatePrimitive(PrimitiveType.Quad);
             UnityEngine.Object.DestroyImmediate(shGo.GetComponent<Collider>());
             shGo.name = "DeckShadow";
             shGo.transform.SetParent(Root.transform, false);
-            shGo.transform.localPosition = new Vector3(0.003f, 0.0002f, -0.003f);
+            shGo.transform.localPosition = new Vector3(0.0032f, 0.0002f, -0.0032f);
             shGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            shGo.transform.localScale = new Vector3(w * 1.12f, l * 1.10f, 1f);
+            shGo.transform.localScale = new Vector3(w * 1.18f, l * 1.15f, 1f);
             shadowRenderer = shGo.GetComponent<MeshRenderer>();
-            shadowRenderer.sharedMaterial = CardView.CreateUnlitMaterial(new Color(0f, 0f, 0f, 0.55f), null, true);
+            shadowRenderer.sharedMaterial = CardView.CreateUnlitMaterial(new Color(0f, 0f, 0f, 0.62f), null, true);
 
-            // Bloque 3D con los cantos apilados de las cartas
-            var blockGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            UnityEngine.Object.DestroyImmediate(blockGo.GetComponent<Collider>());
-            blockGo.name = "DeckBlock";
-            blockGo.transform.SetParent(Root.transform, false);
-            blockGo.GetComponent<MeshRenderer>().sharedMaterial = sDeckSideMat;
-            blockTransform = blockGo.transform;
-
-            // Carta superior boca abajo en la cima del mazo
-            var topGo = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            UnityEngine.Object.DestroyImmediate(topGo.GetComponent<Collider>());
-            topGo.name = "DeckTopCardBack";
-            topGo.transform.SetParent(Root.transform, false);
-            topGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            topGo.transform.localScale = new Vector3(w, l, 1f);
-            topCardRenderer = topGo.GetComponent<MeshRenderer>();
             topMat = CardView.CreateUnlitMaterial(Color.white, SpriteCache.GetCardBack()?.texture, false);
-            topCardRenderer.sharedMaterial = topMat;
-            topCardTransform = topGo.transform;
+
+            for (int i = 0; i < MaxSlices; i++)
+            {
+                var sliceGo = new GameObject($"DeckSlice_{i}");
+                sliceGo.transform.SetParent(Root.transform, false);
+
+                var blockGo = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                UnityEngine.Object.DestroyImmediate(blockGo.GetComponent<Collider>());
+                blockGo.name = "SliceEdge";
+                blockGo.transform.SetParent(sliceGo.transform, false);
+                blockGo.GetComponent<MeshRenderer>().sharedMaterial = sDeckSideMat;
+
+                var topGo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                UnityEngine.Object.DestroyImmediate(topGo.GetComponent<Collider>());
+                topGo.name = "SliceTopBack";
+                topGo.transform.SetParent(sliceGo.transform, false);
+                topGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                topGo.transform.localScale = new Vector3(w, l, 1f);
+                topGo.GetComponent<MeshRenderer>().sharedMaterial = topMat;
+
+                slices[i] = new DeckSlice
+                {
+                    Root = sliceGo,
+                    Block = blockGo.transform,
+                    TopCard = topGo.transform,
+                    OffX = sPresetOffX[i],
+                    OffZ = sPresetOffZ[i],
+                    Yaw = sPresetYaw[i],
+                    Weight = sPresetWeight[i]
+                };
+            }
         }
 
         public void Sync(int cardCount)
@@ -358,12 +405,6 @@ namespace PokeTCGPlay
             }
             if (!Root.activeSelf) Root.SetActive(true);
 
-            // Altura física proporcional al número de cartas (60 cartas ≈ 3.2 cm de alto)
-            float stackHeight = Mathf.Max(0.0018f, cardCount * 0.00054f);
-            blockTransform.localScale = new Vector3(TableView.CardWorldWidth, stackHeight, TableView.CardWorldLength);
-            blockTransform.localPosition = new Vector3(0f, stackHeight * 0.5f, 0f);
-            topCardTransform.localPosition = new Vector3(0f, stackHeight + 0.0002f, 0f);
-
             var cb = SpriteCache.GetCardBack();
             if (cb != null && cb.texture != null && topMat != null)
             {
@@ -373,16 +414,96 @@ namespace PokeTCGPlay
                 topMat.mainTextureOffset = new Vector2(tr.x / t.width, tr.y / t.height);
                 topMat.mainTextureScale = new Vector2(tr.width / t.width, tr.height / t.height);
             }
+
+            // Altura física realista proporcional al número de cartas (60 cartas ≈ 2.85 cm de alto)
+            float totalHeight = Mathf.Max(0.0014f, cardCount * 0.00048f);
+            int activeCount = Mathf.Clamp(Mathf.CeilToInt(cardCount / 4.2f), 1, MaxSlices);
+
+            float weightSum = 0f;
+            for (int i = 0; i < activeCount; i++)
+            {
+                int presetIdx = MaxSlices - activeCount + i;
+                weightSum += slices[presetIdx].Weight;
+            }
+
+            float w = TableView.CardWorldWidth;
+            float l = TableView.CardWorldLength;
+            float curY = 0f;
+
+            for (int i = 0; i < MaxSlices; i++)
+            {
+                if (i >= activeCount)
+                {
+                    if (slices[i].Root.activeSelf)
+                        slices[i].Root.SetActive(false);
+                    continue;
+                }
+
+                if (!slices[i].Root.activeSelf)
+                    slices[i].Root.SetActive(true);
+
+                // Usar los desplazamientos superiores para que siempre se vean las cartas individuales de arriba escalonadas
+                int presetIdx = MaxSlices - activeCount + i;
+                float sliceH = totalHeight * (slices[presetIdx].Weight / Mathf.Max(0.01f, weightSum));
+                float offScale = cardCount <= 3 ? 0.35f : 1f;
+
+                Transform sRoot = slices[i].Root.transform;
+                sRoot.localPosition = new Vector3(sPresetOffX[presetIdx] * offScale, curY, sPresetOffZ[presetIdx] * offScale);
+                sRoot.localRotation = Quaternion.Euler(0f, sPresetYaw[presetIdx] * offScale, 0f);
+
+                slices[i].Block.localScale = new Vector3(w, sliceH, l);
+                slices[i].Block.localPosition = new Vector3(0f, sliceH * 0.5f, 0f);
+                slices[i].TopCard.localPosition = new Vector3(0f, sliceH + 0.00012f, 0f);
+
+                curY += sliceH;
+            }
         }
 
         static Texture2D MakeDeckEdgesTex(int w, int h)
         {
             var t = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            t.wrapMode = TextureWrapMode.Repeat;
+            t.filterMode = FilterMode.Bilinear;
+
             for (int y = 0; y < h; y++)
             {
-                bool stripe = (y % 3) == 0;
-                Color col = stripe ? new Color(0.72f, 0.74f, 0.78f, 1f) : new Color(0.92f, 0.91f, 0.88f, 1f);
-                for (int x = 0; x < w; x++) t.SetPixel(x, y, col);
+                int mod = y % 6;
+                Color baseCol;
+                if (mod == 0)
+                {
+                    // Sombra fina entre cartas apiladas
+                    baseCol = new Color(0.24f, 0.27f, 0.34f, 1f);
+                }
+                else if (mod == 5)
+                {
+                    // Borde azulado del reverso de cada carta Pokémon
+                    baseCol = new Color(0.18f, 0.34f, 0.68f, 1f);
+                }
+                else if (mod == 2 || mod == 3)
+                {
+                    // Canto blanco/crema de cartulina
+                    baseCol = new Color(0.90f, 0.91f, 0.93f, 1f);
+                }
+                else
+                {
+                    // Gris claro intermedio del núcleo de papel
+                    baseCol = new Color(0.76f, 0.78f, 0.82f, 1f);
+                }
+
+                // Variación orgánica sutil por fila para que no parezca plástico uniforme
+                float rowNoise = (((y * 37) % 13) - 6) * 0.008f;
+                for (int x = 0; x < w; x++)
+                {
+                    float nx = Mathf.Abs((x / (float)(w - 1)) * 2f - 1f);
+                    // Oscurecer suavemente los extremos para simular las esquinas redondeadas del mazo
+                    float cornerShade = nx > 0.84f ? Mathf.Lerp(1f, 0.55f, (nx - 0.84f) / 0.16f) : 1f;
+                    Color c = new Color(
+                        Mathf.Clamp01((baseCol.r + rowNoise) * cornerShade),
+                        Mathf.Clamp01((baseCol.g + rowNoise) * cornerShade),
+                        Mathf.Clamp01((baseCol.b + rowNoise) * cornerShade),
+                        1f);
+                    t.SetPixel(x, y, c);
+                }
             }
             t.Apply();
             return t;

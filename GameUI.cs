@@ -35,12 +35,16 @@ namespace PokeTCGPlay
         CardView hoveredBoardCard3D;
         readonly HashSet<Transform> validTargetAnchors = new HashSet<Transform>();
 
-        // --- Animación de Zoom con Clic Derecho (se eleva desde la mesa y vuelve a su sitio) ---
+        // --- F5: Inspección 3D con Clic Derecho (la carta 3D se eleva hacia la cámara y vuelve a su sitio) ---
         CardDef zoomedCard;
         PokemonInPlay zoomedPip;
         Rect zoomOriginRect;
-        float zoomAnim; // 0 = en la mesa, 1 = elevado frente a la cámara
+        Vector3 zoomOriginWorldPos;
+        Quaternion zoomOriginWorldRot;
+        float zoomOriginScale = 1f;
+        float zoomAnim; // 0 = en la mesa/mano, 1 = elevado frente a la cámara
         bool zoomClosing;
+        float aiSetupDelay;
 
         // --- Animación de Moneda Inicial y Monedas de Ataque ---
         bool startCoinSpinning;
@@ -176,12 +180,15 @@ namespace PokeTCGPlay
             validTargetAnchors.Clear();
         }
 
-        void StartZoom(CardDef card, PokemonInPlay pip, Rect screenRect)
+        void StartZoom(CardDef card, PokemonInPlay pip, Rect screenRect, Vector3 worldPos = default, Quaternion worldRot = default, float worldScale = 1f)
         {
             if (card == null) return;
             zoomedCard = card;
             zoomedPip = pip;
             zoomOriginRect = screenRect;
+            zoomOriginWorldPos = worldPos;
+            zoomOriginWorldRot = worldRot;
+            zoomOriginScale = worldScale;
             zoomAnim = 0f;
             zoomClosing = false;
         }
@@ -219,7 +226,7 @@ namespace PokeTCGPlay
                 Update3DInput();
             }
 
-            // F2 & F4: Sincronizar las cartas 3D físicas sobre el tapete de la mesa, la Mano 3D en abanico y la carta arrastrada
+            // F2, F4 & F5: Sincronizar cartas 3D físicas, Mano 3D en abanico, Carta arrastrada e Inspección 3D
             bool overValidSlot = hoveredSlot3D != null && validTargetAnchors.Contains(hoveredSlot3D.Anchor);
             TableView.Instance?.SyncBoard3D(
                 game,
@@ -231,9 +238,12 @@ namespace PokeTCGPlay
                 selHand,
                 isDragging3D ? pressedHandIdx : -1,
                 currentDragWorldPos,
-                overValidSlot);
+                overValidSlot,
+                zoomOriginWorldPos,
+                zoomOriginWorldRot,
+                zoomOriginScale);
 
-            // Actualizar animación de Zoom elevado
+            // Actualizar animación de Inspección 3D elevada (F5)
             if (zoomedCard != null)
             {
                 float target = zoomClosing ? 0f : 1f;
@@ -251,7 +261,7 @@ namespace PokeTCGPlay
             {
                 startCoinTimer += Time.deltaTime;
                 // Solo cuando la moneda ya cayó sobre la mesa y mostró su resultado (t >= 0.88),
-                // pasamos a Fase de Preparación y, si el NPC ganó la tirada, baja sus cartas.
+                // pasamos a Fase de Preparación, repartimos la mano inicial y, si el NPC ganó, prepara su jugada tras el reparto.
                 if (startCoinTimer >= StartCoinDuration * 0.88f && !startCoinDone)
                 {
                     startCoinDone = true;
@@ -276,8 +286,17 @@ namespace PokeTCGPlay
                 currentFlight = flightQueue.Dequeue();
             }
 
-            // Ejecutar turno de la IA cuando terminen las animaciones 3D y 2D en curso
+            // Ejecutar colocación inicial o turno de la IA cuando terminen las animaciones 3D y 2D en curso
             bool animBusy = currentFlight != null || flightQueue.Count > 0 || (BoardAnimator.Instance != null && BoardAnimator.Instance.IsAnimating);
+            if (game.PendingAiSetup && !animBusy && !startCoinSpinning)
+            {
+                aiSetupDelay += Time.deltaTime;
+                if (aiSetupDelay >= 0.30f)
+                {
+                    aiSetupDelay = 0f;
+                    game.ExecutePendingAiSetup();
+                }
+            }
             if (game.PendingAiTurn && !animBusy && !startCoinSpinning)
             {
                 aiTurnDelay += Time.deltaTime;
@@ -1369,94 +1388,253 @@ namespace PokeTCGPlay
             GUILayout.EndArea();
         }
 
-        // ==================== Zoom con Elevación desde la Mesa ====================
+        // ==================== F5: Inspección 3D con Elevación hacia Cámara e Iconos de Energía ====================
+        static string EnergySymbol(string type)
+        {
+            switch (type)
+            {
+                case "Fire": return "F";
+                case "Water": return "W";
+                case "Grass": return "G";
+                case "Lightning": return "L";
+                case "Psychic": return "P";
+                case "Fighting": return "M";
+                default: return "★";
+            }
+        }
+
+        static void DrawEnergyOrb(Rect r, string type, float alpha = 1f)
+        {
+            Color prevBg = GUI.backgroundColor;
+            Color prevCol = GUI.color;
+            Color ec = EnergyColor(type);
+            GUI.backgroundColor = new Color(ec.r, ec.g, ec.b, alpha);
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.Box(r, EnergySymbol(type), BadgeStyle);
+            GUI.backgroundColor = prevBg;
+            GUI.color = prevCol;
+        }
+
+        static void DrawInlineEnergyOrb(string type, float size = 22f)
+        {
+            Rect r = GUILayoutUtility.GetRect(size, size, GUILayout.Width(size), GUILayout.Height(size));
+            DrawEnergyOrb(r, type, GUI.color.a);
+        }
+
         /// <summary>
-        /// Anima la carta elevándose desde su posición en la mesa (originRect) hasta el centro-izquierda,
-        /// mostrando al lado el cuadro de texto informativo. Devuelve true si el usuario cerró el zoom.
+        /// F5: Muestra la Inspección de Carta (en mesa 3D la carta sube físicamente en 3D hacia la cámara con giro interactivo
+        /// y telón 3D oscurecido detrás; a la derecha se despliega el panel con ataques, costes como iconos de energía,
+        /// debilidad, resistencia y coste de retirada). Devuelve true si el usuario cerró la inspección.
         /// </summary>
         public static bool DrawElevatedZoomOverlay(CardDef card, PokemonInPlay pip, Rect originRect, float animT)
         {
             EnsureStyles();
             float smooth = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(animT));
+            bool use3DCard = Instance != null && Instance.open && TableView.Instance != null && TableView.Instance.IsBoard3DReady;
 
-            // Oscurecer suavemente el fondo según la elevación
             Color prevCol = GUI.color;
-            GUI.color = new Color(1f, 1f, 1f, smooth * 0.85f);
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), zoomBgTex);
-            GUI.color = prevCol;
-
-            float targetH = Mathf.Min(Screen.height * 0.72f, 560f);
+            float targetH = Mathf.Min(Screen.height * 0.74f, 570f);
             float targetW = Mathf.Round(targetH * (63f / 88f));
-            float totalW = targetW + 470f;
+            float totalW = targetW + 480f;
             Rect targetCardRect = new Rect((Screen.width - totalW) * 0.5f, (Screen.height - targetH) * 0.5f, targetW, targetH);
 
-            // Interpolar la carta desde su hueco en el tapete hasta la posición elevada
-            Rect animCardRect = new Rect(
-                Mathf.Lerp(originRect.x, targetCardRect.x, smooth),
-                Mathf.Lerp(originRect.y, targetCardRect.y, smooth),
-                Mathf.Lerp(originRect.width, targetCardRect.width, smooth),
-                Mathf.Lerp(originRect.height, targetCardRect.height, smooth)
-            );
-
-            // Sombra de elevación bajo la carta
-            float shadowOffset = 18f * smooth;
-            GUI.Box(new Rect(animCardRect.x + shadowOffset, animCardRect.y + shadowOffset, animCardRect.width, animCardRect.height), "", BoxBgStyle);
-
-            DrawCardSpriteOnly(animCardRect, card);
-
-            // Cuadro de texto lateral con toda la información de la carta
-            if (smooth > 0.35f)
+            if (!use3DCard)
             {
-                float panelAlpha = Mathf.Clamp01((smooth - 0.35f) / 0.65f);
+                // Respaldo 2D (por ejemplo, al inspeccionar cartas dentro del Deck Builder en la Workbench)
+                GUI.color = new Color(1f, 1f, 1f, smooth * 0.85f);
+                GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), zoomBgTex);
+                GUI.color = prevCol;
+
+                Rect animCardRect = new Rect(
+                    Mathf.Lerp(originRect.x, targetCardRect.x, smooth),
+                    Mathf.Lerp(originRect.y, targetCardRect.y, smooth),
+                    Mathf.Lerp(originRect.width, targetCardRect.width, smooth),
+                    Mathf.Lerp(originRect.height, targetCardRect.height, smooth)
+                );
+
+                float shadowOffset = 18f * smooth;
+                GUI.Box(new Rect(animCardRect.x + shadowOffset, animCardRect.y + shadowOffset, animCardRect.width, animCardRect.height), "", BoxBgStyle);
+                DrawCardSpriteOnly(animCardRect, card);
+            }
+
+            // Panel lateral F5 con ataques, costes como iconos de energía, debilidad, resistencia y retirada
+            if (smooth > 0.25f)
+            {
+                float panelAlpha = Mathf.Clamp01((smooth - 0.25f) / 0.75f);
                 GUI.color = new Color(1f, 1f, 1f, panelAlpha);
-                Rect infoBox = new Rect(targetCardRect.xMax + 22f, targetCardRect.y, 448f, targetH);
+                Rect infoBox = new Rect(targetCardRect.xMax + 24f, targetCardRect.y, 462f, targetH);
                 GUI.Box(infoBox, "", BoxBgStyle);
 
-                GUILayout.BeginArea(new Rect(infoBox.x + 20f, infoBox.y + 18f, infoBox.width - 40f, infoBox.height - 36f));
-                GUILayout.Label($"<size=24><b>{card.Name}</b></size>  <color=#9ecbff>(#{card.Number})</color>", HeaderStyle);
-                GUILayout.Space(8);
+                GUILayout.BeginArea(new Rect(infoBox.x + 20f, infoBox.y + 16f, infoBox.width - 40f, infoBox.height - 32f));
+
+                // Cabecera: Nombre, Número y Orbe de Tipo + PS
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"<size=23><b>{card.Name}</b></size> <color=#9ecbff><size=14>({card.SetId} #{card.Number})</size></color>", HeaderStyle);
+                GUILayout.FlexibleSpace();
+                if (card.Supertype == Supertype.Pokemon)
+                {
+                    int curHp = pip != null ? pip.RemainingHp : card.Hp;
+                    GUILayout.Label($"<size=18><color=#ff7b7b><b>{curHp}/{card.Hp} PS</b></color></size>", HeaderStyle);
+                    GUILayout.Space(6);
+                    DrawInlineEnergyOrb(card.Type, 24f);
+                }
+                else if (card.Supertype == Supertype.Energy && !string.IsNullOrEmpty(card.EnergyProvides))
+                {
+                    DrawInlineEnergyOrb(card.EnergyProvides, 24f);
+                }
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(6);
 
                 if (card.Supertype == Supertype.Pokemon)
                 {
-                    GUILayout.Label($"<b>Etapa:</b> {card.Stage}" + (!string.IsNullOrEmpty(card.EvolvesFrom) ? $" (Evoluciona de {card.EvolvesFrom})" : ""), ZoomTextStyle);
-                    GUILayout.Label($"<b>Tipo:</b> {card.Type}   |   <b>HP:</b> {(pip != null ? $"{pip.RemainingHp}/{card.Hp}" : card.Hp.ToString())}", ZoomTextStyle);
+                    string stageTxt = $"<b>Etapa:</b> {card.Stage}" + (!string.IsNullOrEmpty(card.EvolvesFrom) ? $"  •  <i>Evoluciona de {card.EvolvesFrom}</i>" : "");
+                    GUILayout.Label(stageTxt, ZoomTextStyle);
 
+                    // Barra visual de PS
+                    float hpRatio = Mathf.Clamp01((pip != null ? pip.RemainingHp : card.Hp) / (float)Math.Max(1, card.Hp));
+                    Rect hpBar = GUILayoutUtility.GetRect(infoBox.width - 44f, 10f);
+                    GUI.DrawTexture(hpBar, hpBgTex);
+                    GUI.DrawTexture(new Rect(hpBar.x, hpBar.y, hpBar.width * hpRatio, hpBar.height), hpFillTex);
+
+                    // Energías unidas físicamente como iconos de energía
                     if (pip != null && pip.Energy.Count > 0)
-                        GUILayout.Label($"<b>Energías debajo:</b> {string.Join(", ", pip.Energy.Select(e => e.Name))}", ZoomTextStyle);
-                    if (pip != null && (pip.Status != Status.None || pip.Poisoned))
-                        GUILayout.Label($"<color=#ffd166><b>Estado alterado:</b> {pip.Status} {(pip.StatusTurns > 0 ? $"({pip.StatusTurns} turno)" : "")} {(pip.Poisoned ? "[Envenenado]" : "")}</color>", ZoomTextStyle);
+                    {
+                        GUILayout.Space(6);
+                        GUILayout.BeginHorizontal();
+                        GUILayout.Label("<b>Energías unidas:</b>", ZoomTextStyle, GUILayout.Width(120f));
+                        foreach (var e in pip.Energy)
+                        {
+                            DrawInlineEnergyOrb(e.EnergyProvides, 20f);
+                            GUILayout.Space(3f);
+                        }
+                        GUILayout.FlexibleSpace();
+                        GUILayout.EndHorizontal();
+                    }
 
+                    if (pip != null && (pip.Status != Status.None || pip.Poisoned || pip.DefenderUntilTurn >= 0))
+                    {
+                        GUILayout.Space(4);
+                        GUILayout.Label($"<color=#ffd166><b>Estado en mesa:</b> {(pip.Status != Status.None ? pip.Status.ToString() : "Normal")} {(pip.Poisoned ? "[Envenenado]" : "")}</color>", ZoomTextStyle);
+                    }
+
+                    // Poké-Power / Habilidad
                     if (card.Power != null)
                     {
                         GUILayout.Space(8);
-                        GUILayout.Label($"<color=#ffd166><b>Pokémon Power — {card.Power.Name}:</b></color>\n{card.Power.Text}", ZoomTextStyle);
+                        GUILayout.BeginVertical(SubBoxStyle);
+                        GUILayout.Label($"<color=#ffd166><b>⚡ Poké-Power: {card.Power.Name}</b></color>", ZoomTextStyle);
+                        GUILayout.Label(card.Power.Text, ZoomTextStyle);
+                        GUILayout.EndVertical();
                     }
 
+                    // Lista de Ataques con iconos de coste de energía
                     GUILayout.Space(8);
                     foreach (var atk in card.Attacks)
                     {
-                        string cost = atk.Cost.Count > 0 ? string.Join(", ", atk.Cost) : "Gratis";
-                        GUILayout.Label($"<color=#80ed99><b>• {atk.Name}</b></color>  [{cost}]  <b>Daño: {atk.BaseDamage}{atk.DamageSuffix}</b>", ZoomTextStyle);
+                        GUILayout.BeginVertical(SubBoxStyle);
+                        GUILayout.BeginHorizontal();
+                        if (atk.Cost != null && atk.Cost.Count > 0)
+                        {
+                            foreach (var cType in atk.Cost)
+                            {
+                                DrawInlineEnergyOrb(cType, 21f);
+                                GUILayout.Space(3f);
+                            }
+                        }
+                        else
+                        {
+                            GUILayout.Label("<color=#9ecbff>[0]</color>", ZoomTextStyle, GUILayout.Width(24f));
+                        }
+                        GUILayout.Space(6f);
+                        GUILayout.Label($"<size=16><color=#80ed99><b>{atk.Name}</b></color></size>", ZoomTextStyle);
+                        GUILayout.FlexibleSpace();
+                        if (atk.BaseDamage > 0 || !string.IsNullOrEmpty(atk.DamageSuffix))
+                        {
+                            GUILayout.Label($"<size=17><color=#ffe066><b>{atk.BaseDamage}{atk.DamageSuffix}</b></color></size>", HeaderStyle);
+                        }
+                        GUILayout.EndHorizontal();
+
                         if (!string.IsNullOrEmpty(atk.Text))
-                            GUILayout.Label($"  <i>{atk.Text}</i>", ZoomTextStyle);
-                        GUILayout.Space(4);
+                        {
+                            GUILayout.Space(3f);
+                            GUILayout.Label($"<color=#dce6f2><i>{atk.Text}</i></color>", ZoomTextStyle);
+                        }
+                        GUILayout.EndVertical();
+                        GUILayout.Space(5);
                     }
 
-                    GUILayout.Space(6);
-                    GUILayout.Label($"<b>Debilidad:</b> {(string.IsNullOrEmpty(card.WeaknessType) ? "Ninguna" : card.WeaknessType + " ×2")}  |  " +
-                                    $"<b>Resistencia:</b> {(string.IsNullOrEmpty(card.ResistanceType) ? "Ninguna" : $"{card.ResistanceType} -{card.ResistanceValue}")}  |  " +
-                                    $"<b>Retirada:</b> {card.RetreatCost}", ZoomTextStyle);
+                    GUILayout.FlexibleSpace();
+
+                    // Barra inferior F5: Debilidad, Resistencia y Coste de Retirada con iconos de energía
+                    GUILayout.BeginVertical(SubBoxStyle);
+                    GUILayout.BeginHorizontal();
+
+                    // Columna 1: Debilidad
+                    GUILayout.BeginHorizontal(GUILayout.Width(132f));
+                    GUILayout.Label("<b>Debilidad:</b>", ZoomTextStyle, GUILayout.Width(72f));
+                    if (!string.IsNullOrEmpty(card.WeaknessType))
+                    {
+                        DrawInlineEnergyOrb(card.WeaknessType, 19f);
+                        GUILayout.Space(3f);
+                        GUILayout.Label("<b>×2</b>", ZoomTextStyle);
+                    }
+                    else
+                    {
+                        GUILayout.Label("—", ZoomTextStyle);
+                    }
+                    GUILayout.EndHorizontal();
+
+                    // Columna 2: Resistencia
+                    GUILayout.BeginHorizontal(GUILayout.Width(142f));
+                    GUILayout.Label("<b>Resistencia:</b>", ZoomTextStyle, GUILayout.Width(84f));
+                    if (!string.IsNullOrEmpty(card.ResistanceType))
+                    {
+                        DrawInlineEnergyOrb(card.ResistanceType, 19f);
+                        GUILayout.Space(3f);
+                        GUILayout.Label($"<b>-{card.ResistanceValue}</b>", ZoomTextStyle);
+                    }
+                    else
+                    {
+                        GUILayout.Label("—", ZoomTextStyle);
+                    }
+                    GUILayout.EndHorizontal();
+
+                    // Columna 3: Coste de Retirada
+                    GUILayout.BeginHorizontal();
+                    GUILayout.Label("<b>Retirada:</b>", ZoomTextStyle, GUILayout.Width(64f));
+                    if (card.RetreatCost > 0)
+                    {
+                        for (int r = 0; r < card.RetreatCost; r++)
+                        {
+                            DrawInlineEnergyOrb("Colorless", 18f);
+                            GUILayout.Space(2f);
+                        }
+                    }
+                    else
+                    {
+                        GUILayout.Label("0", ZoomTextStyle);
+                    }
+                    GUILayout.EndHorizontal();
+
+                    GUILayout.EndHorizontal();
+                    GUILayout.EndVertical();
                 }
                 else
                 {
-                    GUILayout.Label($"<b>Categoría:</b> {card.Supertype}", ZoomTextStyle);
+                    GUILayout.Label($"<b>Categoría:</b> {card.Supertype}" + (!string.IsNullOrEmpty(card.EnergyProvides) ? $" ({card.EnergyProvides})" : ""), ZoomTextStyle);
                     GUILayout.Space(10);
                     if (!string.IsNullOrEmpty(card.RulesText))
+                    {
+                        GUILayout.BeginVertical(SubBoxStyle);
                         GUILayout.Label(card.RulesText, ZoomTextStyle);
+                        GUILayout.EndVertical();
+                    }
+                    GUILayout.FlexibleSpace();
                 }
 
-                GUILayout.FlexibleSpace();
-                GUILayout.Label("<color=#bbbbbb>Clic derecho o izquierdo para devolver la carta a la mesa.</color>", SubHeaderStyle);
+                GUILayout.Space(6);
+                GUILayout.Label("<color=#aebcd0><i>Mueve el ratón para inclinar la carta 3D  •  Clic o Esc para devolverla a su sitio</i></color>", SubHeaderStyle);
                 GUILayout.EndArea();
                 GUI.color = prevCol;
             }
@@ -1673,11 +1851,12 @@ namespace PokeTCGPlay
                 if (hoveredHandIdx >= 0 && hoveredHandIdx < Me.Hand.Count)
                 {
                     var c = Me.Hand[hoveredHandIdx];
-                    Vector3 cardWorld = tv.GetHandCardWorldPos(0, hoveredHandIdx, Me.Hand.Count);
-                    if (!tv.TryProjectWorldPosToGUI(cardWorld, 1.05f, slotW, slotH, out Rect originRect))
+                    Vector3 cardWorldPos = tv.GetHandCardWorldPos(0, hoveredHandIdx, Me.Hand.Count);
+                    Quaternion cardWorldRot = tv.GetHandCardWorldRot(0, hoveredHandIdx, Me.Hand.Count);
+                    if (!tv.TryProjectWorldPosToGUI(cardWorldPos, 1.05f, slotW, slotH, out Rect originRect))
                         originRect = GetHandCenterRect(0);
                     PlayClickSound(0);
-                    StartZoom(c, null, originRect);
+                    StartZoom(c, null, originRect, cardWorldPos, cardWorldRot, 1.02f);
                 }
                 else if (hoveredBoardCard3D != null && hoveredBoardCard3D.BoundPip != null)
                 {
@@ -1687,24 +1866,27 @@ namespace PokeTCGPlay
                         ? GetActiveRect(pOwner)
                         : GetBenchRect(pOwner, Mathf.Max(0, game.Players[pOwner].Bench.IndexOf(pip)));
                     PlayClickSound(0);
-                    StartZoom(pip.Card, pip, originRect);
+                    StartZoom(pip.Card, pip, originRect, hoveredBoardCard3D.transform.position, hoveredBoardCard3D.transform.rotation, hoveredBoardCard3D.CurrentScale);
                 }
                 else if (hoveredBoardCard3D != null && hoveredBoardCard3D.IsDiscardTop)
                 {
                     int pOwner = Mathf.Clamp(hoveredBoardCard3D.OwnerIndex, 0, 1);
                     PlayClickSound(0);
-                    StartZoom(hoveredBoardCard3D.Card, null, GetTrashRect(pOwner));
+                    StartZoom(hoveredBoardCard3D.Card, null, GetTrashRect(pOwner), hoveredBoardCard3D.transform.position, hoveredBoardCard3D.transform.rotation, 1f);
                 }
                 else if (hoveredSlot3D != null)
                 {
                     int pOwner = Mathf.Clamp(hoveredSlot3D.PlayerIndex, 0, 1);
+                    Transform slotAnchor = hoveredSlot3D.Anchor;
+                    Vector3 slotPos = slotAnchor != null ? slotAnchor.position : Vector3.zero;
+                    Quaternion slotRot = slotAnchor != null ? slotAnchor.rotation : Quaternion.identity;
                     if (hoveredSlot3D.Kind == TableSlotKind.Discard)
                     {
                         var disc = game.Players[pOwner].Discard;
                         if (disc.Count > 0)
                         {
                             PlayClickSound(0);
-                            StartZoom(disc[disc.Count - 1], null, GetTrashRect(pOwner));
+                            StartZoom(disc[disc.Count - 1], null, GetTrashRect(pOwner), slotPos, slotRot, 1f);
                         }
                     }
                     else if (hoveredSlot3D.Kind == TableSlotKind.Active)
@@ -1713,7 +1895,7 @@ namespace PokeTCGPlay
                         if (pip != null)
                         {
                             PlayClickSound(0);
-                            StartZoom(pip.Card, pip, GetActiveRect(pOwner));
+                            StartZoom(pip.Card, pip, GetActiveRect(pOwner), slotPos, slotRot, 1.08f);
                         }
                     }
                     else if (hoveredSlot3D.Kind == TableSlotKind.Bench)
@@ -1723,7 +1905,7 @@ namespace PokeTCGPlay
                         if (bIdx >= 0 && bIdx < bench.Count)
                         {
                             PlayClickSound(0);
-                            StartZoom(bench[bIdx].Card, bench[bIdx], GetBenchRect(pOwner, bIdx));
+                            StartZoom(bench[bIdx].Card, bench[bIdx], GetBenchRect(pOwner, bIdx), slotPos, slotRot, 0.94f);
                         }
                     }
                 }
