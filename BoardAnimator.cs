@@ -19,8 +19,10 @@ namespace PokeTCGPlay
         {
             public AnimKind Kind;
             public int PlayerIndex;
+            public int TargetBenchIndex = -1;
             public CardDef Card;
             public Vector3 StartWorldPos;
+            public Vector3 ApproachWorldPos;
             public Vector3 EndWorldPos;
             public Quaternion BaseRotation;
             public float StartScale = 1f;
@@ -32,11 +34,16 @@ namespace PokeTCGPlay
             public float Duration = 0.42f;
             public float Elapsed;
             public string Caption;
-            public bool SlideUnderAtEnd; // true para Energías que se deslizan debajo del Pokémon
+            public bool SlideUnderAtEnd; // true para Energías que se deslizan debajo del Pokémon elevado
             public bool PulseScaleAtEnd; // true para Evoluciones que se posan encima
             public bool RevealAtScreen;  // true para robos del jugador: vuela a pantalla de espaldas, gira, espera 0.5s y baja a la mano
             public int HandSlotIndex = -1;
             public int HandTotalCount = 1;
+            public bool CoinHeads;       // F7: resultado de la moneda 3D en lanzamientos de ataque/estado
+            public string CoinReason;
+            public bool IsInstantCallback;
+            public Action OnStart;
+            public Action OnComplete;
         }
 
         readonly Queue<Flight3D> queue = new Queue<Flight3D>();
@@ -82,6 +89,94 @@ namespace PokeTCGPlay
         }
 
         /// <summary>
+        /// Devuelve cuántos premios de `playerIndex` aún esperan en la cola antes de despegar de la casilla Side.
+        /// </summary>
+        public int GetPendingPrizeTakes(int playerIndex)
+        {
+            int count = 0;
+            foreach (var f in queue)
+            {
+                if (f.PlayerIndex == playerIndex && f.Kind == AnimKind.TakePrize)
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Indica si la llegada inicial de un Pokémon a `destBenchSlotIdx` (-1 = Activo, 0..4 = Banca)
+        /// o su embestida de ataque está actualmente en vuelo o pendiente en la cola.
+        /// </summary>
+        public bool IsPokemonSlotInFlightOrQueued(int playerIndex, int destBenchSlotIdx)
+        {
+            if (Current != null && MatchesSlotArrivalOrAction(Current, playerIndex, destBenchSlotIdx, true))
+                return true;
+            foreach (var f in queue)
+            {
+                if (MatchesSlotArrivalOrAction(f, playerIndex, destBenchSlotIdx, false))
+                    return true;
+            }
+            return false;
+        }
+
+        static bool MatchesSlotArrivalOrAction(Flight3D f, int playerIndex, int destBenchSlotIdx, bool isCurrent)
+        {
+            if (f == null || f.PlayerIndex != playerIndex) return false;
+            if (f.Kind == AnimKind.ToActive && destBenchSlotIdx == -1) return true;
+            if (f.Kind == AnimKind.ToBench && f.TargetBenchIndex == destBenchSlotIdx) return true;
+            if (f.Kind == AnimKind.RetreatSwap && destBenchSlotIdx == -1) return true;
+            if (isCurrent && f.Kind == AnimKind.AttackLunge && destBenchSlotIdx == -1) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Devuelve cuántas evoluciones dirigidas a `benchSlotIdx` siguen en vuelo o en la cola.
+        /// </summary>
+        public int GetPendingEvolveCount(int playerIndex, int benchSlotIdx)
+        {
+            int count = 0;
+            if (Current != null && Current.PlayerIndex == playerIndex && Current.Kind == AnimKind.Evolve && Current.TargetBenchIndex == benchSlotIdx)
+                count++;
+            foreach (var f in queue)
+            {
+                if (f.PlayerIndex == playerIndex && f.Kind == AnimKind.Evolve && f.TargetBenchIndex == benchSlotIdx)
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Devuelve cuántas uniones de Energía dirigidas a `benchSlotIdx` están en la cola (aún no iniciadas).
+        /// </summary>
+        public int GetQueuedEnergyCount(int playerIndex, int benchSlotIdx)
+        {
+            int count = 0;
+            foreach (var f in queue)
+            {
+                if (f.PlayerIndex == playerIndex && f.Kind == AnimKind.AttachEnergy && f.TargetBenchIndex == benchSlotIdx)
+                    count++;
+            }
+            return count;
+        }
+
+        /// <summary>
+        /// Indica si `card` está actualmente volando o en cola hacia la pila de Descarte (`KnockOut` o `PlayTrainer`).
+        /// </summary>
+        public bool IsCardFlyingToDiscard(int playerIndex, CardDef card)
+        {
+            if (card == null) return false;
+            if (Current != null && Current.PlayerIndex == playerIndex && Current.Card == card &&
+                (Current.Kind == AnimKind.KnockOut || Current.Kind == AnimKind.PlayTrainer))
+                return true;
+            foreach (var f in queue)
+            {
+                if (f.PlayerIndex == playerIndex && f.Card == card &&
+                    (f.Kind == AnimKind.KnockOut || f.Kind == AnimKind.PlayTrainer))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// F4: Permite que cuando el jugador juega o suelta (Drag & Drop) una carta desde una posición 3D concreta,
         /// el vuelo 3D inicie exactamente desde esa posición en el mundo.
         /// </summary>
@@ -122,6 +217,121 @@ namespace PokeTCGPlay
             flyingCard.gameObject.name = "PokeTCG_FlyingCard3D";
             flyingCard.SetRaycastEnabled(false);
             flyingCard.gameObject.SetActive(false);
+        }
+
+        static void InvokeSafe(Action cb)
+        {
+            if (cb == null) return;
+            try
+            {
+                cb();
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogError("BoardAnimator callback error: " + e);
+            }
+        }
+
+        public void EnqueueCallback(Action callback)
+        {
+            if (callback == null) return;
+            var tv = TableView.Instance;
+            if (tv == null || !tv.IsBoard3DReady || !IsAnimating)
+            {
+                InvokeSafe(callback);
+                return;
+            }
+            queue.Enqueue(new Flight3D
+            {
+                IsInstantCallback = true,
+                Duration = 0f,
+                OnComplete = callback
+            });
+        }
+
+        public void EnqueueCoinFlipStep(int playerIdx, bool coinHeads, string reason, Action onLanded)
+        {
+            var tv = TableView.Instance;
+            if (tv == null || !tv.IsBoard3DReady)
+            {
+                InvokeSafe(onLanded);
+                return;
+            }
+
+            bool hasCoinQueued = Current != null && Current.Kind == AnimKind.CoinFlip;
+            if (!hasCoinQueued)
+            {
+                foreach (var q in queue)
+                {
+                    if (q.Kind == AnimKind.CoinFlip) { hasCoinQueued = true; break; }
+                }
+            }
+            string cleanReason = string.IsNullOrEmpty(reason) ? "Moneda" : reason;
+            queue.Enqueue(new Flight3D
+            {
+                Kind = AnimKind.CoinFlip,
+                PlayerIndex = Mathf.Clamp(playerIdx, 0, 1),
+                CoinHeads = coinHeads,
+                CoinReason = cleanReason,
+                Duration = hasCoinQueued ? 1.15f : 1.38f,
+                Caption = $"{cleanReason} — Lanzando moneda...",
+                OnComplete = onLanded
+            });
+        }
+
+        public void EnqueueAttackLungeStep(int playerIdx, CardDef card, string attackName, Action onImpact, Action onFinished)
+        {
+            var tv = TableView.Instance;
+            if (tv == null || !tv.IsBoard3DReady)
+            {
+                InvokeSafe(onImpact);
+                InvokeSafe(onFinished);
+                return;
+            }
+
+            int p = Mathf.Clamp(playerIdx, 0, 1);
+            Quaternion playerRot = tv.ActiveAnchor[p] != null ? tv.ActiveAnchor[p].rotation : tv.PlaymatRoot.rotation;
+            Vector3 activePos = tv.ActiveAnchor[p] != null ? tv.ActiveAnchor[p].position : tv.PlaymatRoot.position;
+            Vector3 oppActivePos = tv.ActiveAnchor[1 - p] != null ? tv.ActiveAnchor[1 - p].position : tv.PlaymatRoot.position;
+            Vector3 hitPos = Vector3.Lerp(activePos, oppActivePos, 0.58f) + Vector3.up * 0.015f;
+
+            // 1) Embestida hacia el Pokémon rival (aplica daño y efectos justo en el impacto)
+            queue.Enqueue(new Flight3D
+            {
+                Kind = AnimKind.AttackLunge,
+                PlayerIndex = p,
+                Card = card,
+                StartWorldPos = activePos,
+                EndWorldPos = hitPos,
+                BaseRotation = playerRot,
+                StartScale = 1.08f,
+                EndScale = 1.15f,
+                StartFlipZ = 0f,
+                EndFlipZ = 0f,
+                ArcHeight = 0.045f,
+                Duration = 0.25f,
+                Caption = $"¡{card?.Name} usa {attackName}!",
+                OnComplete = onImpact
+            });
+
+            // 2) Regreso al puesto Activo (al posarse de vuelta se verifican KOs, premios y fin de turno)
+            queue.Enqueue(new Flight3D
+            {
+                Kind = AnimKind.AttackLunge,
+                PlayerIndex = p,
+                Card = card,
+                StartWorldPos = hitPos,
+                EndWorldPos = activePos,
+                BaseRotation = playerRot,
+                StartScale = 1.15f,
+                EndScale = 1.08f,
+                StartFlipZ = 0f,
+                EndFlipZ = 0f,
+                ArcHeight = 0.025f,
+                Duration = 0.22f,
+                Caption = $"¡{card?.Name} usa {attackName}!",
+                OnComplete = onFinished
+            });
         }
 
         public void EnqueueEvent(AnimEvent ev, Game game)
@@ -180,6 +390,7 @@ namespace PokeTCGPlay
                     {
                         Kind = AnimKind.ToActive,
                         PlayerIndex = p,
+                        TargetBenchIndex = -1,
                         Card = ev.Card,
                         StartWorldPos = ev.BenchIndex >= 0 ? benchPos : handPos,
                         EndWorldPos = activePos + Vector3.up * 0.002f,
@@ -199,6 +410,7 @@ namespace PokeTCGPlay
                     {
                         Kind = AnimKind.ToBench,
                         PlayerIndex = p,
+                        TargetBenchIndex = bIdx,
                         Card = ev.Card,
                         StartWorldPos = handPos,
                         EndWorldPos = benchPos + Vector3.up * 0.002f,
@@ -221,6 +433,7 @@ namespace PokeTCGPlay
                         {
                             Kind = AnimKind.Evolve,
                             PlayerIndex = p,
+                            TargetBenchIndex = ev.BenchIndex,
                             Card = ev.Card,
                             StartWorldPos = handPos,
                             EndWorldPos = dest + Vector3.up * 0.0045f,
@@ -240,24 +453,39 @@ namespace PokeTCGPlay
                 case AnimKind.AttachEnergy:
                     {
                         Transform targetAnchor = ev.BenchIndex < 0 ? tv.ActiveAnchor[p] : tv.BenchAnchor[p, bIdx];
-                        Vector3 targetPos = targetAnchor != null ? targetAnchor.position : activePos;
                         float endScale = ev.BenchIndex < 0 ? 1.08f : 0.94f;
-                        // Punto justo al borde del Pokémon desde donde se desliza por debajo
-                        Vector3 underOffset = (targetAnchor != null ? -targetAnchor.right * 0.016f - targetAnchor.forward * 0.014f : new Vector3(-0.016f, 0f, -0.014f)) * endScale;
+                        int energySlotIdx = 0;
+                        if (game != null && game.Players[p] != null)
+                        {
+                            var pip = ev.BenchIndex < 0
+                                ? game.Players[p].Active
+                                : (bIdx < game.Players[p].Bench.Count ? game.Players[p].Bench[bIdx] : null);
+                            if (pip != null)
+                                energySlotIdx = Mathf.Max(0, pip.Energy.Count - 1);
+                        }
+
+                        Vector3 finalEnergyPos = tv.GetAttachedEnergyWorldPos(p, ev.BenchIndex, energySlotIdx);
+                        Vector3 edgeDir = targetAnchor != null
+                            ? (-targetAnchor.right * 0.046f - targetAnchor.forward * 0.036f)
+                            : new Vector3(-0.046f, 0f, -0.036f);
+                        Vector3 approachPos = finalEnergyPos + edgeDir * endScale + Vector3.up * 0.002f;
+
                         queue.Enqueue(new Flight3D
                         {
                             Kind = AnimKind.AttachEnergy,
                             PlayerIndex = p,
+                            TargetBenchIndex = ev.BenchIndex,
                             Card = ev.Card,
                             StartWorldPos = handPos,
-                            EndWorldPos = targetPos + underOffset + Vector3.up * 0.0006f,
+                            ApproachWorldPos = approachPos,
+                            EndWorldPos = finalEnergyPos,
                             BaseRotation = playerRot,
                             StartScale = 1f,
                             EndScale = endScale,
                             StartFlipZ = 0f,
                             EndFlipZ = 0f,
-                            ArcHeight = 0.065f,
-                            Duration = 0.42f,
+                            ArcHeight = 0.055f,
+                            Duration = 0.68f,
                             SlideUnderAtEnd = true,
                             Caption = $"Une {ev.Card?.Name}"
                         });
@@ -412,18 +640,81 @@ namespace PokeTCGPlay
                         });
                         break;
                     }
+
+                case AnimKind.CoinFlip:
+                    {
+                        bool hasCoinQueued = Current != null && Current.Kind == AnimKind.CoinFlip;
+                        if (!hasCoinQueued)
+                        {
+                            foreach (var q in queue)
+                            {
+                                if (q.Kind == AnimKind.CoinFlip) { hasCoinQueued = true; break; }
+                            }
+                        }
+                        string reason = string.IsNullOrEmpty(ev.Label) ? "Moneda" : ev.Label;
+                        queue.Enqueue(new Flight3D
+                        {
+                            Kind = AnimKind.CoinFlip,
+                            PlayerIndex = p,
+                            CoinHeads = ev.CoinHeads,
+                            CoinReason = reason,
+                            Duration = hasCoinQueued ? 1.12f : 1.38f,
+                            Caption = $"{reason} — Lanzando moneda..."
+                        });
+                        break;
+                    }
             }
+        }
+
+        void StartNextInQueue()
+        {
+            while (Current == null && queue.Count > 0)
+            {
+                var next = queue.Dequeue();
+                if (next.IsInstantCallback)
+                {
+                    InvokeSafe(next.OnStart);
+                    InvokeSafe(next.OnComplete);
+                    continue;
+                }
+
+                Current = next;
+                InvokeSafe(Current.OnStart);
+
+                if (Current.Kind == AnimKind.CoinFlip)
+                {
+                    if (flyingCard != null && flyingCard.gameObject.activeSelf)
+                        flyingCard.gameObject.SetActive(false);
+                    TableView.Instance?.LaunchGameCoinFlip3D(Current.PlayerIndex, Current.CoinHeads, Current.Duration * 0.86f, Current.CoinReason);
+                    GameUI.PlayClickSound(0);
+                }
+                else
+                {
+                    EnsureFlyingCard();
+                    prevWorldPos = Current.StartWorldPos;
+                    flyingCard.gameObject.SetActive(true);
+                    GameUI.PlayClickSound(0);
+                }
+            }
+
+            if (Current == null && flyingCard != null && flyingCard.gameObject.activeSelf)
+                flyingCard.gameObject.SetActive(false);
+        }
+
+        void CompleteCurrentAndAdvance()
+        {
+            var finished = Current;
+            Current = null;
+            if (finished != null)
+                InvokeSafe(finished.OnComplete);
+            StartNextInQueue();
         }
 
         void Update()
         {
             if (Current == null && queue.Count > 0)
             {
-                Current = queue.Dequeue();
-                EnsureFlyingCard();
-                prevWorldPos = Current.StartWorldPos;
-                flyingCard.gameObject.SetActive(true);
-                GameUI.PlayClickSound(0);
+                StartNextInQueue();
             }
 
             if (Current == null)
@@ -436,38 +727,83 @@ namespace PokeTCGPlay
             Current.Elapsed += Time.deltaTime;
             float rawT = Mathf.Clamp01(Current.Elapsed / Mathf.Max(0.05f, Current.Duration));
 
+            // F7: Lanzamiento de Moneda 3D en cola (sin revelar el resultado ni aplicar el ataque hasta que la moneda termine)
+            if (Current.Kind == AnimKind.CoinFlip)
+            {
+                if (rawT >= 0.72f)
+                {
+                    Current.Caption = $"{Current.CoinReason}: ¡{(Current.CoinHeads ? "CARA (Pikachu)" : "CRUZ (Pokéball)")}!";
+                }
+                if (rawT >= 1f)
+                {
+                    CompleteCurrentAndAdvance();
+                }
+                return;
+            }
+
             // F5: Robo hacia la pantalla (viéndose por el reverso -> vuelta de 180° -> pausa de 0.5s -> bajada a la mano)
             if (Current.RevealAtScreen)
             {
                 UpdateScreenRevealFlight(rawT);
                 if (rawT >= 1f)
                 {
-                    Current = null;
-                    if (queue.Count == 0 && flyingCard != null)
-                        flyingCard.gameObject.SetActive(false);
+                    CompleteCurrentAndAdvance();
                 }
+                return;
+            }
+
+            // Coreografía en 3 etapas para unir Energía:
+            // 1) (0.00..0.36): vuela hacia el borde mientras el Pokémon objetivo se eleva
+            // 2) (0.36..0.72): se desliza horizontalmente debajo del Pokémon elevado
+            // 3) (0.72..1.00): queda fija en su sitio debajo mientras el Pokémon desciende suavemente a su lugar de origen
+            if (Current.SlideUnderAtEnd)
+            {
+                if (rawT >= 0.72f)
+                {
+                    if (flyingCard != null && flyingCard.gameObject.activeSelf)
+                        flyingCard.gameObject.SetActive(false);
+                    if (rawT >= 1f)
+                    {
+                        CompleteCurrentAndAdvance();
+                    }
+                    return;
+                }
+
+                Vector3 energyPos;
+                float energyScale;
+                if (rawT < 0.36f)
+                {
+                    float u = EaseOutCubic(rawT / 0.36f);
+                    energyPos = Vector3.Lerp(Current.StartWorldPos, Current.ApproachWorldPos, u)
+                              + Vector3.up * (Mathf.Sin((rawT / 0.36f) * Mathf.PI) * Current.ArcHeight);
+                    energyScale = Mathf.Lerp(Current.StartScale, Current.EndScale, u);
+                }
+                else
+                {
+                    float u = EaseInOutCubic((rawT - 0.36f) / 0.36f);
+                    energyPos = Vector3.Lerp(Current.ApproachWorldPos, Current.EndWorldPos, u);
+                    energyScale = Current.EndScale;
+                }
+
+                Vector3 eVel = (energyPos - prevWorldPos) / Mathf.Max(0.001f, Time.deltaTime);
+                prevWorldPos = energyPos;
+                Vector3 eLocalVel = Quaternion.Inverse(Current.BaseRotation) * eVel;
+                float ePitch = rawT < 0.36f ? Mathf.Clamp(eLocalVel.z * 20f, -16f, 16f) : 0f;
+                float eRoll = rawT < 0.36f ? Mathf.Clamp(-eLocalVel.x * 20f, -16f, 16f) : 0f;
+
+                flyingCard.Setup(Current.Card, false, energyScale, rawT < 0.55f, 0f);
+                flyingCard.SetShadowEnabled(true);
+                flyingCard.SetRaycastEnabled(false);
+                flyingCard.transform.position = energyPos;
+                flyingCard.transform.rotation = Current.BaseRotation * Quaternion.Euler(ePitch, 0f, eRoll);
                 return;
             }
 
             float easedT = EaseOutCubic(rawT);
 
             // Posición interpolada con arco parabólico 3D
-            Vector3 flatPos;
-            float arcY;
-            if (Current.SlideUnderAtEnd && rawT > 0.68f)
-            {
-                // En el último tramo de unir Energía, la carta baja a ras del tapete y se desliza horizontalmente debajo del Pokémon
-                float subT = (rawT - 0.68f) / 0.32f;
-                Vector3 approachPos = Vector3.Lerp(Current.StartWorldPos, Current.EndWorldPos + new Vector3(-0.025f, 0.002f, -0.020f), EaseOutCubic(0.68f));
-                flatPos = Vector3.Lerp(approachPos, Current.EndWorldPos, EaseOutCubic(subT));
-                arcY = Mathf.Lerp(0.012f, 0f, subT);
-            }
-            else
-            {
-                flatPos = Vector3.Lerp(Current.StartWorldPos, Current.EndWorldPos, easedT);
-                arcY = Mathf.Sin(rawT * Mathf.PI) * Current.ArcHeight;
-            }
-
+            Vector3 flatPos = Vector3.Lerp(Current.StartWorldPos, Current.EndWorldPos, easedT);
+            float arcY = Mathf.Sin(rawT * Mathf.PI) * Current.ArcHeight;
             Vector3 worldPos = flatPos + Vector3.up * arcY;
 
             // Inclinación física según la velocidad instantánea en 3D (pitch y roll suaves)
@@ -502,9 +838,7 @@ namespace PokeTCGPlay
 
             if (rawT >= 1f)
             {
-                Current = null;
-                if (queue.Count == 0 && flyingCard != null)
-                    flyingCard.gameObject.SetActive(false);
+                CompleteCurrentAndAdvance();
             }
         }
 

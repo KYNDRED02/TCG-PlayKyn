@@ -104,16 +104,33 @@ namespace PokeTCGPlay
         public Action<AnimEvent> OnAnim;
         public bool PendingAiTurn;
         public bool PendingAiSetup;
+        public bool IsBusyResolving { get; private set; }
         bool openingDealt;
+        List<AnimEvent> deferredTrainerEvents;
 
         public PlayerState Current => Players[CurrentIndex];
         public PlayerState Opponent => Players[1 - CurrentIndex];
         public PlayerState OpponentOf(PlayerState p) => p == Players[0] ? Players[1] : Players[0];
         public int IndexOf(PlayerState p) => p == Players[0] ? 0 : 1;
 
+        static bool Is3DAnimActive =>
+            BoardAnimator.Instance != null &&
+            TableView.Instance != null &&
+            TableView.Instance.IsBoard3DReady;
+
+        void DispatchAnimEvent(AnimEvent ev)
+        {
+            if (deferredTrainerEvents != null)
+            {
+                deferredTrainerEvents.Add(ev);
+                return;
+            }
+            OnAnim?.Invoke(ev);
+        }
+
         void Emit(AnimKind kind, PlayerState p, CardDef card = null, int benchIdx = -1, bool heads = false, string label = null)
         {
-            OnAnim?.Invoke(new AnimEvent
+            DispatchAnimEvent(new AnimEvent
             {
                 Kind = kind,
                 PlayerIndex = IndexOf(p),
@@ -124,6 +141,11 @@ namespace PokeTCGPlay
             });
         }
 
+        public void EmitPromotion(PlayerState p, CardDef card, int fromBenchIdx)
+        {
+            Emit(AnimKind.ToActive, p, card, fromBenchIdx);
+        }
+
         public void Say(string s) { Log.Add(s); if (Log.Count > 200) Log.RemoveAt(0); Plugin.Log?.LogInfo(s); }
 
         public bool Flip(string why)
@@ -132,6 +154,85 @@ namespace PokeTCGPlay
             Say($"  Moneda ({why}): {(h ? "CARA" : "CRUZ")}");
             Emit(AnimKind.CoinFlip, Current, null, -1, h, why);
             return h;
+        }
+
+        /// <summary>
+        /// Lanza una moneda 3D y ejecuta `onLanded` ÚNICAMENTE cuando termina la animación de la moneda.
+        /// </summary>
+        public void RunCoinFlip(PlayerState p, string why, Action<bool> onLanded)
+        {
+            bool h = Rng.Next(2) == 0;
+            if (Is3DAnimActive)
+            {
+                BoardAnimator.Instance.EnqueueCoinFlipStep(IndexOf(p), h, why, () =>
+                {
+                    Say($"  Moneda ({why}): {(h ? "CARA" : "CRUZ")}");
+                    onLanded?.Invoke(h);
+                });
+            }
+            else
+            {
+                Say($"  Moneda ({why}): {(h ? "CARA" : "CRUZ")}");
+                Emit(AnimKind.CoinFlip, p, null, -1, h, why);
+                onLanded?.Invoke(h);
+            }
+        }
+
+        /// <summary>
+        /// Lanza una lista de monedas en estricto orden secuencial y ejecuta `onAllLanded` cuando la última aterriza.
+        /// </summary>
+        public void RunCoinSequence(PlayerState p, IList<string> reasons, Action<bool[]> onAllLanded)
+        {
+            if (reasons == null || reasons.Count == 0)
+            {
+                onAllLanded?.Invoke(Array.Empty<bool>());
+                return;
+            }
+
+            bool[] results = new bool[reasons.Count];
+            void Step(int idx)
+            {
+                if (idx >= reasons.Count)
+                {
+                    onAllLanded?.Invoke(results);
+                    return;
+                }
+                RunCoinFlip(p, reasons[idx], h =>
+                {
+                    results[idx] = h;
+                    Step(idx + 1);
+                });
+            }
+            Step(0);
+        }
+
+        /// <summary>
+        /// Ejecuta la animación 3D de embestida de ataque (`onImpact` en el golpe; `onFinished` al volver a su puesto).
+        /// </summary>
+        public void RunAttackLunge(PlayerState p, CardDef card, string atkName, Action onImpact, Action onFinished)
+        {
+            if (Is3DAnimActive)
+            {
+                BoardAnimator.Instance.EnqueueAttackLungeStep(IndexOf(p), card, atkName, onImpact, onFinished);
+            }
+            else
+            {
+                Emit(AnimKind.AttackLunge, p, card, -1, false, atkName);
+                onImpact?.Invoke();
+                onFinished?.Invoke();
+            }
+        }
+
+        /// <summary>
+        /// Ejecuta `callback` después de que terminen todas las animaciones 3D actualmente en cola.
+        /// </summary>
+        public void RunAfterAnimations(Action callback)
+        {
+            if (callback == null) return;
+            if (Is3DAnimActive)
+                BoardAnimator.Instance.EnqueueCallback(callback);
+            else
+                callback();
         }
 
         public Game(List<CardDef> deckA, List<CardDef> deckB)
@@ -225,10 +326,10 @@ namespace PokeTCGPlay
                 p.Active = pip;
                 p.Hand.RemoveAt(handIdx);
                 Emit(AnimKind.ToActive, p, c, -1);
-                // Si el jugador inició y acaba de colocar su Activo, ahora el NPC coloca sus Básicos
-                if (!p.IsAI && !Players[1].SetupDone)
+                // Al hacer el primer movimiento colocando al Pokémon Activo del jugador, la partida comienza automáticamente
+                if (!p.IsAI)
                 {
-                    AI.DoSetup(this, Players[1]);
+                    FinishSetup(p);
                 }
             }
             else if (p.Bench.Count < 5)
@@ -250,7 +351,12 @@ namespace PokeTCGPlay
             {
                 AI.DoSetup(this, Players[1]);
             }
-            if (Players.All(x => x.SetupDone)) { Phase = Phase.Main; Turn = 1; StartTurn(); }
+            if (Players.All(x => x.SetupDone) && Phase == Phase.Setup)
+            {
+                Phase = Phase.Main;
+                Turn = 1;
+                StartTurn();
+            }
             return null;
         }
 
@@ -266,7 +372,7 @@ namespace PokeTCGPlay
 
         public void ExecutePendingAiTurn()
         {
-            if (!PendingAiTurn) return;
+            if (!PendingAiTurn || IsBusyResolving) return;
             PendingAiTurn = false;
             if (Phase == Phase.Main && Current.IsAI)
                 AI.TakeTurn(this, Current);
@@ -275,6 +381,19 @@ namespace PokeTCGPlay
         public string EndTurn()
         {
             if (Phase != Phase.Main) return "No se puede terminar el turno ahora.";
+            IsBusyResolving = true;
+            RunAfterAnimations(PerformEndTurnSequence);
+            return null;
+        }
+
+        void PerformEndTurnSequence()
+        {
+            if (Phase != Phase.Main)
+            {
+                IsBusyResolving = false;
+                return;
+            }
+
             var p = Current;
             foreach (var pip in p.InPlay) pip.PlusPower = 0;
             foreach (var pl in Players)
@@ -282,40 +401,94 @@ namespace PokeTCGPlay
                     foreach (var t in pip.Attached.ToList())
                         if ((t.Name == "PlusPower" && pl == p) || (t.Name == "Defender" && pip.DefenderUntilTurn <= Turn))
                         { pip.Attached.Remove(t); pl.Discard.Add(t); }
+
             // Parálisis dura hasta el final del siguiente turno del dueño
             if (p.Active != null && p.Active.Status == Status.Paralyzed)
             {
                 p.Active.StatusTurns = Math.Max(0, p.Active.StatusTurns - 1);
                 if (p.Active.StatusTurns <= 0) p.Active.Status = Status.None;
             }
-            PokemonCheckup();
-            if (Phase == Phase.GameOver || Phase == Phase.ChoosePromotion) { pendingEndTurn = true; return null; }
-            AdvanceTurn();
-            return null;
+
+            RunPokemonCheckupSequence(() =>
+            {
+                CheckKnockOuts();
+                RunAfterAnimations(() =>
+                {
+                    IsBusyResolving = false;
+                    if (Phase == Phase.GameOver) return;
+                    if (Phase == Phase.ChoosePromotion)
+                    {
+                        pendingAdvanceTurnAfterPromotion = true;
+                        return;
+                    }
+                    AdvanceTurn();
+                });
+            });
         }
 
-        bool pendingEndTurn;
+        bool pendingEndTurnAfterPromotion;
+        bool pendingAdvanceTurnAfterPromotion;
 
         void AdvanceTurn()
         {
-            pendingEndTurn = false;
+            pendingEndTurnAfterPromotion = false;
+            pendingAdvanceTurnAfterPromotion = false;
             CurrentIndex = 1 - CurrentIndex; Turn++;
             StartTurn();
         }
 
-        void PokemonCheckup()
+        void RunPokemonCheckupSequence(Action onCheckupDone)
         {
+            var sleepingActives = new List<(PlayerState owner, PokemonInPlay active)>();
             foreach (var p in Players)
             {
-                var a = p.Active; if (a == null) continue;
-                if (a.Poisoned) { a.Damage += 10; Say($"{a.Card.Name} recibe 10 por veneno."); }
-                if (a.Status == Status.Asleep && Flip($"{a.Card.Name} dormido")) { a.Status = Status.None; a.StatusTurns = 0; Say($"{a.Card.Name} despierta."); }
+                var a = p.Active;
+                if (a == null) continue;
+                if (a.Poisoned)
+                {
+                    a.Damage += 10;
+                    Say($"{a.Card.Name} recibe 10 por veneno.");
+                }
+                if (a.Status == Status.Asleep)
+                {
+                    sleepingActives.Add((p, a));
+                }
             }
-            CheckKnockOuts();
+
+            void StepSleep(int idx)
+            {
+                if (idx >= sleepingActives.Count)
+                {
+                    onCheckupDone?.Invoke();
+                    return;
+                }
+                var entry = sleepingActives[idx];
+                if (entry.active == null || entry.owner.Active != entry.active || entry.active.Status != Status.Asleep)
+                {
+                    StepSleep(idx + 1);
+                    return;
+                }
+                RunCoinFlip(entry.owner, $"{entry.active.Card.Name} dormido", heads =>
+                {
+                    if (heads && entry.active.Status == Status.Asleep)
+                    {
+                        entry.active.Status = Status.None;
+                        entry.active.StatusTurns = 0;
+                        Say($"{entry.active.Card.Name} despierta.");
+                    }
+                    StepSleep(idx + 1);
+                });
+            }
+
+            StepSleep(0);
         }
 
         // ---------------- Acciones principales ----------------
-        string MainCheck(PlayerState p) => Phase != Phase.Main ? "No es fase principal." : p != Current ? "No es tu turno." : null;
+        string MainCheck(PlayerState p) =>
+            IsBusyResolving ? "Esperando resolución en curso."
+            : Phase != Phase.Main ? "No es fase principal."
+            : p != Current ? "No es tu turno."
+            : null;
 
         public string PlayBasic(PlayerState p, int handIdx)
         {
@@ -338,7 +511,8 @@ namespace PokeTCGPlay
             if (c.Supertype != Supertype.Pokemon || c.Stage == "Basic") return "No es una evolución.";
             if (target.IsDoll) return "No se puede evolucionar un Clefairy Doll.";
             if (!breeder && c.EvolvesFrom != target.Card.Name) return $"{c.Name} evoluciona de {c.EvolvesFrom}.";
-            if (target.TurnPlaced == Turn || target.TurnEvolved == Turn) return "No puede evolucionar el turno en que se jugó/evolucionó.";
+            if (Turn <= 2 || target.TurnPlaced == Turn || target.TurnEvolved == Turn)
+                return "No puede evolucionar en el primer turno ni el turno en que se jugó/evolucionó.";
             int bIdx = target == p.Active ? -1 : p.Bench.IndexOf(target);
             target.Stack.Add(c); target.TurnEvolved = Turn; target.ClearConditions();
             p.Hand.RemoveAt(handIdx);
@@ -365,13 +539,43 @@ namespace PokeTCGPlay
         {
             var err = MainCheck(p); if (err != null) return err;
             var a = p.Active;
+            if (a == null) return "Sin Pokémon Activo.";
+            if (benchIdx < 0 || benchIdx >= p.Bench.Count) return "Pokémon de Banca inválido.";
             if (a.IsDoll) return "Clefairy Doll no puede retirarse.";
             if (a.Status == Status.Asleep || a.Status == Status.Paralyzed) return "Dormido o Paralizado: no puede retirarse.";
             if (a.EnergyTotal < a.Card.RetreatCost) return $"Necesita {a.Card.RetreatCost} Energía para retirarse.";
             if (retreatedThisTurn == Turn) return "Ya te retiraste este turno.";
-            if (a.Status == Status.Confused && !Flip("retirada confundido")) { retreatedThisTurn = Turn; return null; }
+
+            if (a.Status == Status.Confused)
+            {
+                retreatedThisTurn = Turn;
+                IsBusyResolving = true;
+                RunAfterAnimations(() =>
+                {
+                    RunCoinFlip(p, "retirada confundido", heads =>
+                    {
+                        if (!heads)
+                        {
+                            Say($"  {a.Card.Name} no logra retirarse por confusión.");
+                            IsBusyResolving = false;
+                            return;
+                        }
+                        CompleteRetreatSwap(p, a, benchIdx);
+                        RunAfterAnimations(() => IsBusyResolving = false);
+                    });
+                });
+                return null;
+            }
+
+            CompleteRetreatSwap(p, a, benchIdx);
+            return null;
+        }
+
+        void CompleteRetreatSwap(PlayerState p, PokemonInPlay a, int benchIdx)
+        {
+            if (p.Active != a || benchIdx < 0 || benchIdx >= p.Bench.Count) return;
             int toPay = a.Card.RetreatCost;
-            while (toPay > 0)
+            while (toPay > 0 && a.Energy.Count > 0)
             {
                 var e = a.Energy.OrderBy(x => x.EnergyAmount).First();
                 a.Energy.Remove(e); p.Discard.Add(e); toPay -= e.EnergyAmount;
@@ -382,7 +586,6 @@ namespace PokeTCGPlay
             retreatedThisTurn = Turn;
             Say($"{p.Name} retira a {a.Card.Name}; entra {b.Card.Name}.");
             Emit(AnimKind.RetreatSwap, p, b.Card, benchIdx);
-            return null;
         }
         int retreatedThisTurn = -1;
 
@@ -392,10 +595,26 @@ namespace PokeTCGPlay
             var c = p.Hand[handIdx];
             if (c.Supertype != Supertype.Trainer) return "No es Entrenador.";
             p.Hand.RemoveAt(handIdx);
-            string res = Effects.PlayTrainer(this, p, c, target);
+
+            var prevDeferred = deferredTrainerEvents;
+            var captured = new List<AnimEvent>();
+            deferredTrainerEvents = captured;
+            string res;
+            try
+            {
+                res = Effects.PlayTrainer(this, p, c, target);
+            }
+            finally
+            {
+                deferredTrainerEvents = prevDeferred;
+            }
+
             if (res != null) { p.Hand.Insert(handIdx, c); return res; }
             if (!(c.Name == "PlusPower" || c.Name == "Defender" || c.Name == "Clefairy Doll")) p.Discard.Add(c);
+            // Primero vuela la carta de Entrenador y después sus efectos derivados (ej. robos de Bill / Oak)
             Emit(AnimKind.PlayTrainer, p, c, -1);
+            foreach (var ev in captured)
+                DispatchAnimEvent(ev);
             CheckKnockOuts();
             return null;
         }
@@ -403,21 +622,53 @@ namespace PokeTCGPlay
         public string Attack(PlayerState p, int atkIdx)
         {
             var err = MainCheck(p); if (err != null) return err;
-            var a = p.Active; var atk = a.Card.Attacks.ElementAtOrDefault(atkIdx);
+            var a = p.Active; var atk = a?.Card.Attacks.ElementAtOrDefault(atkIdx);
             if (atk == null) return "Ataque inválido.";
             if (a.IsDoll) return "Clefairy Doll no puede atacar.";
             if (!a.CanPay(atk.Cost)) return "Energía insuficiente.";
             if (a.Status == Status.Asleep || a.Status == Status.Paralyzed) return $"{a.Card.Name} no puede atacar ({a.Status}).";
-            Say($"{a.Card.Name} usa {atk.Name}.");
-            Emit(AnimKind.AttackLunge, p, a.Card, -1, false, atk.Name);
-            if (a.Status == Status.Confused && !Flip("confusión"))
+
+            IsBusyResolving = true;
+
+            // Esperar a cualquier animación previa del turno (ej. unir Energía o bajar Básico) antes de iniciar el ataque
+            RunAfterAnimations(() =>
             {
-                a.Damage += 20; Say($"{a.Card.Name} se hace 20 de daño por confusión.");
-            }
-            else Effects.ResolveAttack(this, p, a, atk);
-            CheckKnockOuts();
-            if (Phase == Phase.Main) EndTurn();
-            else pendingEndTurn = true;
+                Say($"{a.Card.Name} usa {atk.Name}.");
+
+                void FinishAttackSequence()
+                {
+                    CheckKnockOuts();
+                    RunAfterAnimations(() =>
+                    {
+                        IsBusyResolving = false;
+                        if (Phase == Phase.GameOver) return;
+                        if (Phase == Phase.Main)
+                            EndTurn();
+                        else if (Phase == Phase.ChoosePromotion)
+                            pendingEndTurnAfterPromotion = true;
+                    });
+                }
+
+                if (a.Status == Status.Confused)
+                {
+                    // Primero se lanza y anima la moneda de confusión; solo al terminar ocurre el autodaño o el ataque
+                    RunCoinFlip(p, "confusión", heads =>
+                    {
+                        if (!heads)
+                        {
+                            a.Damage += 20;
+                            Say($"{a.Card.Name} se hace 20 de daño por confusión.");
+                            FinishAttackSequence();
+                            return;
+                        }
+                        Effects.ResolveAttackSequence(this, p, a, atk, FinishAttackSequence);
+                    });
+                }
+                else
+                {
+                    Effects.ResolveAttackSequence(this, p, a, atk, FinishAttackSequence);
+                }
+            });
             return null;
         }
 
@@ -473,12 +724,27 @@ namespace PokeTCGPlay
         public string Promote(PlayerState p, int benchIdx)
         {
             if (Phase != Phase.ChoosePromotion || PromotionPending != p) return "No hay que elegir.";
+            if (benchIdx < 0 || benchIdx >= p.Bench.Count) return "Pokémon de Banca inválido.";
             p.Active = p.Bench[benchIdx]; p.Bench.RemoveAt(benchIdx);
             Say($"{p.Name} pone a {p.Active.Card.Name} como Activo.");
             Emit(AnimKind.ToActive, p, p.Active.Card, benchIdx);
             PromotionPending = null; Phase = Phase.Main;
             CheckKnockOuts();
-            if (Phase == Phase.Main && pendingEndTurn) AdvanceTurn();
+
+            if (Phase == Phase.Main && (pendingEndTurnAfterPromotion || pendingAdvanceTurnAfterPromotion))
+            {
+                bool shouldEndTurn = pendingEndTurnAfterPromotion;
+                pendingEndTurnAfterPromotion = false;
+                pendingAdvanceTurnAfterPromotion = false;
+                IsBusyResolving = true;
+                RunAfterAnimations(() =>
+                {
+                    IsBusyResolving = false;
+                    if (Phase != Phase.Main) return;
+                    if (shouldEndTurn) EndTurn();
+                    else AdvanceTurn();
+                });
+            }
             return null;
         }
 

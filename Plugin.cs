@@ -30,7 +30,7 @@ namespace PokeTCGPlay
         {
             Log = Logger;
             DataDir = Path.Combine(Path.GetDirectoryName(Info.Location), "Data");
-            ToggleKey = Config.Bind("General", "DebugToggleKey", new KeyboardShortcut(KeyCode.F8), "Tecla opcional de depuración.");
+            ToggleKey = Config.Bind("General", "DebugToggleKey", new KeyboardShortcut(KeyCode.F10), "Tecla opcional de depuración (F10 para evitar conflicto con F8 de Pallet Delivery).");
             RequireOwnedCards = Config.Bind("Coleccion", "RequireOwnedCards", true, "Solo permite usar en los mazos las cartas que tienes en tu álbum (obtenidas en sobres).");
             FreeBasicEnergy = Config.Bind("Coleccion", "FreeBasicEnergy", true, "Las Energías Básicas no necesitan estar en tu colección.");
             DefaultFormat = Config.Bind("Mazos", "DefaultFormat", "base1", "Formato por defecto (id de Data/formats/*.json).");
@@ -79,10 +79,14 @@ namespace PokeTCGPlay
         public static Texture2D CoinHeadsTex { get; private set; }
         public static Texture2D CoinTailsTex { get; private set; }
 
-        static readonly MethodInfo getAsyncMethod =
+        static readonly MethodInfo getAsyncSpriteMethod =
             typeof(StreamingAsset<Sprite>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        static readonly PropertyInfo assetKeyProp =
+        static readonly PropertyInfo assetKeySpriteProp =
             typeof(StreamingAsset<Sprite>).GetProperty("AssetKey", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        static readonly MethodInfo getAsyncTexMethod =
+            typeof(StreamingAsset<Texture>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+        static readonly PropertyInfo assetKeyTexProp =
+            typeof(StreamingAsset<Texture>).GetProperty("AssetKey", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         static object assetRefTracker;
         static MethodInfo incrementRefMethod;
 
@@ -116,11 +120,10 @@ namespace PokeTCGPlay
             }
         }
 
-        static void PinAssetKey(StreamingAsset<Sprite> sa)
+        static void PinAssetKey(string assetKey)
         {
             try
             {
-                string assetKey = assetKeyProp?.GetValue(sa, null) as string;
                 if (string.IsNullOrEmpty(assetKey) || !refIncremented.Add(assetKey)) return;
 
                 if (assetRefTracker == null)
@@ -136,6 +139,139 @@ namespace PokeTCGPlay
             {
                 Plugin.Log?.LogWarning("PinAssetKey: " + e.Message);
             }
+        }
+
+        public static Texture2D MakeReadableCopy(Texture2D source)
+        {
+            if (source == null) return null;
+            if (source.isReadable)
+            {
+                return source;
+            }
+            RenderTexture rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default);
+            RenderTexture prev = RenderTexture.active;
+            try
+            {
+                Graphics.Blit(source, rt);
+                RenderTexture.active = rt;
+                var readable = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false);
+                readable.ReadPixels(new Rect(0f, 0f, source.width, source.height), 0, 0);
+                readable.Apply();
+                return readable;
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                RenderTexture.active = prev;
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
+        static Rect DetectActiveCardRect(Texture2D tex, Rect initialRect)
+        {
+            if (tex == null || initialRect.width <= initialRect.height * 0.80f)
+                return initialRect;
+
+            float fallbackW = Mathf.Clamp(Mathf.Round(initialRect.height * (63f / 88f)), 1f, initialRect.width);
+            Texture2D readable = null;
+            bool createdTemp = false;
+            try
+            {
+                readable = tex.isReadable ? tex : MakeReadableCopy(tex);
+                createdTemp = readable != null && !ReferenceEquals(readable, tex);
+                if (readable == null)
+                    return new Rect(initialRect.x, initialRect.y, fallbackW, initialRect.height);
+
+                Color32[] pixels = readable.GetPixels32();
+                int tw = readable.width;
+                int th = readable.height;
+                int rx0 = Mathf.Clamp(Mathf.RoundToInt(initialRect.x), 0, tw - 1);
+                int rx1 = Mathf.Clamp(Mathf.RoundToInt(initialRect.xMax) - 1, rx0, tw - 1);
+                int ry0 = Mathf.Clamp(Mathf.RoundToInt(initialRect.y + initialRect.height * 0.22f), 0, th - 1);
+                int ry1 = Mathf.Clamp(Mathf.RoundToInt(initialRect.y + initialRect.height * 0.78f), ry0, th - 1);
+
+                // Tomar el color de relleno del margen derecho (en texturas 1024x1024 POT de MyCurio suele ser blanco o transparente)
+                Color32 padCol = pixels[(th / 2) * tw + rx1];
+                int minActiveX = rx1;
+                int maxActiveX = rx0;
+                int stepY = Mathf.Max(1, (ry1 - ry0) / 24);
+
+                for (int y = ry0; y <= ry1; y += stepY)
+                {
+                    int row = y * tw;
+                    for (int x = rx0; x <= rx1; x++)
+                    {
+                        Color32 c = pixels[row + x];
+                        if (IsActiveCardPixel(c, padCol))
+                        {
+                            if (x < minActiveX) minActiveX = x;
+                            break;
+                        }
+                    }
+                    for (int x = rx1; x >= rx0; x--)
+                    {
+                        Color32 c = pixels[row + x];
+                        if (IsActiveCardPixel(c, padCol))
+                        {
+                            if (x > maxActiveX) maxActiveX = x;
+                            break;
+                        }
+                    }
+                }
+
+                int detectedW = maxActiveX - minActiveX + 1;
+                float minExpectedW = initialRect.height * 0.62f;
+                float maxExpectedW = initialRect.height * 0.80f;
+                if (detectedW >= minExpectedW && detectedW <= maxExpectedW)
+                {
+                    return new Rect(minActiveX, initialRect.y, detectedW, initialRect.height);
+                }
+            }
+            catch { }
+            finally
+            {
+                if (createdTemp && readable != null)
+                    UnityEngine.Object.Destroy(readable);
+            }
+
+            return new Rect(initialRect.x, initialRect.y, fallbackW, initialRect.height);
+        }
+
+        static bool IsActiveCardPixel(Color32 c, Color32 pad)
+        {
+            if (pad.a < 20)
+                return c.a > 40;
+            int diff = Math.Abs(c.r - pad.r) + Math.Abs(c.g - pad.g) + Math.Abs(c.b - pad.b);
+            return diff > 28;
+        }
+
+        static Sprite ConvertObjectToSprite(UnityEngine.Object obj, bool trimCardAspect = false)
+        {
+            if (obj is Sprite sp && sp != null && sp.texture != null)
+            {
+                Rect sr = sp.textureRect;
+                if (trimCardAspect && sr.width > sr.height * 0.80f)
+                {
+                    Rect cropped = DetectActiveCardRect(sp.texture, sr);
+                    var trimmed = Sprite.Create(sp.texture, cropped, new Vector2(0.5f, 0.5f), 100f);
+                    trimmed.name = sp.name;
+                    return trimmed;
+                }
+                return sp;
+            }
+            if (obj is Texture2D tex && tex != null)
+            {
+                Rect full = new Rect(0f, 0f, tex.width, tex.height);
+                if (trimCardAspect)
+                    full = DetectActiveCardRect(tex, full);
+                var created = Sprite.Create(tex, full, new Vector2(0.5f, 0.5f), 100f);
+                created.name = tex.name;
+                return created;
+            }
+            return null;
         }
 
         public static void EnsureInitialized()
@@ -160,7 +296,7 @@ namespace PokeTCGPlay
             return bundlePath = MyCurioIndex.Expansions.Values.Select(e => e.BundlePath).FirstOrDefault(p => p != null);
         }
 
-        /// <summary>Precarga las imágenes de todas las cartas registradas, desde los bundles de MyCurio.</summary>
+        /// <summary>Precarga las imágenes de todas las cartas registradas, desde los bundles de MyCurio (compatible con EPL 6.7.1 / API 6.5.0).</summary>
         public static void PreloadFromEpl()
         {
             LoadCustomTextures();
@@ -178,7 +314,7 @@ namespace PokeTCGPlay
                             var cb = Epl.Api.Assets.CardExpansions.GetCardExpansionCardBack(expType);
                             if (cb != null && !string.IsNullOrEmpty(cb.BundlePath))
                             {
-                                RequestStreamingAsset(new StreamingAsset<Sprite>(cb.BundlePath, string.IsNullOrEmpty(cb.AssetName) ? "CardBack" : cb.AssetName), "CardBack");
+                                RequestCardBackAsset(cb);
                                 backDone = true;
                             }
                         }
@@ -198,30 +334,105 @@ namespace PokeTCGPlay
 
             // Respaldo: pedir directamente al bundle de MyCurio lo que EPL no devolvió
             string back = FindBundlePath();
-            if (!string.IsNullOrEmpty(back)) RequestStreamingAsset(new StreamingAsset<Sprite>(back, "CardBack"));
+            if (!string.IsNullOrEmpty(back))
+                RequestStreamingAsset(new StreamingAsset<Sprite>(back, "CardBack"), "CardBack");
             foreach (var kv in CardDatabase.SpriteBundle)
                 if (!requested.Contains(kv.Key))
                     RequestStreamingAsset(new StreamingAsset<Sprite>(kv.Value, kv.Key));
         }
 
+        static void RequestCardBackAsset(StreamingAsset<Texture> cbAsset)
+        {
+            const string key = "CardBack";
+            if (cbAsset == null || string.IsNullOrEmpty(cbAsset.BundlePath)) return;
+            if (cache.TryGetValue(key, out var existing) && existing != null && existing.texture != null) return;
+            if (!pending.Add(key)) return;
+
+            string bundle = cbAsset.BundlePath;
+            string assetName = string.IsNullOrEmpty(cbAsset.AssetName) ? "CardBack" : cbAsset.AssetName;
+            try
+            {
+                // Pedir primero como Sprite (tiene el rectángulo recortado exacto del reverso en los bundles de MyCurio)
+                var spriteAsset = new StreamingAsset<Sprite>(bundle, assetName);
+                Action<UnityEngine.Object> onSp = objSp =>
+                {
+                    var sp = ConvertObjectToSprite(objSp, trimCardAspect: true);
+                    if (sp != null)
+                    {
+                        pending.Remove(key);
+                        cache[key] = sp;
+                        PinAssetKey(assetKeySpriteProp?.GetValue(spriteAsset, null) as string);
+                        return;
+                    }
+                    if (getAsyncTexMethod == null)
+                    {
+                        pending.Remove(key);
+                        return;
+                    }
+                    Action<UnityEngine.Object> onTex = objTex =>
+                    {
+                        pending.Remove(key);
+                        var spTex = ConvertObjectToSprite(objTex, trimCardAspect: true);
+                        if (spTex != null)
+                        {
+                            cache[key] = spTex;
+                            PinAssetKey(assetKeyTexProp?.GetValue(cbAsset, null) as string);
+                        }
+                    };
+                    getAsyncTexMethod.Invoke(cbAsset, new object[] { onTex });
+                };
+
+                if (getAsyncSpriteMethod != null)
+                    getAsyncSpriteMethod.Invoke(spriteAsset, new object[] { onSp });
+                else
+                    onSp(null);
+            }
+            catch (Exception e)
+            {
+                pending.Remove(key);
+                Plugin.Log?.LogWarning($"GetAsync falló para CardBack: {e.Message}");
+            }
+        }
+
         static void RequestStreamingAsset(StreamingAsset<Sprite> sa, string cacheKey = null)
         {
             string key = cacheKey ?? sa?.AssetName;
-            if (string.IsNullOrEmpty(key)) return;
+            if (sa == null || string.IsNullOrEmpty(key) || getAsyncSpriteMethod == null) return;
             if (cache.TryGetValue(key, out var existing) && existing != null && existing.texture != null) return;
             if (!pending.Add(key)) return;
+            bool isBack = string.Equals(key, "CardBack", StringComparison.OrdinalIgnoreCase);
             try
             {
-                Action<UnityEngine.Object> cb = obj =>
+                Action<UnityEngine.Object> onSp = obj =>
                 {
-                    pending.Remove(key);
-                    if (obj is Sprite sp && sp != null && sp.texture != null)
+                    var sp = ConvertObjectToSprite(obj, trimCardAspect: isBack);
+                    if (sp != null)
                     {
+                        pending.Remove(key);
                         cache[key] = sp;
-                        PinAssetKey(sa);
+                        PinAssetKey(assetKeySpriteProp?.GetValue(sa, null) as string);
+                    }
+                    else if (isBack && getAsyncTexMethod != null)
+                    {
+                        var texSa = new StreamingAsset<Texture>(sa.BundlePath, sa.AssetName);
+                        Action<UnityEngine.Object> onTex = objTex =>
+                        {
+                            pending.Remove(key);
+                            var spTex = ConvertObjectToSprite(objTex, trimCardAspect: true);
+                            if (spTex != null)
+                            {
+                                cache[key] = spTex;
+                                PinAssetKey(assetKeyTexProp?.GetValue(texSa, null) as string);
+                            }
+                        };
+                        getAsyncTexMethod.Invoke(texSa, new object[] { onTex });
+                    }
+                    else
+                    {
+                        pending.Remove(key);
                     }
                 };
-                getAsyncMethod?.Invoke(sa, new object[] { cb });
+                getAsyncSpriteMethod.Invoke(sa, new object[] { onSp });
             }
             catch (Exception e)
             {

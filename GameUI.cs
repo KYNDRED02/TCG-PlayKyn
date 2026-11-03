@@ -81,6 +81,12 @@ namespace PokeTCGPlay
         PlayerState Me => game.Players[0];
         PlayerState Cpu => game.Players[1];
 
+        bool IsAnimBusy() =>
+            currentFlight != null ||
+            flightQueue.Count > 0 ||
+            (BoardAnimator.Instance != null && BoardAnimator.Instance.IsAnimating) ||
+            (game != null && game.IsBusyResolving);
+
         void Awake()
         {
             Instance = this;
@@ -114,6 +120,8 @@ namespace PokeTCGPlay
                 flightQueue.Clear();
                 currentFlight = null;
                 BoardAnimator.Instance?.Clear();
+                TableView.Instance?.ResetStatusTracking();
+                StatusCounters3D.ActivePopups.Clear();
                 game = new Game(playerDeck, npcDeck);
                 game.Players[1].Name = "Cliente";
                 game.OnAnim = OnGameAnimEvent;
@@ -153,6 +161,8 @@ namespace PokeTCGPlay
             flightQueue.Clear();
             currentFlight = null;
             BoardAnimator.Instance?.Clear();
+            TableView.Instance?.ResetStatusTracking();
+            StatusCounters3D.ActivePopups.Clear();
         }
 
         void LeaveTable()
@@ -167,6 +177,8 @@ namespace PokeTCGPlay
             flightQueue.Clear();
             currentFlight = null;
             BoardAnimator.Instance?.Clear();
+            TableView.Instance?.ResetStatusTracking();
+            StatusCounters3D.ActivePopups.Clear();
             PlayTableSession.StandUp(finished, won);
         }
 
@@ -226,7 +238,7 @@ namespace PokeTCGPlay
                 Update3DInput();
             }
 
-            // F2, F4 & F5: Sincronizar cartas 3D físicas, Mano 3D en abanico, Carta arrastrada e Inspección 3D
+            // F2–F7: Sincronizar cartas 3D, Mano 3D, Carta arrastrada, Inspección 3D, Fichas de Daño y Moneda 3D
             bool overValidSlot = hoveredSlot3D != null && validTargetAnchors.Contains(hoveredSlot3D.Anchor);
             TableView.Instance?.SyncBoard3D(
                 game,
@@ -241,7 +253,8 @@ namespace PokeTCGPlay
                 overValidSlot,
                 zoomOriginWorldPos,
                 zoomOriginWorldRot,
-                zoomOriginScale);
+                zoomOriginScale,
+                startCoinSpinning);
 
             // Actualizar animación de Inspección 3D elevada (F5)
             if (zoomedCard != null)
@@ -266,7 +279,7 @@ namespace PokeTCGPlay
                 {
                     startCoinDone = true;
                     game.OnStartCoinLanded(startCoinResultHeads);
-                    message = "Preparación: haz clic izquierdo o arrastra tus Pokémon Básicos para colocarlos y pulsa '¡Empezar Partida!'.";
+                    message = "Coloca tu primer Pokémon Básico en el Campo de Batalla para comenzar la partida.";
                 }
                 if (startCoinTimer >= StartCoinDuration + 0.85f)
                 {
@@ -287,8 +300,8 @@ namespace PokeTCGPlay
             }
 
             // Ejecutar colocación inicial o turno de la IA cuando terminen las animaciones 3D y 2D en curso
-            bool animBusy = currentFlight != null || flightQueue.Count > 0 || (BoardAnimator.Instance != null && BoardAnimator.Instance.IsAnimating);
-            if (game.PendingAiSetup && !animBusy && !startCoinSpinning)
+            bool flightsBusy = currentFlight != null || flightQueue.Count > 0 || (BoardAnimator.Instance != null && BoardAnimator.Instance.IsAnimating);
+            if (game.PendingAiSetup && !flightsBusy && !startCoinSpinning)
             {
                 aiSetupDelay += Time.deltaTime;
                 if (aiSetupDelay >= 0.30f)
@@ -297,7 +310,7 @@ namespace PokeTCGPlay
                     game.ExecutePendingAiSetup();
                 }
             }
-            if (game.PendingAiTurn && !animBusy && !startCoinSpinning)
+            if (game.PendingAiTurn && !IsAnimBusy() && !startCoinSpinning)
             {
                 aiTurnDelay += Time.deltaTime;
                 if (aiTurnDelay >= 0.55f)
@@ -370,7 +383,7 @@ namespace PokeTCGPlay
             var tv = TableView.Instance;
             if (tv != null && tv.TryProjectSlotToGUI(tv.DeckAnchor[playerIdx], 1f, slotW, slotH, out Rect r))
                 return r;
-            return playerIdx == 0 ? NormSlot(0.895f, 0.635f) : NormSlot(0.105f, 0.335f);
+            return playerIdx == 0 ? NormSlot(0.913f, 0.640f) : NormSlot(0.087f, 0.360f);
         }
 
         Rect GetTrashRect(int playerIdx)
@@ -378,24 +391,24 @@ namespace PokeTCGPlay
             var tv = TableView.Instance;
             if (tv != null && tv.TryProjectSlotToGUI(tv.DiscardAnchor[playerIdx], 1f, slotW, slotH, out Rect r))
                 return r;
-            return playerIdx == 0 ? NormSlot(0.895f, 0.835f) : NormSlot(0.105f, 0.130f);
+            return playerIdx == 0 ? NormSlot(0.913f, 0.865f) : NormSlot(0.087f, 0.135f);
         }
 
         Rect GetSideBoxRect(int playerIdx, int boxIdx) // boxIdx = 0, 1, 2
         {
             int b = Mathf.Clamp(boxIdx, 0, 2);
             var tv = TableView.Instance;
-            if (tv != null && tv.TryProjectSlotToGUI(tv.PrizeBoxAnchor[playerIdx, b], 0.86f, slotW, slotH, out Rect r))
+            if (tv != null && tv.TryProjectSlotToGUI(tv.PrizeBoxAnchor[playerIdx, b], 0.88f, slotW, slotH, out Rect r))
                 return r;
             if (playerIdx == 0)
             {
-                float[] ys = { 0.525f, 0.685f, 0.845f };
-                return NormSlot(0.105f, ys[b], 0.86f);
+                float[] ys = { 0.584f, 0.742f, 0.900f };
+                return NormSlot(0.092f, ys[b], 0.88f);
             }
             else
             {
-                float[] ys = { 0.115f, 0.275f, 0.435f };
-                return NormSlot(0.895f, ys[b], 0.86f);
+                float[] ys = { 0.100f, 0.258f, 0.416f };
+                return NormSlot(0.908f, ys[b], 0.88f);
             }
         }
         Rect GetHandCenterRect(int playerIdx) =>
@@ -405,18 +418,18 @@ namespace PokeTCGPlay
 
         void OnGameAnimEvent(AnimEvent ev)
         {
+            // F3 & F7: Si el tablero 3D y el BoardAnimator están activos, todas las cartas y monedas 3D se encolan en la mesa física
+            if (TableView.Instance != null && TableView.Instance.IsBoard3DReady && BoardAnimator.Instance != null)
+            {
+                BoardAnimator.Instance.EnqueueEvent(ev, game);
+                return;
+            }
+
             if (ev.Kind == AnimKind.CoinFlip)
             {
                 subCoinHeads = ev.CoinHeads;
                 subCoinLabel = $"{ev.Label}: {(ev.CoinHeads ? "CARA" : "CRUZ")}";
                 subCoinTimer = 1.6f;
-                return;
-            }
-
-            // F3: Si el tablero 3D y el BoardAnimator están activos, todas las cartas vuelan físicamente en 3D sobre la mesa
-            if (TableView.Instance != null && TableView.Instance.IsBoard3DReady && BoardAnimator.Instance != null)
-            {
-                BoardAnimator.Instance.EnqueueEvent(ev, game);
                 return;
             }
 
@@ -562,8 +575,8 @@ namespace PokeTCGPlay
 
         // ==================== Estilos Oficiales (Estilo TCG Card Shop Simulator) ====================
         public static GUIStyle BoxBgStyle, SubBoxStyle, InputFieldStyle, HeaderStyle, SubHeaderStyle, CardLabelStyle, ZoomTextStyle,
-                               BtnStyle, BtnGreenStyle, BtnGoldStyle, BtnRedStyle, ToastStyle, BadgeStyle, DurationBadgeStyle;
-        static Texture2D darkTex, panelTex, subPanelTex, inputTex, highlightTex, zoomBgTex, hpBgTex, hpFillTex, sleepTex, confTex, paraTex, poisTex, defTex, countTex;
+                               BtnStyle, BtnGreenStyle, BtnGoldStyle, BtnRedStyle, ToastStyle, BadgeStyle, DurationBadgeStyle, FloatingPopupStyle;
+        static Texture2D darkTex, panelTex, subPanelTex, inputTex, highlightTex, zoomBgTex, hpBgTex, hpFillTex, hpMidTex, hpLowTex, sleepTex, confTex, paraTex, poisTex, defTex, plusTex, countTex;
         static Texture2D btnBlueN, btnBlueH, btnBlueA, btnGreenN, btnGreenH, btnGreenA, btnGoldN, btnGoldH, btnGoldA, btnRedN, btnRedH, btnRedA, btnDis;
 
         public static void PlayClickSound(int kind = 0)
@@ -625,11 +638,14 @@ namespace PokeTCGPlay
                 zoomBgTex = MakeTex(new Color(0.02f, 0.03f, 0.06f, 0.84f));
                 hpBgTex = MakeTex(new Color(0.15f, 0.05f, 0.05f, 0.90f));
                 hpFillTex = MakeTex(new Color(0.18f, 0.85f, 0.38f, 0.95f));
+                hpMidTex = MakeTex(new Color(0.95f, 0.74f, 0.14f, 0.96f));
+                hpLowTex = MakeTex(new Color(0.92f, 0.22f, 0.20f, 0.96f));
                 sleepTex = MakeTex(new Color(0.20f, 0.48f, 0.92f, 0.95f));
                 confTex = MakeTex(new Color(0.92f, 0.55f, 0.12f, 0.95f));
                 paraTex = MakeTex(new Color(0.90f, 0.76f, 0.10f, 0.95f));
                 poisTex = MakeTex(new Color(0.66f, 0.20f, 0.85f, 0.95f));
                 defTex = MakeTex(new Color(0.15f, 0.72f, 0.85f, 0.95f));
+                plusTex = MakeTex(new Color(0.92f, 0.24f, 0.28f, 0.96f));
                 countTex = MakeTex(new Color(0.92f, 0.16f, 0.16f, 0.98f));
             }
             if (BoxBgStyle == null)
@@ -670,6 +686,7 @@ namespace PokeTCGPlay
                 ToastStyle = new GUIStyle(BoxBgStyle) { fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white, background = darkTex } };
                 BadgeStyle = new GUIStyle(GUI.skin.box) { fontSize = 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
                 DurationBadgeStyle = new GUIStyle(GUI.skin.box) { fontSize = 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white, background = countTex } };
+                FloatingPopupStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, richText = true, normal = { textColor = Color.white } };
             }
         }
 
@@ -791,8 +808,9 @@ namespace PokeTCGPlay
             // 1. Tapete 3D sobre la mesa (solo dibuja respaldo 2D si TableView aún no está activo)
             DrawPlaymatSurface();
 
-            // 2. Barra superior compacta
+            // 2. Barra superior compacta (puede cerrar la partida si se pulsa "Levantarse")
             DrawTopBar();
+            if (!open || game == null) return;
 
             // 3. Dibujar todas las zonas alineadas a los anclajes 3D del Playmat
             DrawAllPlaymatZones();
@@ -803,9 +821,11 @@ namespace PokeTCGPlay
 
             // 5. Controles de Acción (Ataques, Retirada, Fin de turno) a la derecha del tapete
             DrawSideControls();
+            if (!open || game == null) return;
 
-            // 6. Vuelo animado de cartas (movimientos propios y del NPC)
+            // 6. Vuelo animado de cartas (movimientos propios y del NPC) + Textos flotantes 3D de daño/estado (F6)
             DrawCurrentFlight();
+            DrawFloatingPopups3D();
 
             // 7. Moneda secundaria (ataques / estados)
             if (subCoinTimer > 0f)
@@ -815,9 +835,12 @@ namespace PokeTCGPlay
             if (game.Phase == Phase.CoinToss && !startCoinSpinning)
                 DrawInitialCoinTossModal();
 
-            // 9. Pantalla de Fin de Partida
+            // 9. Pantalla de Fin de Partida (puede cerrar la partida al levantarse)
             if (game.Phase == Phase.GameOver)
+            {
                 DrawGameOverModal();
+                if (!open || game == null) return;
+            }
 
             // 10. Zoom con Clic Derecho (la carta se eleva desde la mesa y regresa a ella)
             if (zoomedCard != null)
@@ -882,7 +905,13 @@ namespace PokeTCGPlay
 
         void DrawAllPlaymatZones()
         {
-            bool allowClick = zoomedCard == null && game.Phase != Phase.CoinToss && currentFlight == null;
+            float hudVisibility = zoomedCard != null ? Mathf.Clamp01(1f - zoomAnim * 1.45f) : 1f;
+            if (hudVisibility <= 0.01f) return;
+
+            Color prevGuiColor = GUI.color;
+            GUI.color = new Color(prevGuiColor.r, prevGuiColor.g, prevGuiColor.b, prevGuiColor.a * hudVisibility);
+
+            bool allowClick = zoomedCard == null && game.Phase != Phase.CoinToss && !IsAnimBusy();
 
             // --- Zonas de Mazo (Deck) y Descarte (Trash) ---
             DrawDeckPile(0, Me.Deck.Count);
@@ -907,6 +936,8 @@ namespace PokeTCGPlay
             // --- Campo de Batalla Central (Pokémon Activos) ---
             DrawPokemonOnMat(Cpu, Cpu.Active, GetActiveRect(1), true, allowClick);
             DrawPokemonOnMat(Me, Me.Active, GetActiveRect(0), true, allowClick);
+
+            GUI.color = prevGuiColor;
         }
 
         static int DetectSlotMouseClick(Rect rect, bool allowInput)
@@ -924,31 +955,56 @@ namespace PokeTCGPlay
         {
             Rect r = GetDeckRect(playerIdx);
             bool has3D = TableView.Instance != null && TableView.Instance.IsBoard3DReady;
-            if (!has3D && count > 0)
+            if (!has3D)
             {
-                // Respaldo 2D si no hay vista 3D
-                int layers = Mathf.Clamp(count / 15 + 1, 1, 3);
-                for (int i = layers - 1; i >= 0; i--)
+                if (count > 0)
                 {
-                    DrawCardBackRect(new Rect(r.x - i * 2f, r.y - i * 2f, r.width, r.height));
+                    int layers = Mathf.Clamp(count / 15 + 1, 1, 3);
+                    for (int i = layers - 1; i >= 0; i--)
+                    {
+                        DrawCardBackRect(new Rect(r.x - i * 2f, r.y - i * 2f, r.width, r.height));
+                    }
                 }
+                Rect badge2D = new Rect(r.x + 2f, r.yMax - 24f, r.width - 4f, 22f);
+                GUI.Box(badge2D, "", SubBoxStyle);
+                GUI.Label(badge2D, $"<b>Mazo: {count}</b>", CardLabelStyle);
+                return;
             }
-            Rect badge = new Rect(r.x + 6f, r.yMax - 22f, r.width - 12f, 20f);
-            GUI.Box(badge, $"Mazo: {count}", BoxBgStyle);
+
+            if (hoveredSlot3D != null && hoveredSlot3D.PlayerIndex == playerIdx && hoveredSlot3D.Kind == TableSlotKind.Deck)
+            {
+                Rect tip = new Rect(r.center.x - 48f, r.y - 26f, 96f, 22f);
+                GUI.Box(tip, "", SubBoxStyle);
+                GUI.Label(tip, $"<b>Mazo: {count}</b>", CardLabelStyle);
+            }
         }
 
         void DrawTrashPile(int playerIdx, List<CardDef> discard, bool allowClick)
         {
             Rect r = GetTrashRect(playerIdx);
             bool has3D = TableView.Instance != null && TableView.Instance.IsBoard3DReady;
-            if (!has3D && discard.Count > 0)
+            if (!has3D)
             {
-                var top = discard[discard.Count - 1];
-                int btn = DrawCardWithInput(r, top, false, allowClick);
-                if (btn == 1) StartZoom(top, null, r);
+                if (discard.Count > 0)
+                {
+                    var top = discard[discard.Count - 1];
+                    int btn = DrawCardWithInput(r, top, false, allowClick);
+                    if (btn == 1) StartZoom(top, null, r);
+                }
+                Rect badge2D = new Rect(r.x + 2f, r.yMax - 24f, r.width - 4f, 22f);
+                GUI.Box(badge2D, "", SubBoxStyle);
+                GUI.Label(badge2D, $"<b>Trash: {discard.Count}</b>", CardLabelStyle);
+                return;
             }
-            Rect badge = new Rect(r.x + 4f, r.yMax - 22f, r.width - 8f, 20f);
-            GUI.Box(badge, $"Trash: {discard.Count}", BoxBgStyle);
+
+            bool hovered = (hoveredSlot3D != null && hoveredSlot3D.PlayerIndex == playerIdx && hoveredSlot3D.Kind == TableSlotKind.Discard) ||
+                           (hoveredBoardCard3D != null && hoveredBoardCard3D.IsDiscardTop && hoveredBoardCard3D.OwnerIndex == playerIdx);
+            if (hovered)
+            {
+                Rect tip = new Rect(r.center.x - 54f, r.y - 26f, 108f, 22f);
+                GUI.Box(tip, "", SubBoxStyle);
+                GUI.Label(tip, $"<b>Descarte: {discard.Count}</b>", CardLabelStyle);
+            }
         }
 
         void DrawPrizeBoxes(int playerIdx, int prizeCount)
@@ -972,8 +1028,8 @@ namespace PokeTCGPlay
         }
 
         /// <summary>
-        /// Dibuja los indicadores de un Pokémon en el tapete (cuando las cartas 3D de F2 están activas,
-        /// las cartas físicas y energías debajo se ven en 3D real sobre la mesa y aquí solo se dibuja el HUD de HP/Estado y clic).
+        /// F6: Dibuja el HUD compacto de estado sobre cada Pokémon en la mesa (barra de PS dinámica,
+        /// marcador de daño total, orbes de energía unidos e iconos de estado animados con pulso y duración).
         /// </summary>
         void DrawPokemonOnMat(PlayerState owner, PokemonInPlay pip, Rect rect, bool isActive, bool allowClick)
         {
@@ -983,74 +1039,121 @@ namespace PokeTCGPlay
             if (zoomedCard == pip.Card && zoomedPip == pip && zoomAnim > 0.05f) return;
 
             bool has3D = TableView.Instance != null && TableView.Instance.IsBoard3DReady;
+            float guiAlpha = GUI.color.a;
 
-            // 1. Cartas de Energía DEBAJO del Pokémon + insignias de tipo
+            // 1. Cartas de Energía DEBAJO del Pokémon + orbes de tipo compactos
             int eCount = pip.Energy.Count;
-            for (int i = eCount - 1; i >= 0; i--)
-            {
-                var eCard = pip.Energy[i];
-                float offX = -10f - i * 8f;
-                float offY = 10f + i * 7f;
-                Rect eRect = new Rect(rect.x + offX, rect.y + offY, rect.width, rect.height);
-                if (!has3D)
-                    DrawCardSpriteOnly(eRect, eCard);
-
-                // Insignia de color del tipo de energía en la esquina que asoma
-                Rect pipBadge = new Rect(eRect.x + 2f, eRect.yMax - 16f, 18f, 15f);
-                GUI.backgroundColor = EnergyColor(eCard.EnergyProvides);
-                GUI.Box(pipBadge, eCard.EnergyProvides.Substring(0, 1), BadgeStyle);
-                GUI.backgroundColor = Color.white;
-            }
-
-            // 2. Carta del Pokémon (en 3D ya está sobre el tapete y los clics se procesan por Raycast 3D en Update3DInput)
             if (!has3D)
             {
+                for (int i = eCount - 1; i >= 0; i--)
+                {
+                    var eCard = pip.Energy[i];
+                    float offX = -10f - i * 8f;
+                    float offY = 10f + i * 7f;
+                    Rect eRect = new Rect(rect.x + offX, rect.y + offY, rect.width, rect.height);
+                    DrawCardSpriteOnly(eRect, eCard);
+                }
+
+                // 2. Carta 2D de respaldo si no hay mesa 3D activa
                 bool highlight = retreatMode && owner == Me && Me.Bench.Contains(pip);
                 int btn = DrawCardWithInput(rect, pip.Card, highlight, allowClick);
                 if (btn == 0) OnPokemonLeftClicked(owner, pip);
                 else if (btn == 1) StartZoom(pip.Card, pip, rect);
             }
 
-            // 3. Barra de HP compacta en la base de la carta
-            float hpRatio = Mathf.Clamp01(pip.RemainingHp / (float)Math.Max(1, pip.Card.Hp));
-            Rect hpBar = new Rect(rect.x + 3f, rect.yMax - 17f, rect.width - 6f, 15f);
-            GUI.DrawTexture(hpBar, hpBgTex);
-            GUI.DrawTexture(new Rect(hpBar.x, hpBar.y, hpBar.width * hpRatio, hpBar.height), hpFillTex);
-            GUI.Label(hpBar, $"<b>{pip.RemainingHp}/{pip.Card.Hp} HP</b>", CardLabelStyle);
+            // Orbes limpios de energías unidas alineados sobre la barra de PS
+            if (eCount > 0)
+            {
+                float orbSize = 16f;
+                float step = eCount > 5 ? Mathf.Max(9f, (rect.width - 10f - orbSize) / (eCount - 1)) : 17f;
+                for (int i = 0; i < eCount; i++)
+                {
+                    Rect orbRect = new Rect(rect.x + 3f + i * step, rect.yMax - 35f, orbSize, orbSize);
+                    DrawEnergyOrb(orbRect, pip.Energy[i].EnergyProvides, guiAlpha);
+                }
+            }
 
-            // 4. Iconos de Estados Alterados sobre la carta (+ contador de turnos encima si tiene duración)
-            float iconX = rect.xMax - 30f;
-            float iconY = rect.y + 6f;
+            // 3. Barra de PS dinámica (Verde -> Ámbar -> Roja pulsante) + Píldora de Daño Total (-Dmg)
+            float hpRatio = Mathf.Clamp01(pip.RemainingHp / (float)Math.Max(1, pip.Card.Hp));
+            Texture2D barFill = hpRatio > 0.50f ? hpFillTex : (hpRatio > 0.25f ? hpMidTex : hpLowTex);
+            Rect hpBar = new Rect(rect.x + 2f, rect.yMax - 17f, rect.width - 4f, 16f);
+            GUI.DrawTexture(hpBar, hpBgTex);
+
+            Color prevCol = GUI.color;
+            if (hpRatio <= 0.25f)
+            {
+                float urgentPulse = 0.78f + 0.22f * Mathf.Sin(Time.time * 7.5f);
+                GUI.color = new Color(1f, urgentPulse, urgentPulse, guiAlpha);
+            }
+            GUI.DrawTexture(new Rect(hpBar.x, hpBar.y, hpBar.width * hpRatio, hpBar.height), barFill);
+            GUI.color = prevCol;
+
+            GUI.Label(hpBar, $"<b>{pip.RemainingHp}/{pip.Card.Hp} PS</b>", CardLabelStyle);
+
+            if (pip.Damage > 0)
+            {
+                Rect dmgPill = new Rect(rect.xMax - 36f, rect.yMax - 35f, 34f, 16f);
+                GUI.Box(dmgPill, $"-{pip.Damage}", DurationBadgeStyle);
+            }
+
+            // 4. Iconos de Estados Alterados animados con pulso + contador de turnos encima
+            float iconX = rect.xMax - 31f;
+            float iconY = rect.y + 4f;
+            float phase = 0f;
 
             if (pip.Status != Status.None)
             {
                 string sym = pip.Status == Status.Asleep ? "ZZZ" : pip.Status == Status.Confused ? "CNF" : "PAR";
                 Texture2D bg = pip.Status == Status.Asleep ? sleepTex : pip.Status == Status.Confused ? confTex : paraTex;
                 int duration = pip.Status == Status.Paralyzed ? Math.Max(1, pip.StatusTurns) : 0;
-                DrawStatusIcon(new Rect(iconX, iconY, 28f, 24f), sym, bg, duration);
-                iconY += 28f;
+                DrawStatusIcon(new Rect(iconX, iconY, 30f, 24f), sym, bg, duration, phase);
+                iconY += 27f;
+                phase += 1.1f;
             }
             if (pip.Poisoned)
             {
-                DrawStatusIcon(new Rect(iconX, iconY, 28f, 24f), "VEN", poisTex, 0);
-                iconY += 28f;
+                DrawStatusIcon(new Rect(iconX, iconY, 30f, 24f), "VEN", poisTex, 0, phase);
+                iconY += 27f;
+                phase += 1.1f;
             }
             if (pip.DefenderUntilTurn >= game.Turn)
             {
-                int remTurns = Math.Max(1, pip.DefenderUntilTurn - game.Turn);
-                DrawStatusIcon(new Rect(iconX, iconY, 28f, 24f), "DEF", defTex, remTurns);
-                iconY += 28f;
+                int remTurns = Math.Max(1, pip.DefenderUntilTurn - game.Turn + 1);
+                DrawStatusIcon(new Rect(iconX, iconY, 30f, 24f), "DEF", defTex, remTurns, phase);
+                iconY += 27f;
+                phase += 1.1f;
+            }
+            if (pip.PlusPower > 0)
+            {
+                int bonusStacks = pip.PlusPower > 1 ? pip.PlusPower : 0;
+                DrawStatusIcon(new Rect(iconX, iconY, 30f, 24f), "+10", plusTex, bonusStacks, phase);
             }
         }
 
-        void DrawStatusIcon(Rect iconRect, string symbol, Texture2D bg, int remainingTurns)
+        void DrawStatusIcon(Rect iconRect, string symbol, Texture2D bg, int remainingTurns, float phaseOffset = 0f)
         {
-            GUI.DrawTexture(iconRect, bg);
-            GUI.Label(iconRect, symbol, BadgeStyle);
+            float pulse = 1f + 0.09f * Mathf.Sin(Time.time * 5.6f + phaseOffset);
+            float w = iconRect.width * pulse;
+            float h = iconRect.height * pulse;
+            Rect pulsedRect = new Rect(
+                iconRect.center.x - w * 0.5f,
+                iconRect.center.y - h * 0.5f,
+                w,
+                h);
+
+            // Sombra/contorno oscuro detrás para máxima legibilidad sobre cualquier textura de carta 3D
+            Color prev = GUI.color;
+            GUI.color = new Color(0f, 0f, 0f, 0.72f * prev.a);
+            GUI.DrawTexture(new Rect(pulsedRect.x - 1.5f, pulsedRect.y - 1.5f, pulsedRect.width + 3f, pulsedRect.height + 3f), Texture2D.whiteTexture);
+            GUI.color = prev;
+
+            GUI.DrawTexture(pulsedRect, bg);
+            GUI.Label(pulsedRect, symbol, BadgeStyle);
+
             if (remainingTurns > 0)
             {
-                // Pequeño número encima del icono de estado alterado indicando la duración restante
-                Rect numRect = new Rect(iconRect.xMax - 12f, iconRect.y - 7f, 16f, 16f);
+                // Insignia roja con la cantidad de turnos restantes (o cargas acumuladas)
+                Rect numRect = new Rect(pulsedRect.xMax - 12f, pulsedRect.y - 7f, 16f, 16f);
                 GUI.Box(numRect, remainingTurns.ToString(), DurationBadgeStyle);
             }
         }
@@ -1141,26 +1244,12 @@ namespace PokeTCGPlay
             Rect rightPanel = new Rect(Screen.width - panelW - 14f, 46f, panelW, Screen.height - 96f);
             GUILayout.BeginArea(rightPanel);
 
-            if (game.Phase == Phase.Setup)
-            {
-                GUI.Box(new Rect(0, 0, panelW, 130f), "", BoxBgStyle);
-                GUILayout.BeginVertical(GUILayout.Width(panelW - 12f));
-                GUILayout.Space(8);
-                GUILayout.Label("<b>Fase de Preparación</b>\nHaz clic izquierdo en tus Pokémon Básicos para colocarlos en el Campo de Batalla y en la Banca.", SubHeaderStyle);
-                GUILayout.Space(8);
-                if (GUILayout.Button("¡Empezar Partida!", BtnGreenStyle, GUILayout.Height(38)))
-                {
-                    PlayClickSound(1);
-                    Report(game.FinishSetup(Me));
-                }
-                GUILayout.EndVertical();
-            }
-            else if (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me)
+            if (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me)
             {
                 GUI.Box(new Rect(0, 0, panelW, 95f), "", BoxBgStyle);
                 GUILayout.Label("<color=#ffd166><b>Tu Pokémon Activo cayó:</b>\nHaz clic izquierdo en un Pokémon de tu Banca para enviarlo al Campo de Batalla.</color>", SubHeaderStyle);
             }
-            else if (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && currentFlight == null)
+            else if (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy())
             {
                 GUI.Box(new Rect(0, 0, panelW, 315f), "", BoxBgStyle);
                 GUILayout.BeginVertical(GUILayout.Width(panelW - 10f));
@@ -1227,9 +1316,58 @@ namespace PokeTCGPlay
             GUILayout.EndArea();
         }
 
-        // ==================== Lanzamiento de Moneda Inicial y Secundaria ====================
+        // ==================== F7: Lanzamiento de Moneda 3D (con respaldo 2D) ====================
+        void TriggerStartCoinToss(bool choseHeads)
+        {
+            PlayClickSound(1);
+            startCoinPlayerChoseHeads = choseHeads;
+            startCoinResultHeads = game.PerformStartCoinToss(choseHeads);
+            startCoinSpinning = true;
+            startCoinTimer = 0f;
+            TableView.Instance?.LaunchStartCoinToss3D(startCoinResultHeads, StartCoinDuration);
+        }
+
         void DrawInitialCoinTossModal()
         {
+            if (startCoinSpinning) return;
+
+            bool has3D = TableView.Instance != null && TableView.Instance.IsBoard3DReady;
+            if (has3D)
+            {
+                // En mesa 3D la moneda real flota y gira frente al jugador en el centro del tapete:
+                // colocamos un panel inferior compacto para no tapar la moneda 3D.
+                float mw3 = 560f, mh3 = 152f;
+                Rect mr3 = new Rect((Screen.width - mw3) * 0.5f, Screen.height - mh3 - 34f, mw3, mh3);
+                GUI.Box(mr3, "", BoxBgStyle);
+
+                GUILayout.BeginArea(new Rect(mr3.x + 20f, mr3.y + 12f, mr3.width - 40f, mr3.height - 24f));
+                GUILayout.Label("<size=19><b>Lanzamiento de Moneda Inicial (3D)</b></size>", HeaderStyle);
+                GUILayout.Label("Elige una cara para lanzar la moneda sobre el tapete y decidir quién inicia:", SubHeaderStyle);
+                GUILayout.Space(10);
+
+                GUILayout.BeginHorizontal();
+                Rect rMiniHeads = GUILayoutUtility.GetRect(42f, 42f, GUILayout.Width(42f), GUILayout.Height(42f));
+                if (SpriteCache.CoinHeadsTex != null) GUI.DrawTexture(rMiniHeads, SpriteCache.CoinHeadsTex, ScaleMode.ScaleToFit);
+                GUILayout.Space(6);
+                if (GUILayout.Button("Elegir CARA (Pikachu)", BtnGoldStyle, GUILayout.Height(42)))
+                {
+                    TriggerStartCoinToss(true);
+                }
+
+                GUILayout.Space(18);
+
+                Rect rMiniTails = GUILayoutUtility.GetRect(42f, 42f, GUILayout.Width(42f), GUILayout.Height(42f));
+                if (SpriteCache.CoinTailsTex != null) GUI.DrawTexture(rMiniTails, SpriteCache.CoinTailsTex, ScaleMode.ScaleToFit);
+                GUILayout.Space(6);
+                if (GUILayout.Button("Elegir CRUZ (Pokéball)", BtnStyle, GUILayout.Height(42)))
+                {
+                    TriggerStartCoinToss(false);
+                }
+                GUILayout.EndHorizontal();
+                GUILayout.EndArea();
+                return;
+            }
+
             float mw = 540f, mh = 360f;
             Rect mr = new Rect((Screen.width - mw) * 0.5f, (Screen.height - mh) * 0.5f, mw, mh);
             GUI.Box(mr, "", BoxBgStyle);
@@ -1237,55 +1375,36 @@ namespace PokeTCGPlay
             GUILayout.BeginArea(new Rect(mr.x + 24f, mr.y + 20f, mr.width - 48f, mr.height - 40f));
             GUILayout.Label("<size=22><b>Lanzamiento de Moneda Inicial</b></size>", HeaderStyle);
             GUILayout.Space(6);
+            GUILayout.Label("Elige una cara de la moneda para decidir quién empieza la partida:", SubHeaderStyle);
+            GUILayout.Space(16);
 
-            if (!startCoinSpinning)
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+
+            // Opción CARA (Pikachu dorado)
+            GUILayout.BeginVertical(GUILayout.Width(170));
+            Rect rHeads = GUILayoutUtility.GetRect(150f, 150f);
+            if (SpriteCache.CoinHeadsTex != null) GUI.DrawTexture(rHeads, SpriteCache.CoinHeadsTex, ScaleMode.ScaleToFit);
+            if (GUILayout.Button("Elegir CARA (Pikachu)", BtnGoldStyle, GUILayout.Height(36)))
             {
-                GUILayout.Label("Elige una cara de la moneda para decidir quién empieza la partida:", SubHeaderStyle);
-                GUILayout.Space(16);
-
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-
-                // Opción CARA (Pikachu dorado)
-                GUILayout.BeginVertical(GUILayout.Width(170));
-                Rect rHeads = GUILayoutUtility.GetRect(150f, 150f);
-                if (SpriteCache.CoinHeadsTex != null) GUI.DrawTexture(rHeads, SpriteCache.CoinHeadsTex, ScaleMode.ScaleToFit);
-                if (GUILayout.Button("Elegir CARA (Pikachu)", BtnGoldStyle, GUILayout.Height(36)))
-                {
-                    PlayClickSound(1);
-                    startCoinPlayerChoseHeads = true;
-                    startCoinResultHeads = game.PerformStartCoinToss(true);
-                    startCoinSpinning = true;
-                    startCoinTimer = 0f;
-                }
-                GUILayout.EndVertical();
-
-                GUILayout.Space(40);
-
-                // Opción CRUZ (Pokéball negra)
-                GUILayout.BeginVertical(GUILayout.Width(170));
-                Rect rTails = GUILayoutUtility.GetRect(150f, 150f);
-                if (SpriteCache.CoinTailsTex != null) GUI.DrawTexture(rTails, SpriteCache.CoinTailsTex, ScaleMode.ScaleToFit);
-                if (GUILayout.Button("Elegir CRUZ (Pokéball)", BtnStyle, GUILayout.Height(36)))
-                {
-                    PlayClickSound(1);
-                    startCoinPlayerChoseHeads = false;
-                    startCoinResultHeads = game.PerformStartCoinToss(false);
-                    startCoinSpinning = true;
-                    startCoinTimer = 0f;
-                }
-                GUILayout.EndVertical();
-
-                GUILayout.FlexibleSpace();
-                GUILayout.EndHorizontal();
+                TriggerStartCoinToss(true);
             }
-            else
+            GUILayout.EndVertical();
+
+            GUILayout.Space(40);
+
+            // Opción CRUZ (Pokéball negra)
+            GUILayout.BeginVertical(GUILayout.Width(170));
+            Rect rTails = GUILayoutUtility.GetRect(150f, 150f);
+            if (SpriteCache.CoinTailsTex != null) GUI.DrawTexture(rTails, SpriteCache.CoinTailsTex, ScaleMode.ScaleToFit);
+            if (GUILayout.Button("Elegir CRUZ (Pokéball)", BtnStyle, GUILayout.Height(36)))
             {
-                // Mantener el modal visible mientras gira y cae la moneda
-                GUILayout.EndArea();
-                return;
+                TriggerStartCoinToss(false);
             }
+            GUILayout.EndVertical();
 
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
             GUILayout.EndArea();
         }
 
@@ -1327,14 +1446,25 @@ namespace PokeTCGPlay
         // ==================== Animación de Movimiento de Cartas ====================
         void DrawCurrentFlight()
         {
-            // Si la moneda inicial está girando, mostrar su animación en el centro del tapete
+            // Si la moneda inicial está girando, en 3D vuela físicamente Coin3D y mostramos el rótulo superior; en 2D usamos respaldo
             if (startCoinSpinning)
             {
                 float t = Mathf.Clamp01(startCoinTimer / StartCoinDuration);
-                string resultTxt = t >= 0.75f
+                string choiceName = startCoinPlayerChoseHeads ? "CARA" : "CRUZ";
+                bool has3D = TableView.Instance != null && TableView.Instance.IsBoard3DReady;
+                string resultTxt = t >= 0.84f
                     ? $"¡Salió {(startCoinResultHeads ? "CARA (Pikachu)" : "CRUZ (Pokéball)")}! Inicia {game.Current.Name}"
-                    : "Lanzando moneda...";
-                DrawAnimatedCoin(Screen.width * 0.5f, Screen.height * 0.44f, 175f, t, startCoinResultHeads, resultTxt);
+                    : $"Elegiste {choiceName} — Lanzando moneda...";
+
+                if (has3D)
+                {
+                    Rect capRect = new Rect(Screen.width * 0.5f - 210f, 48f, 420f, 36f);
+                    GUI.Box(capRect, resultTxt, ToastStyle);
+                }
+                else
+                {
+                    DrawAnimatedCoin(Screen.width * 0.5f, Screen.height * 0.44f, 175f, t, startCoinResultHeads, resultTxt);
+                }
             }
 
             // F3: Mostrar rótulo flotante de la acción 3D en curso sobre el tapete
@@ -1360,6 +1490,56 @@ namespace PokeTCGPlay
                 DrawCardBackRect(cur);
             else
                 DrawCardSpriteOnly(cur, currentFlight.Card);
+        }
+
+        /// <summary>
+        /// F6: Proyecta los textos flotantes 3D (-30, +20 PS, ¡DORMIDO!, ¡PARALIZADO!, ¡ENVENENADO!, etc.)
+        /// desde su posición 3D sobre la mesa física hacia pantalla con ascenso suave, golpe de escala y contorno oscuro.
+        /// </summary>
+        void DrawFloatingPopups3D()
+        {
+            if (StatusCounters3D.ActivePopups.Count == 0) return;
+            var cam = TableView.GetActiveCamera();
+            if (cam == null) return;
+
+            Color prevCol = GUI.color;
+            int baseFontSize = FloatingPopupStyle.fontSize;
+
+            for (int i = 0; i < StatusCounters3D.ActivePopups.Count; i++)
+            {
+                var p = StatusCounters3D.ActivePopups[i];
+                float u = Mathf.Clamp01(p.Elapsed / Math.Max(0.1f, p.Duration));
+
+                // Elevación progresiva en el mundo 3D sobre la carta golpeada/afectada
+                float riseMeters = Mathf.SmoothStep(0f, 1f, u) * 0.065f;
+                Vector3 sp = cam.WorldToScreenPoint(p.WorldOrigin + Vector3.up * riseMeters);
+                if (sp.z <= 0.05f) continue;
+
+                float gx = sp.x;
+                float gy = Screen.height - sp.y;
+
+                // Golpe elástico inicial (punch) y desvanecimiento suave al final
+                float punch = u < 0.18f
+                    ? Mathf.Lerp(0.65f, 1.24f, u / 0.18f)
+                    : Mathf.Lerp(1.24f, 1.00f, Mathf.Clamp01((u - 0.18f) / 0.22f));
+                float alpha = u < 0.65f ? 1f : Mathf.Clamp01((1f - u) / 0.35f);
+
+                FloatingPopupStyle.fontSize = Mathf.Clamp(Mathf.RoundToInt(20f * p.FontScale * punch), 13, 36);
+                Rect r = new Rect(gx - 110f, gy - 20f, 220f, 40f);
+
+                // Contorno oscuro en 4 direcciones para contraste limpio sobre cualquier carta 3D
+                GUI.color = new Color(0f, 0f, 0f, 0.90f * alpha);
+                GUI.Label(new Rect(r.x - 1.5f, r.y + 1.5f, r.width, r.height), p.Text, FloatingPopupStyle);
+                GUI.Label(new Rect(r.x + 1.5f, r.y + 1.5f, r.width, r.height), p.Text, FloatingPopupStyle);
+                GUI.Label(new Rect(r.x - 1.5f, r.y - 1.5f, r.width, r.height), p.Text, FloatingPopupStyle);
+                GUI.Label(new Rect(r.x + 1.5f, r.y - 1.5f, r.width, r.height), p.Text, FloatingPopupStyle);
+
+                GUI.color = new Color(p.Color.r, p.Color.g, p.Color.b, alpha);
+                GUI.Label(r, p.Text, FloatingPopupStyle);
+            }
+
+            FloatingPopupStyle.fontSize = baseFontSize;
+            GUI.color = prevCol;
         }
 
         void DrawGameOverModal()
@@ -1704,10 +1884,17 @@ namespace PokeTCGPlay
             Rect topBar = new Rect((Screen.width - topW) * 0.5f, 4f, topW, 34f);
             if (topBar.Contains(guiMouse)) return true;
 
-            float panelW = 248f;
-            float panelH = showLogPanel ? (Screen.height - 96f) : 340f;
-            Rect rightPanel = new Rect(Screen.width - panelW - 14f, 46f, panelW, panelH);
-            if (rightPanel.Contains(guiMouse)) return true;
+            bool hasRightPanel = showLogPanel ||
+                                 (game != null && (
+                                     (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me) ||
+                                     (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy())));
+            if (hasRightPanel)
+            {
+                float panelW = 248f;
+                float panelH = showLogPanel ? (Screen.height - 96f) : 340f;
+                Rect rightPanel = new Rect(Screen.width - panelW - 14f, 46f, panelW, panelH);
+                if (rightPanel.Contains(guiMouse)) return true;
+            }
 
             return false;
         }
@@ -1717,7 +1904,7 @@ namespace PokeTCGPlay
             var tv = TableView.Instance;
             if (tv == null || !tv.IsBoard3DReady || game == null) return;
 
-            bool animBusy = currentFlight != null || flightQueue.Count > 0 || (BoardAnimator.Instance != null && BoardAnimator.Instance.IsAnimating);
+            bool animBusy = IsAnimBusy();
             bool allow3DInput = zoomedCard == null && game.Phase != Phase.CoinToss && game.Phase != Phase.GameOver &&
                                 !startCoinSpinning && !animBusy && !game.PendingAiTurn;
 
@@ -1917,7 +2104,7 @@ namespace PokeTCGPlay
             if (evoCard == null || target == null || target.IsDoll) return false;
             if (evoCard.Supertype != Supertype.Pokemon || evoCard.Stage == "Basic") return false;
             if (evoCard.EvolvesFrom != target.Card.Name) return false;
-            if (target.TurnPlaced == game.Turn || target.TurnEvolved == game.Turn) return false;
+            if (game.Turn <= 2 || target.TurnPlaced == game.Turn || target.TurnEvolved == game.Turn) return false;
             return true;
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -22,6 +23,7 @@ namespace PokeTCGPlay
 
         static void ApplyCondition(Game g, PokemonInPlay target, string text)
         {
+            if (target == null) return;
             if (text.Contains("Poisoned")) { target.Poisoned = true; g.Say($"  {target.Card.Name} queda Envenenado."); }
             var st = ParseStatus(text);
             if (st != null)
@@ -34,9 +36,19 @@ namespace PokeTCGPlay
 
         public static void ResolveAttack(Game g, PlayerState p, PokemonInPlay a, AttackDef atk)
         {
-            var opp = g.OpponentOf(p); var def = opp.Active;
+            ResolveAttackSequence(g, p, a, atk, null);
+        }
+
+        /// <summary>
+        /// Resuelve el ataque respetando estrictamente el orden visual:
+        /// 1) Si el ataque requiere lanzar una o más monedas, se lanzan y animan PRIMERO.
+        /// 2) Solo cuando termina la animación de la(s) moneda(s), el Pokémon ejecuta la embestida y aplica daño/estados en el impacto.
+        /// </summary>
+        public static void ResolveAttackSequence(Game g, PlayerState p, PokemonInPlay a, AttackDef atk, Action onSequenceDone)
+        {
+            var opp = g.OpponentOf(p);
+            var def = opp.Active;
             string t = atk.Text ?? "";
-            int dmg = atk.BaseDamage;
             bool handled = string.IsNullOrEmpty(t);
 
             // Descartar energía como coste ("Discard 1 Fire Energy card attached to Charizard in order to use this attack")
@@ -54,84 +66,184 @@ namespace PokeTCGPlay
                 handled = true;
             }
 
-            // "Flip a coin. If tails, this attack does nothing."
+            // Paso 1: "Flip a coin. If tails, this attack does nothing."
             if (Regex.IsMatch(t, @"Flip a coin\. If tails, this attack does nothing", I))
             {
                 handled = true;
-                if (!g.Flip(atk.Name)) { g.Say("  El ataque no hace nada."); return; }
+                g.RunCoinFlip(p, atk.Name, heads =>
+                {
+                    if (!heads)
+                    {
+                        g.Say("  El ataque no hace nada.");
+                        onSequenceDone?.Invoke();
+                        return;
+                    }
+                    ContinueAttackCoinsAndImpact(g, p, a, opp, def, atk, t, handled, onSequenceDone);
+                });
+                return;
             }
 
-            // "Flip N coins. This attack does X damage times the number of heads."
+            ContinueAttackCoinsAndImpact(g, p, a, opp, def, atk, t, handled, onSequenceDone);
+        }
+
+        static void ContinueAttackCoinsAndImpact(
+            Game g,
+            PlayerState p,
+            PokemonInPlay a,
+            PlayerState opp,
+            PokemonInPlay def,
+            AttackDef atk,
+            string t,
+            bool alreadyHandled,
+            Action onSequenceDone)
+        {
+            bool handled = alreadyHandled;
+            int flipPhraseCount = Regex.Matches(t, @"Flip (\d+|a) coins?", I).Count;
+
             var mTimes = Regex.Match(t, @"Flip (\d+|a) coins?\. This attack does (\d+) damage times the number of heads", I);
+            var mPlus = Regex.Match(t, @"Flip a coin\. If heads, this attack does \d+ damage plus (\d+) more damage", I);
+            var mPerEnergy = Regex.Match(t, @"plus (\d+) more damage for each (\w+ )?Energy (attached to [\w ]+ )?but not used to pay", I);
+            var mCoinStatus = Regex.Match(t, @"Flip a coin\. If heads, the Defending Pok.mon is now ([^.]+)\.(?: If tails, it is now ([^.]+)\.)?", I);
+            var mDirectStatus = !mCoinStatus.Success ? Regex.Match(t, @"The Defending Pok.mon is now ([^.]+)\.", I) : Match.Empty;
+            var mSelf = Regex.Match(t, @"(?:does|deals?) (\d+) damage to itself", I);
+            bool selfUsesTailsCoin = mSelf.Success && Regex.IsMatch(t, @"if tails, (?:this attack does \d+ damage plus )?[\w ]+ (?:does|deals?) \d+ damage to itself", I);
+            bool selfSharesPlusCoin = selfUsesTailsCoin && mPlus.Success && flipPhraseCount <= 1;
+            var mBench = Regex.Match(t, @"does (\d+) damage to each (Pok.mon on each player's Bench|of your opponent's Benched)", I);
+            var mHeal = Regex.Match(t, @"remove (\d+|all) damage counters? from", I);
+
+            var coinReasons = new List<string>();
+            int timesCoinStart = -1, timesCoinCount = 0;
+            int plusCoinIdx = -1;
+            int statusCoinIdx = -1;
+            int selfCoinIdx = -1;
+
             if (mTimes.Success)
             {
-                int n = mTimes.Groups[1].Value == "a" ? 1 : int.Parse(mTimes.Groups[1].Value);
-                int heads = Enumerable.Range(0, n).Count(_ => g.Flip(atk.Name));
-                dmg = int.Parse(mTimes.Groups[2].Value) * heads; handled = true;
+                timesCoinStart = coinReasons.Count;
+                timesCoinCount = mTimes.Groups[1].Value.Equals("a", StringComparison.OrdinalIgnoreCase) ? 1 : int.Parse(mTimes.Groups[1].Value);
+                for (int idx = 0; idx < timesCoinCount; idx++)
+                    coinReasons.Add(timesCoinCount > 1 ? $"{atk.Name} ({idx + 1}/{timesCoinCount})" : atk.Name);
+                handled = true;
             }
-
-            // "Flip a coin. If heads, this attack does X damage plus Y more damage"
-            var mPlus = Regex.Match(t, @"Flip a coin\. If heads, this attack does \d+ damage plus (\d+) more damage", I);
             if (mPlus.Success)
             {
-                if (g.Flip(atk.Name)) dmg += int.Parse(mPlus.Groups[1].Value);
+                plusCoinIdx = coinReasons.Count;
+                coinReasons.Add(atk.Name);
                 handled = true;
             }
-
-            // "Does X damage plus Y more damage for each Energy ..." (Blastoise / Mewtwo)
-            var mPerEnergy = Regex.Match(t, @"plus (\d+) more damage for each (\w+ )?Energy (attached to [\w ]+ )?but not used to pay", I);
-            if (mPerEnergy.Success)
-            {
-                string type = mPerEnergy.Groups[2].Value.Trim();
-                int extra = (type == "" ? a.EnergyTotal : a.EnergyCount(type)) - atk.Cost.Count(c => type == "" || c == type);
-                dmg += Math.Min(2, Math.Max(0, extra)) * int.Parse(mPerEnergy.Groups[1].Value); handled = true;
-            }
-
-            // Daño al Activo defensor
-            g.DealDamage(a, def, dmg);
-
-            // Estados: con moneda o directos
-            var mCoinStatus = Regex.Match(t, @"Flip a coin\. If heads, the Defending Pok.mon is now ([^.]+)\.(?: If tails, it is now ([^.]+)\.)?", I);
             if (mCoinStatus.Success)
             {
-                if (g.Flip(atk.Name)) ApplyCondition(g, def, mCoinStatus.Groups[1].Value);
-                else if (mCoinStatus.Groups[2].Success) ApplyCondition(g, def, mCoinStatus.Groups[2].Value);
+                statusCoinIdx = coinReasons.Count;
+                coinReasons.Add(atk.Name);
                 handled = true;
             }
-            else
+            if (selfUsesTailsCoin && !selfSharesPlusCoin)
             {
-                var mStatus = Regex.Match(t, @"The Defending Pok.mon is now ([^.]+)\.", I);
-                if (mStatus.Success) { ApplyCondition(g, def, mStatus.Groups[1].Value); handled = true; }
-            }
-
-            // Daño a sí mismo
-            var mSelf = Regex.Match(t, @"(?:does|deals?) (\d+) damage to itself", I);
-            if (mSelf.Success)
-            {
-                bool coin = Regex.IsMatch(t, @"If tails, [\w ]+ does \d+ damage to itself", I);
-                if (!coin || !g.Flip("autodaño")) { a.Damage += int.Parse(mSelf.Groups[1].Value); g.Say($"  {a.Card.Name} se hace {mSelf.Groups[1].Value} de daño."); }
+                selfCoinIdx = coinReasons.Count;
+                coinReasons.Add("autodaño");
                 handled = true;
             }
 
-            // Daño a cada Pokémon en Banca (Zapdos Thunder, Electrode...)
-            var mBench = Regex.Match(t, @"does (\d+) damage to each (Pok.mon on each player's Bench|of your opponent's Benched)", I);
-            if (mBench.Success)
+            // Si el ataque requiere monedas, se tiran TODAS antes de ejecutar la animación de ataque y el daño/estado
+            g.RunCoinSequence(p, coinReasons, coinResults =>
             {
-                int bd = int.Parse(mBench.Groups[1].Value);
-                foreach (var b in opp.Bench) { b.Damage += bd; }
-                if (mBench.Groups[2].Value.Contains("each player")) foreach (var b in p.Bench) b.Damage += bd;
-                g.Say($"  {bd} de daño a la Banca."); handled = true;
-            }
+                int dmg = atk.BaseDamage;
 
-            // Curación propia ("Remove N damage counters from X")
-            var mHeal = Regex.Match(t, @"remove (\d+|all) damage counters? from", I);
-            if (mHeal.Success)
-            {
-                int n = mHeal.Groups[1].Value == "all" ? 999 : int.Parse(mHeal.Groups[1].Value) * 10;
-                a.Damage = Math.Max(0, a.Damage - n); handled = true;
-            }
+                if (mTimes.Success)
+                {
+                    int heads = 0;
+                    for (int idx = 0; idx < timesCoinCount; idx++)
+                        if (coinResults[timesCoinStart + idx]) heads++;
+                    dmg = int.Parse(mTimes.Groups[2].Value) * heads;
+                }
 
-            if (!handled) g.Say($"  (Efecto aún no implementado: \"{t}\")");
+                if (mPlus.Success && plusCoinIdx >= 0 && coinResults[plusCoinIdx])
+                {
+                    dmg += int.Parse(mPlus.Groups[1].Value);
+                }
+
+                if (mPerEnergy.Success)
+                {
+                    string type = mPerEnergy.Groups[2].Value.Trim();
+                    int extra = (type == "" ? a.EnergyTotal : a.EnergyCount(type)) - atk.Cost.Count(c => type == "" || c == type);
+                    dmg += Math.Min(2, Math.Max(0, extra)) * int.Parse(mPerEnergy.Groups[1].Value);
+                    handled = true;
+                }
+
+                string conditionToApply = null;
+                if (mCoinStatus.Success && statusCoinIdx >= 0)
+                {
+                    if (coinResults[statusCoinIdx])
+                        conditionToApply = mCoinStatus.Groups[1].Value;
+                    else if (mCoinStatus.Groups[2].Success)
+                        conditionToApply = mCoinStatus.Groups[2].Value;
+                }
+                else if (mDirectStatus.Success)
+                {
+                    conditionToApply = mDirectStatus.Groups[1].Value;
+                    handled = true;
+                }
+
+                int selfDmgToApply = 0;
+                if (mSelf.Success)
+                {
+                    handled = true;
+                    bool applySelf = !selfUsesTailsCoin
+                        || (selfSharesPlusCoin ? !coinResults[plusCoinIdx] : (selfCoinIdx >= 0 && !coinResults[selfCoinIdx]));
+                    if (applySelf)
+                        selfDmgToApply = int.Parse(mSelf.Groups[1].Value);
+                }
+
+                if (mBench.Success || mHeal.Success)
+                    handled = true;
+
+                bool hasAnyImpactEffect = dmg > 0 || conditionToApply != null || selfDmgToApply > 0 || mBench.Success || mHeal.Success || !handled;
+                if (!hasAnyImpactEffect && coinReasons.Count > 0)
+                {
+                    g.Say("  El ataque no hace nada.");
+                    onSequenceDone?.Invoke();
+                    return;
+                }
+
+                // Ahora que terminaron las monedas, el Pokémon embiste y aplica el daño/efecto justo en el impacto
+                g.RunAttackLunge(
+                    p,
+                    a.Card,
+                    atk.Name,
+                    onImpact: () =>
+                    {
+                        if (def != null)
+                            g.DealDamage(a, def, dmg);
+
+                        if (conditionToApply != null && def != null)
+                            ApplyCondition(g, def, conditionToApply);
+
+                        if (selfDmgToApply > 0)
+                        {
+                            a.Damage += selfDmgToApply;
+                            g.Say($"  {a.Card.Name} se hace {selfDmgToApply} de daño.");
+                        }
+
+                        if (mBench.Success)
+                        {
+                            int bd = int.Parse(mBench.Groups[1].Value);
+                            foreach (var b in opp.Bench) b.Damage += bd;
+                            if (mBench.Groups[2].Value.Contains("each player"))
+                                foreach (var b in p.Bench) b.Damage += bd;
+                            g.Say($"  {bd} de daño a la Banca.");
+                        }
+
+                        if (mHeal.Success)
+                        {
+                            int n = mHeal.Groups[1].Value == "all" ? 999 : int.Parse(mHeal.Groups[1].Value) * 10;
+                            a.Damage = Math.Max(0, a.Damage - n);
+                        }
+
+                        if (!handled)
+                            g.Say($"  (Efecto aún no implementado: \"{t}\")");
+                    },
+                    onFinished: onSequenceDone);
+            });
         }
 
         // ------------------------- Entrenadores -------------------------

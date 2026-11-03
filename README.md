@@ -33,11 +33,12 @@ El desarrollo está estructurado paso a paso de **F0 a F10**:
 | **F3** | **Animador 3D (`BoardAnimator`)** | Vuelos parabólicos en 3D con inclinación dinámica, giro de 180° al robar cartas o tomar premios, deslizamiento de energías, pulso de evolución, embestida de ataque y caída al descarte. | ✅ Completado |
 | **F4** | **Mano e Input 3D** | Abanico 3D de la mano del jugador y del NPC, detección por raycast 3D (hover/elevación), selección y arrastre de cartas hacia zonas válidas de la mesa e inspección con clic derecho. | ✅ Completado |
 | **F5** | **Inspección 3D, Mazo Realista y Robo a Pantalla** | Pila 3D de Mazo realista en capas escalonadas, animación de robo hacia la pantalla viéndose por detrás con vuelta de 180° y pausa de `0.5s`, abanico bajo sin tapar la Banca e inspección 3D con giro interactivo e iconos de energía. | ✅ Completado |
-| **F6** | **HUD de Estado y Contadores 3D** | Contador de daño (fichas 3D / números flotantes), iconos de estado animados con pulso, tinte de color, contador de turnos y rotación física de cartas por condición especial. | 🔜 Siguiente |
-| **F7** | **Moneda 3D** | Moneda cilíndrica 3D con caras Pikachu/Pokéball, lanzamiento físico con curva y rebote sobre la mesa. | ⏳ Pendiente |
-| **F8** | **Flujo de Partida, IA y Recompensas** | Flujo completo de partida, IA del NPC y recompensas de tienda (XP + reseñas positivas al ganar, o pérdida de la tarifa de mesa si gana el NPC). | ⏳ Pendiente |
+| **F6** | **HUD de Estado y Contadores 3D** | Fichas 3D acrílicas de daño (`10`, `50`, `100`) y estado (`VEN`, `DEF`, `+10`), números flotantes 3D, iconos animados con pulso y duración, tinte pulsante y rotación física suavizada por condición especial. | ✅ Completado |
+| **F7** | **Moneda 3D** | Moneda cilíndrica 3D con caras Pikachu/Pokéball, canto estriado dorado/grafito, vista previa flotante al inicio, lanzamiento parabólico con doble rebote, vibración de canto, anillo de aterrizaje y cola 3D secuencial en ataques/estados. | ✅ Completado |
+| **F8** | **Flujo de Partida, IA y Recompensas** | Flujo completo de partida, IA del NPC y recompensas de tienda (XP + reseñas positivas al ganar, o pérdida de la tarifa de mesa si gana el NPC). | 🔜 Siguiente |
 | **F9** | **Deck Builder 3D** | Constructor de mazos 3D en la Workbench con filtros, validación por formato y colección real del jugador. | ⏳ Pendiente |
 | **F10** | **Audio, Pulido y Herramientas de Expansión** | Efectos de sonido en mesa (barajar, robar, moneda, impacto), sacudida de cámara en KO y opciones de configuración. | ⏳ Pendiente |
+| **F10.5** | **Refactor de Legibilidad y `VisualSettings`** | Reestructuración modular limpia (150–250 líneas por archivo) y archivo único `VisualSettings.cs` + `PokeTCGPlay.cfg` para editar alturas, cámaras y animaciones fácilmente. | ⏳ Pendiente |
 
 ---
 

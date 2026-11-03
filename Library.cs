@@ -57,11 +57,12 @@ namespace PokeTCGPlay
 
     // ───────────────────────────── Colección ─────────────────────────────
 
-    /// <summary>Lee cuántas copias de cada carta tiene el jugador en el álbum del juego (cartas de MyCurio obtenidas en sobres).</summary>
+    /// <summary>Lee cuántas copias de cada carta tiene el jugador en el álbum y muebles de almacenamiento del juego (compatible con variantes MyCurio y EPL 6.7.1).</summary>
     public static class Collection
     {
-        static readonly Dictionary<string, KeyValuePair<ECardExpansionType, EMonsterType>> spriteMap =
-            new Dictionary<string, KeyValuePair<ECardExpansionType, EMonsterType>>(StringComparer.OrdinalIgnoreCase);
+        static readonly Dictionary<string, List<KeyValuePair<ECardExpansionType, EMonsterType>>> spriteMap =
+            new Dictionary<string, List<KeyValuePair<ECardExpansionType, EMonsterType>>>(StringComparer.OrdinalIgnoreCase);
+        static readonly ECardBorderType[] allBorderTypes = (ECardBorderType[])Enum.GetValues(typeof(ECardBorderType));
         static readonly Dictionary<string, int> cache = new Dictionary<string, int>();
         static float cacheTime = -999f;
         static bool mapBuilt;
@@ -88,9 +89,10 @@ namespace PokeTCGPlay
             mapBuilt = true;
             var allExpKeys = CardDatabase.Sets.Select(s => s.MyCurioExpansion)
                 .Concat(MyCurioIndex.Expansions.Keys)
-                .Where(x => !string.IsNullOrEmpty(x))
+                .Where(x => MyCurioIndex.IsPokemonExpansion(x))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
 
+            int mappedSlots = 0;
             foreach (var exKey in allExpKeys)
             {
                 try
@@ -100,12 +102,25 @@ namespace PokeTCGPlay
                     var dict = Epl.Api.Assets.CardExpansions.GetCardSprites(exp);
                     if (dict == null) continue;
                     foreach (var kv in dict)
-                        if (kv.Value != null && !string.IsNullOrEmpty(kv.Value.AssetName))
-                            spriteMap[kv.Value.AssetName] = new KeyValuePair<ECardExpansionType, EMonsterType>(exp, kv.Key);
+                    {
+                        string assetName = kv.Value?.AssetName;
+                        if (string.IsNullOrEmpty(assetName)) continue;
+                        if (!spriteMap.TryGetValue(assetName, out var list))
+                        {
+                            list = new List<KeyValuePair<ECardExpansionType, EMonsterType>>(2);
+                            spriteMap[assetName] = list;
+                        }
+                        var pair = new KeyValuePair<ECardExpansionType, EMonsterType>(exp, kv.Key);
+                        if (!list.Contains(pair))
+                        {
+                            list.Add(pair);
+                            mappedSlots++;
+                        }
+                    }
                 }
                 catch (Exception e) { Plugin.Log?.LogWarning($"Colección: no se pudo mapear {exKey}: {e.Message}"); }
             }
-            Plugin.Log?.LogInfo($"Colección: {spriteMap.Count} cartas de MyCurio mapeadas al álbum del juego.");
+            Plugin.Log?.LogInfo($"Colección: {spriteMap.Count} sprites Pokémon ({mappedSlots} ranuras MyCurio) mapeados al álbum del juego.");
         }
 
         /// <summary>Copias que posee el jugador (int.MaxValue si no aplica la restricción).</summary>
@@ -126,64 +141,78 @@ namespace PokeTCGPlay
             try
             {
                 BuildMap();
-                if (string.IsNullOrEmpty(sprite) || !spriteMap.TryGetValue(sprite, out var key)) return 0;
+                if (string.IsNullOrEmpty(sprite) || !spriteMap.TryGetValue(sprite, out var entries) || entries.Count == 0)
+                    return 0;
 
                 int total = 0;
-                var seenSaveIndices = new HashSet<int>();
-                var cd = new CardData { expansionType = key.Key, monsterType = key.Value, isFoil = isFoil };
-                if (Enum.TryParse<ECardBorderType>(borderName ?? "Base", true, out var border)) cd.borderType = border;
+                var seenSaveKeys = new HashSet<long>();
+                var storageShelves = ShelfManager.GetCardStorageShelfList();
+                var cardShelves = ShelfManager.GetCardShelfList();
 
-                void AccumulateVariant(CardData variant)
+                for (int eIdx = 0; eIdx < entries.Count; eIdx++)
                 {
-                    int saveIdx = CPlayerData.GetCardSaveIndex(variant);
-                    if (saveIdx < 0 || !seenSaveIndices.Add(saveIdx)) return;
+                    var key = entries[eIdx];
+                    var collectedList = CPlayerData.GetCardCollectedList(key.Key, false);
 
-                    // 1) En el Álbum (Colección del jugador)
-                    var list = CPlayerData.GetCardCollectedList(variant.expansionType, false);
-                    if (list != null && saveIdx < list.Count)
-                        total += Math.Max(0, list[saveIdx]);
-
-                    // 2) En Muebles de Almacenamiento de Cartas (InteractableCardStorageShelf / Bulk Box)
-                    var storageShelves = ShelfManager.GetCardStorageShelfList();
-                    if (storageShelves != null)
+                    // Contar todas las variantes de borde (Base, FirstEdition, Silver, Gold, EX, FullArt) y foil/no-foil
+                    for (int bIdx = 0; bIdx < allBorderTypes.Length; bIdx++)
                     {
-                        for (int i = 0; i < storageShelves.Count; i++)
+                        var border = allBorderTypes[bIdx];
+                        for (int f = 0; f < 2; f++)
                         {
-                            var sh = storageShelves[i];
-                            var compactList = sh != null ? sh.GetCompactCardDataAmountList() : null;
-                            if (compactList == null) continue;
-                            for (int j = 0; j < compactList.Count; j++)
+                            var variant = new CardData
                             {
-                                var item = compactList[j];
-                                if (item != null && item.expansionType == variant.expansionType && item.cardSaveIndex == saveIdx)
-                                    total += Math.Max(0, item.amount);
+                                expansionType = key.Key,
+                                monsterType = key.Value,
+                                borderType = border,
+                                isFoil = (f == 1)
+                            };
+
+                            int saveIdx = CPlayerData.GetCardSaveIndex(variant);
+                            if (saveIdx < 0) continue;
+                            long compositeKey = ((long)(int)key.Key << 32) | (uint)saveIdx;
+                            if (!seenSaveKeys.Add(compositeKey)) continue;
+
+                            // 1) En el Álbum (Colección del jugador)
+                            if (collectedList != null && saveIdx < collectedList.Count)
+                                total += Math.Max(0, collectedList[saveIdx]);
+
+                            // 2) En Muebles de Almacenamiento de Cartas (InteractableCardStorageShelf / Bulk Box / DiamondStorage)
+                            if (storageShelves != null)
+                            {
+                                for (int i = 0; i < storageShelves.Count; i++)
+                                {
+                                    var sh = storageShelves[i];
+                                    var compactList = sh != null ? sh.GetCompactCardDataAmountList() : null;
+                                    if (compactList == null) continue;
+                                    for (int j = 0; j < compactList.Count; j++)
+                                    {
+                                        var item = compactList[j];
+                                        if (item != null && item.expansionType == key.Key && item.cardSaveIndex == saveIdx)
+                                            total += Math.Max(0, item.amount);
+                                    }
+                                }
                             }
                         }
                     }
-                }
 
-                // Probar variante principal y también foil/no-foil (por si la expansión tiene HasRandomFoils)
-                AccumulateVariant(cd);
-                cd.isFoil = !cd.isFoil;
-                AccumulateVariant(cd);
-
-                // 3) En Estantes / Expositores de Cartas de la tienda (CardShelf)
-                var cardShelves = ShelfManager.GetCardShelfList();
-                if (cardShelves != null)
-                {
-                    for (int i = 0; i < cardShelves.Count; i++)
+                    // 3) En Estantes / Expositores de Cartas de la tienda (CardShelf)
+                    if (cardShelves != null)
                     {
-                        var comps = cardShelves[i]?.GetCardCompartmentList();
-                        if (comps == null) continue;
-                        for (int j = 0; j < comps.Count; j++)
+                        for (int i = 0; i < cardShelves.Count; i++)
                         {
-                            var stored = comps[j]?.m_StoredCardList;
-                            if (stored == null) continue;
-                            for (int k = 0; k < stored.Count; k++)
+                            var comps = cardShelves[i]?.GetCardCompartmentList();
+                            if (comps == null) continue;
+                            for (int j = 0; j < comps.Count; j++)
                             {
-                                var d = stored[k]?.m_Card3dUI?.m_CardUI?.GetCardData();
-                                if (d != null && d.expansionType == key.Key && d.monsterType == key.Value)
-                                    total++;
+                                var stored = comps[j]?.m_StoredCardList;
+                                if (stored == null) continue;
+                                for (int k = 0; k < stored.Count; k++)
+                                {
+                                    var d = stored[k]?.m_Card3dUI?.m_CardUI?.GetCardData();
+                                    if (d != null && d.expansionType == key.Key && d.monsterType == key.Value)
+                                        total++;
+                                }
                             }
                         }
                     }

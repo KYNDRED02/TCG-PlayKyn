@@ -184,6 +184,19 @@ namespace PokeTCGPlay
             return null;
         }
 
+        public static bool IsPokemonExpansion(string key, string jsonPath = null)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return false;
+            if (!string.IsNullOrEmpty(jsonPath) && jsonPath.IndexOf("OnePiece", StringComparison.OrdinalIgnoreCase) >= 0)
+                return false;
+            if (key.IndexOf("OnePiece", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                key.StartsWith("OP", StringComparison.OrdinalIgnoreCase) ||
+                key.StartsWith("EB", StringComparison.OrdinalIgnoreCase) ||
+                key.StartsWith("PRB", StringComparison.OrdinalIgnoreCase))
+                return false;
+            return true;
+        }
+
         public static List<Entry> FindEntriesByName(string cardName)
         {
             var results = new List<Entry>();
@@ -192,11 +205,7 @@ namespace PokeTCGPlay
             var seenSprites = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var exp in Expansions.Values)
             {
-                // Solo expansiones de Pokémon (ignorar One Piece u otros juegos si están instalados)
-                if (exp.Key.IndexOf("OnePiece", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    exp.Key.StartsWith("OP", StringComparison.OrdinalIgnoreCase) ||
-                    exp.Key.StartsWith("EB", StringComparison.OrdinalIgnoreCase) ||
-                    exp.Key.StartsWith("PRB", StringComparison.OrdinalIgnoreCase))
+                if (!IsPokemonExpansion(exp.Key, exp.JsonPath))
                     continue;
 
                 foreach (var entry in exp.BySprite.Values)
@@ -221,6 +230,7 @@ namespace PokeTCGPlay
                     var fi = new FileInfo(file);
                     if (fi.Length > 8 * 1024 * 1024) continue;
                     if (file.IndexOf(Path.DirectorySeparatorChar + "PokeTCGPlay" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                    if (!IsPokemonExpansion("check", file)) continue;
                     string text = File.ReadAllText(file, Encoding.UTF8);
                     if (text.IndexOf("\"CardExpansions\"", StringComparison.Ordinal) < 0) continue;
                     var root = JObject.Parse(text);
@@ -228,7 +238,7 @@ namespace PokeTCGPlay
                     foreach (JObject ex in (root["CardExpansions"] as JArray) ?? new JArray())
                     {
                         string key = (string)ex["CardExpansion"];
-                        if (string.IsNullOrEmpty(key)) continue;
+                        if (!IsPokemonExpansion(key, file)) continue;
                         var e = new Expansion
                         {
                             Key = key,

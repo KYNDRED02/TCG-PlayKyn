@@ -8,16 +8,27 @@ namespace PokeTCGPlay
         public static void DoSetup(Game g, PlayerState p)
         {
             var basics = p.Hand.Where(c => c.IsBasicPokemon).OrderByDescending(c => c.Hp).ToList();
-            g.SetupPlace(p, p.Hand.IndexOf(basics[0]));
-            foreach (var b in basics.Skip(1).Take(5)) g.SetupPlace(p, p.Hand.IndexOf(b));
-            g.FinishSetup(p);
+            if (basics.Count > 0)
+            {
+                int firstIdx = p.Hand.IndexOf(basics[0]);
+                if (firstIdx >= 0) g.SetupPlace(p, firstIdx);
+                foreach (var b in basics.Skip(1).Take(5))
+                {
+                    int idx = p.Hand.IndexOf(b);
+                    if (idx >= 0) g.SetupPlace(p, idx);
+                }
+            }
+            p.SetupDone = true;
         }
 
         public static void Promote(Game g, PlayerState p)
         {
             var best = p.Bench.OrderByDescending(b => b.Card.Attacks.Any(a => b.CanPay(a.Cost)) ? 1 : 0).ThenByDescending(b => b.RemainingHp).First();
-            p.Active = best; p.Bench.Remove(best);
+            int bIdx = p.Bench.IndexOf(best);
+            p.Active = best;
+            p.Bench.RemoveAt(bIdx);
             g.Say($"{p.Name} pone a {best.Card.Name} como Activo.");
+            g.EmitPromotion(p, best.Card, bIdx);
         }
 
         public static void TakeTurn(Game g, PlayerState p)
@@ -32,13 +43,16 @@ namespace PokeTCGPlay
             // Básicos a la banca
             for (int i = p.Hand.Count - 1; i >= 0; i--)
                 if (p.Hand[i].IsBasicPokemon && p.Bench.Count < 5) g.PlayBasic(p, i);
-            // Evoluciones
-            for (int i = p.Hand.Count - 1; i >= 0; i--)
+            // Evoluciones (respetando la regla de no evolucionar en el primer turno de cada jugador)
+            if (g.Turn > 2)
             {
-                var c = p.Hand[i];
-                if (c.Supertype != Supertype.Pokemon || c.Stage == "Basic") continue;
-                var t = p.InPlay.FirstOrDefault(x => x.Card.Name == c.EvolvesFrom && x.TurnPlaced != g.Turn && x.TurnEvolved != g.Turn);
-                if (t != null) g.Evolve(p, i, t);
+                for (int i = p.Hand.Count - 1; i >= 0; i--)
+                {
+                    var c = p.Hand[i];
+                    if (c.Supertype != Supertype.Pokemon || c.Stage == "Basic") continue;
+                    var t = p.InPlay.FirstOrDefault(x => x.Card.Name == c.EvolvesFrom && x.TurnPlaced != g.Turn && x.TurnEvolved != g.Turn);
+                    if (t != null) g.Evolve(p, i, t);
+                }
             }
             // Pociones
             int pi = p.Hand.FindIndex(c => c.Name == "Potion");

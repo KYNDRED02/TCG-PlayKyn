@@ -32,10 +32,12 @@ namespace PokeTCGPlay
         MeshRenderer backRenderer;
         MeshRenderer shadowRenderer;
         MeshRenderer highlightRenderer;
+        MeshRenderer tintRenderer;
 
         Material frontMat;
         Material backMat;
         Material highlightMat;
+        Material tintMat;
 
         static Mesh sQuadMesh;
         static Mesh sCubeMesh;
@@ -60,7 +62,7 @@ namespace PokeTCGPlay
             }
             if (sCoreMat == null)
             {
-                sCoreMat = CreateUnlitMaterial(new Color(0.88f, 0.89f, 0.92f, 1f), null, false);
+                sCoreMat = CreateUnlitMaterial(new Color(0.13f, 0.11f, 0.15f, 1f), null, false);
             }
             if (sShadowTex == null)
             {
@@ -141,6 +143,19 @@ namespace PokeTCGPlay
             frontMat = CreateUnlitMaterial(Color.white, sFallbackFrontTex, false);
             frontRenderer.sharedMaterial = frontMat;
 
+            // F6: Capa de tinte animado para estados alterados (Dormido, Paralizado, Confundido, Veneno) y destello de golpe
+            var tintGo = new GameObject("StatusTintOverlay");
+            tintGo.transform.SetParent(visualRoot, false);
+            tintGo.transform.localPosition = new Vector3(0f, CardThickness * 0.5f + 0.00024f, 0f);
+            tintGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            tintGo.transform.localScale = new Vector3(w, l, 1f);
+            tintGo.AddComponent<MeshFilter>().sharedMesh = sQuadMesh;
+            tintRenderer = tintGo.AddComponent<MeshRenderer>();
+            tintMat = CreateUnlitMaterial(Color.clear, null, true);
+            tintRenderer.sharedMaterial = tintMat;
+            tintRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            tintRenderer.enabled = false;
+
             // Cara Trasera (-Y mirando hacia abajo cuando la carta está boca arriba, y hacia arriba cuando visualRoot gira 180° en Z)
             var backGo = new GameObject("BackFace");
             backGo.transform.SetParent(visualRoot, false);
@@ -157,7 +172,7 @@ namespace PokeTCGPlay
         /// <summary>
         /// Configura la carta 3D (frente/reverso, escala, resaltado y rotación en mesa).
         /// </summary>
-        public void Setup(CardDef card, bool faceDown, float scale = 1f, bool highlight = false, float yawDegrees = 0f)
+        public void Setup(CardDef card, bool faceDown, float scale = 1f, bool highlight = false, float yawDegrees = 0f, float pitchDegrees = 0f)
         {
             Card = card;
             FaceDown = faceDown;
@@ -171,7 +186,7 @@ namespace PokeTCGPlay
             if (HitCollider != null) HitCollider.enabled = true;
 
             transform.localScale = new Vector3(scale, 1f, scale);
-            visualRoot.localRotation = Quaternion.Euler(0f, yawDegrees, faceDown ? 180f : 0f);
+            visualRoot.localRotation = Quaternion.Euler(pitchDegrees, yawDegrees, faceDown ? 180f : 0f);
             if (shadowRenderer != null)
             {
                 shadowRenderer.enabled = true;
@@ -184,8 +199,24 @@ namespace PokeTCGPlay
                     highlightMat.color = new Color(1f, 0.84f, 0.18f, 0.90f);
                 highlightRenderer.transform.localRotation = Quaternion.Euler(90f, yawDegrees, 0f);
             }
+            if (tintRenderer != null)
+            {
+                tintRenderer.enabled = false;
+            }
 
             RefreshTextures();
+        }
+
+        public void SetStatusTintOverlay(Color overlayColor)
+        {
+            if (tintRenderer == null || tintMat == null) return;
+            if (overlayColor.a <= 0.005f)
+            {
+                tintRenderer.enabled = false;
+                return;
+            }
+            tintMat.color = overlayColor;
+            tintRenderer.enabled = true;
         }
 
         public void SetHighlight(bool enabled, Color color)
@@ -246,11 +277,15 @@ namespace PokeTCGPlay
 
         public static Material CreateUnlitMaterial(Color color, Texture2D tex, bool transparent)
         {
-            Shader sh = Shader.Find(transparent ? "Sprites/Default" : "Unlit/Texture");
+            Shader sh = Shader.Find(transparent ? "Sprites/Default" : (tex == null ? "Unlit/Color" : "Unlit/Texture"));
+            if (sh == null) sh = Shader.Find(transparent ? "Sprites/Default" : "Unlit/Texture");
             if (sh == null) sh = Shader.Find("Standard");
             var m = new Material(sh);
             m.color = color;
-            if (tex != null) m.mainTexture = tex;
+            if (tex != null)
+                m.mainTexture = tex;
+            else if (!transparent)
+                m.mainTexture = MakeSolidTex(color);
             return m;
         }
 
@@ -465,48 +500,155 @@ namespace PokeTCGPlay
             t.wrapMode = TextureWrapMode.Repeat;
             t.filterMode = FilterMode.Bilinear;
 
+            // Estilo oscuro uniforme idéntico al bloque físico nativo de la baraja del juego (30, 24, 32)
             for (int y = 0; y < h; y++)
             {
-                int mod = y % 6;
-                Color baseCol;
-                if (mod == 0)
-                {
-                    // Sombra fina entre cartas apiladas
-                    baseCol = new Color(0.24f, 0.27f, 0.34f, 1f);
-                }
-                else if (mod == 5)
-                {
-                    // Borde azulado del reverso de cada carta Pokémon
-                    baseCol = new Color(0.18f, 0.34f, 0.68f, 1f);
-                }
-                else if (mod == 2 || mod == 3)
-                {
-                    // Canto blanco/crema de cartulina
-                    baseCol = new Color(0.90f, 0.91f, 0.93f, 1f);
-                }
-                else
-                {
-                    // Gris claro intermedio del núcleo de papel
-                    baseCol = new Color(0.76f, 0.78f, 0.82f, 1f);
-                }
+                int mod = y % 5;
+                Color baseCol = mod == 0
+                    ? new Color(0.09f, 0.08f, 0.11f, 1f)
+                    : new Color(0.13f, 0.11f, 0.15f, 1f);
 
-                // Variación orgánica sutil por fila para que no parezca plástico uniforme
-                float rowNoise = (((y * 37) % 13) - 6) * 0.008f;
                 for (int x = 0; x < w; x++)
                 {
                     float nx = Mathf.Abs((x / (float)(w - 1)) * 2f - 1f);
-                    // Oscurecer suavemente los extremos para simular las esquinas redondeadas del mazo
-                    float cornerShade = nx > 0.84f ? Mathf.Lerp(1f, 0.55f, (nx - 0.84f) / 0.16f) : 1f;
-                    Color c = new Color(
-                        Mathf.Clamp01((baseCol.r + rowNoise) * cornerShade),
-                        Mathf.Clamp01((baseCol.g + rowNoise) * cornerShade),
-                        Mathf.Clamp01((baseCol.b + rowNoise) * cornerShade),
-                        1f);
-                    t.SetPixel(x, y, c);
+                    float cornerShade = nx > 0.86f ? Mathf.Lerp(1f, 0.72f, (nx - 0.86f) / 0.14f) : 1f;
+                    t.SetPixel(x, y, new Color(baseCol.r * cornerShade, baseCol.g * cornerShade, baseCol.b * cornerShade, 1f));
                 }
             }
             t.Apply();
             return t;
+        }
+    }
+
+    /// <summary>
+    /// Especificación geométrica de la malla 3D nativa "CardDeck" capturada de la mesa actual para construir
+    /// mazos y cartas de Premio físicas con esquinas redondeadas e iluminación real sin alterar otras mesas.
+    /// </summary>
+    public class NativeDeckMeshSpec
+    {
+        public Mesh Mesh;
+        public Material InstanceMaterial;
+        public Quaternion LocalRotation;
+        public Vector3 NativeLossyScale;
+        public Vector3 PivotOffset;
+        public float NativeWidth;
+        public float NativeHeight;
+        public float NativeLength;
+
+        public bool IsValid => Mesh != null && InstanceMaterial != null &&
+                               NativeWidth > 0.001f && NativeHeight > 0.0005f && NativeLength > 0.001f;
+    }
+
+    /// <summary>
+    /// Pool de bloques físicos 3D redondeados basados en la malla nativa de la baraja (usado tanto para el Mazo
+    /// como para que las 6 cartas de Premio a los costados luzcan como cartas físicas reales idénticas a la baraja).
+    /// </summary>
+    public class PhysicalCardBlockPool
+    {
+        class BlockItem
+        {
+            public GameObject Holder;
+            public Transform MeshChild;
+            public MeshFilter Filter;
+            public MeshRenderer Renderer;
+            public Transform Shadow;
+        }
+
+        readonly Transform poolRoot;
+        readonly List<BlockItem> activeItems = new List<BlockItem>();
+        readonly Stack<BlockItem> inactiveItems = new Stack<BlockItem>();
+        static Material sSoftShadowMat;
+
+        public PhysicalCardBlockPool(Transform parent)
+        {
+            CardView.EnsureSharedResources();
+            var go = new GameObject("PhysicalCardBlockPool_3D");
+            go.transform.SetParent(parent, false);
+            poolRoot = go.transform;
+
+            if (sSoftShadowMat == null)
+            {
+                sSoftShadowMat = CardView.CreateUnlitMaterial(new Color(0f, 0f, 0f, 0.44f), null, true);
+            }
+        }
+
+        public void BeginFrame()
+        {
+            for (int i = 0; i < activeItems.Count; i++)
+            {
+                var it = activeItems[i];
+                if (it?.Holder != null)
+                {
+                    it.Holder.SetActive(false);
+                    inactiveItems.Push(it);
+                }
+            }
+            activeItems.Clear();
+        }
+
+        public void SpawnBlock(Transform anchor, Vector3 localOffset, NativeDeckMeshSpec spec, float footprintScale, float heightMeters, float yawDegrees = 0f)
+        {
+            if (anchor == null || spec == null || !spec.IsValid) return;
+
+            BlockItem item = null;
+            while (inactiveItems.Count > 0 && item == null)
+            {
+                var cand = inactiveItems.Pop();
+                if (cand?.Holder != null) item = cand;
+            }
+
+            if (item == null)
+            {
+                var holder = new GameObject("PhysicalCardBlock3D");
+                holder.transform.SetParent(poolRoot, false);
+
+                var shGo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                UnityEngine.Object.DestroyImmediate(shGo.GetComponent<Collider>());
+                shGo.name = "ContactShadow";
+                shGo.transform.SetParent(holder.transform, false);
+                shGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                var shMr = shGo.GetComponent<MeshRenderer>();
+                shMr.sharedMaterial = sSoftShadowMat;
+                shMr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+                var meshGo = new GameObject("NativeCardMesh");
+                meshGo.transform.SetParent(holder.transform, false);
+                var mf = meshGo.AddComponent<MeshFilter>();
+                var mr = meshGo.AddComponent<MeshRenderer>();
+
+                item = new BlockItem
+                {
+                    Holder = holder,
+                    MeshChild = meshGo.transform,
+                    Filter = mf,
+                    Renderer = mr,
+                    Shadow = shGo.transform
+                };
+            }
+
+            float targetW = TableView.CardWorldWidth * footprintScale;
+            float targetL = TableView.CardWorldLength * footprintScale;
+            float sx = targetW / spec.NativeWidth;
+            float sy = Mathf.Max(0.0008f, heightMeters) / spec.NativeHeight;
+            float sz = targetL / spec.NativeLength;
+
+            item.Holder.transform.SetParent(anchor, false);
+            item.Holder.transform.localPosition = localOffset;
+            item.Holder.transform.localRotation = Quaternion.Euler(0f, yawDegrees, 0f);
+            item.Holder.transform.localScale = new Vector3(sx, sy, sz);
+
+            item.MeshChild.localPosition = spec.PivotOffset;
+            item.MeshChild.localRotation = spec.LocalRotation;
+            item.MeshChild.localScale = spec.NativeLossyScale;
+
+            item.Filter.sharedMesh = spec.Mesh;
+            item.Renderer.sharedMaterial = spec.InstanceMaterial;
+
+            item.Shadow.localPosition = new Vector3(0.002f / Mathf.Max(0.1f, sx), 0.0001f / Mathf.Max(0.05f, sy), -0.002f / Mathf.Max(0.1f, sz));
+            item.Shadow.localScale = new Vector3(spec.NativeWidth * 1.07f, spec.NativeLength * 1.05f, 1f);
+
+            item.Holder.SetActive(true);
+            activeItems.Add(item);
         }
     }
 
@@ -542,7 +684,7 @@ namespace PokeTCGPlay
             activeCards.Clear();
         }
 
-        public CardView Spawn(Transform anchor, Vector3 localOffset, CardDef card, bool faceDown, float scale = 1f, bool highlight = false, float yawDegrees = 0f)
+        public CardView Spawn(Transform anchor, Vector3 localOffset, CardDef card, bool faceDown, float scale = 1f, bool highlight = false, float yawDegrees = 0f, float pitchDegrees = 0f)
         {
             if (anchor == null) return null;
             CardView cv = null;
@@ -556,7 +698,7 @@ namespace PokeTCGPlay
             cv.transform.localPosition = localOffset;
             cv.transform.localRotation = Quaternion.identity;
             cv.gameObject.SetActive(true);
-            cv.Setup(card, faceDown, scale, highlight, yawDegrees);
+            cv.Setup(card, faceDown, scale, highlight, yawDegrees, pitchDegrees);
             activeCards.Add(cv);
             return cv;
         }

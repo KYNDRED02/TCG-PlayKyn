@@ -59,15 +59,32 @@ namespace PokeTCGPlay
         public readonly Transform[] HandAnchor = new Transform[2];
         public Transform StadiumAnchor { get; private set; }
         public Transform CoinAnchor { get; private set; }
+        public Transform CoinArenaAnchor { get; private set; }
 
         // Indicadores 3D sutiles sobre las casillas del tapete (se iluminan cuando son destino válido)
         readonly Dictionary<Transform, MeshRenderer> slotIndicators = new Dictionary<Transform, MeshRenderer>();
         CardViewPool cardPool;
+        PhysicalCardBlockPool physicalBlockPool;
         readonly DeckStack3D[] deckStacks = new DeckStack3D[2];
         Mesh sharedQuadMesh;
         Mesh sharedCubeMesh;
         Material matTopMaterial;
         Material matEdgeMaterial;
+
+        // Respaldo exclusivo de la mesa actual para cambiar el tope de la baraja a Pokémon y ocultar cartas sueltas sin afectar otras mesas
+        struct SavedTablePropState
+        {
+            public GameObject TargetGo;
+            public bool WasActive;
+            public MeshRenderer Renderer;
+            public Material[] OrigSharedMaterials;
+        }
+        readonly List<SavedTablePropState> savedTableProps = new List<SavedTablePropState>();
+        NativeDeckMeshSpec nativeDeckSpec;
+        Material nativeDeckTemplateMat;
+        Material pokemonDeckInstanceMat;
+        Texture2D pokemonDeckAtlasTex;
+        Texture2D lastBuiltDeckAtlasSource;
 
         // F4: Mano 3D en abanico, Carta Arrastrada en 3D y Raycast geométrico exacto
         readonly List<TableSlot3D> tableSlots = new List<TableSlot3D>();
@@ -84,6 +101,12 @@ namespace PokeTCGPlay
         CardView inspectCardView;
         GameObject inspectBackdropGo;
         Material inspectBackdropMat;
+
+        // F6: Fichas 3D de Contadores de Daño (10/50/100), Marcadores 3D de Estado, Tinte animado y Textos Flotantes
+        StatusCounters3D statusCounters;
+
+        // F7: Moneda 3D cilíndrica (Pikachu / Pokéball) con curva parabólica, rebote y vibración de canto
+        public Coin3D Coin { get; private set; }
 
         public bool IsBoard3DReady => PlaymatRoot != null && cardPool != null;
 
@@ -163,6 +186,10 @@ namespace PokeTCGPlay
             if (foundBounds && countY > 0)
                 surfaceY = sumY / countY;
 
+            // Compatibilidad con FurnitureOverhaul (CC_PlayTableLook tiene marco de latón y fieltro en y = +0.783..0.785)
+            if (table.transform.Find("CC_PlayTableLook") != null)
+                surfaceY = Mathf.Max(surfaceY, table.transform.position.y + 0.785f);
+
             Vector3 sitPlayer = table.GetSitLoc(playerSeat).position;
             Vector3 sitOpp = table.GetSitLoc(1 - playerSeat).position;
             Vector3 center = (sitPlayer + sitOpp) * 0.5f;
@@ -175,7 +202,261 @@ namespace PokeTCGPlay
             Quaternion matRot = Quaternion.LookRotation(forward, Vector3.up);
 
             BuildPlaymat3D(matCenter, matRot);
+            CaptureAndPrepareCurrentTableProps();
             BuildAnchors();
+        }
+
+        void SavePropOnce(GameObject go, MeshRenderer mr = null)
+        {
+            if (go == null) return;
+            for (int i = 0; i < savedTableProps.Count; i++)
+            {
+                if (savedTableProps[i].TargetGo == go) return;
+            }
+            savedTableProps.Add(new SavedTablePropState
+            {
+                TargetGo = go,
+                WasActive = go.activeSelf,
+                Renderer = mr,
+                OrigSharedMaterials = mr != null ? mr.sharedMaterials : null
+            });
+        }
+
+        void CaptureAndPrepareCurrentTableProps()
+        {
+            if (Table == null || Table.m_TableGameItemSetList == null || PlaymatRoot == null) return;
+
+            Mesh foundDeckMesh = null;
+            Material foundTemplateMat = null;
+            Quaternion foundRelRot = Quaternion.identity;
+            Vector3 foundLossyScale = Vector3.one;
+
+            // Buscar primero en el asiento del jugador para capturar la rotación exacta de CardDeck
+            int seatCount = Table.m_TableGameItemSetList.Count;
+            for (int pass = 0; pass < seatCount; pass++)
+            {
+                int seatIdx = pass == 0 ? Mathf.Clamp(PlayerSeat, 0, seatCount - 1) : (pass == 1 ? Mathf.Clamp(1 - PlayerSeat, 0, seatCount - 1) : pass);
+                var set = Table.m_TableGameItemSetList[seatIdx];
+                if (set == null) continue;
+
+                var renderers = set.GetComponentsInChildren<MeshRenderer>(true);
+                for (int r = 0; r < renderers.Length; r++)
+                {
+                    var mr = renderers[r];
+                    if (mr == null) continue;
+                    string rName = mr.name ?? "";
+                    if (rName.StartsWith("CardDeck", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var mf = mr.GetComponent<MeshFilter>();
+                        if (foundDeckMesh == null && mf != null && mf.sharedMesh != null && mr.sharedMaterial != null)
+                        {
+                            foundDeckMesh = mf.sharedMesh;
+                            foundTemplateMat = mr.sharedMaterial;
+
+                            Quaternion seatRefRot = seatIdx == PlayerSeat
+                                ? PlaymatRoot.rotation
+                                : PlaymatRoot.rotation * Quaternion.Euler(0f, 180f, 0f);
+                            Quaternion rawRel = Quaternion.Inverse(seatRefRot) * mr.transform.rotation;
+                            Vector3 eul = rawRel.eulerAngles;
+                            foundRelRot = Quaternion.Euler(
+                                Mathf.Round(eul.x / 90f) * 90f,
+                                Mathf.Round(eul.y / 90f) * 90f,
+                                Mathf.Round(eul.z / 90f) * 90f);
+
+                            Vector3 ls = mr.transform.lossyScale;
+                            foundLossyScale = new Vector3(Mathf.Abs(ls.x), Mathf.Abs(ls.y), Mathf.Abs(ls.z));
+                            if (foundLossyScale.x < 0.0001f) foundLossyScale.x = 1f;
+                            if (foundLossyScale.y < 0.0001f) foundLossyScale.y = 1f;
+                            if (foundLossyScale.z < 0.0001f) foundLossyScale.z = 1f;
+                        }
+                    }
+                }
+            }
+
+            if (foundDeckMesh != null && foundTemplateMat != null)
+            {
+                nativeDeckTemplateMat = foundTemplateMat;
+                pokemonDeckInstanceMat = new Material(nativeDeckTemplateMat)
+                {
+                    name = "PokeTCG_MatchOnly_PlayCardMat"
+                };
+
+                Bounds mb = foundDeckMesh.bounds;
+                Vector3 c0 = mb.min;
+                Vector3 c1 = mb.max;
+                Matrix4x4 trs = Matrix4x4.TRS(Vector3.zero, foundRelRot, foundLossyScale);
+                float minX = float.MaxValue, maxX = float.MinValue;
+                float minY = float.MaxValue, maxY = float.MinValue;
+                float minZ = float.MaxValue, maxZ = float.MinValue;
+
+                for (int ix = 0; ix < 2; ix++)
+                {
+                    for (int iy = 0; iy < 2; iy++)
+                    {
+                        for (int iz = 0; iz < 2; iz++)
+                        {
+                            Vector3 corner = new Vector3(
+                                ix == 0 ? c0.x : c1.x,
+                                iy == 0 ? c0.y : c1.y,
+                                iz == 0 ? c0.z : c1.z);
+                            Vector3 p = trs.MultiplyPoint3x4(corner);
+                            if (p.x < minX) minX = p.x;
+                            if (p.x > maxX) maxX = p.x;
+                            if (p.y < minY) minY = p.y;
+                            if (p.y > maxY) maxY = p.y;
+                            if (p.z < minZ) minZ = p.z;
+                            if (p.z > maxZ) maxZ = p.z;
+                        }
+                    }
+                }
+
+                nativeDeckSpec = new NativeDeckMeshSpec
+                {
+                    Mesh = foundDeckMesh,
+                    InstanceMaterial = pokemonDeckInstanceMat,
+                    LocalRotation = foundRelRot,
+                    NativeLossyScale = foundLossyScale,
+                    PivotOffset = new Vector3(-(minX + maxX) * 0.5f, -minY, -(minZ + maxZ) * 0.5f),
+                    NativeWidth = Mathf.Max(0.01f, maxX - minX),
+                    NativeHeight = Mathf.Max(0.002f, maxY - minY),
+                    NativeLength = Mathf.Max(0.01f, maxZ - minZ)
+                };
+
+                EnsurePokemonDeckAtlasUpToDate();
+            }
+
+            HideDefaultTableMats();
+        }
+
+        void EnsurePokemonDeckAtlasUpToDate()
+        {
+            if (pokemonDeckInstanceMat == null) return;
+            var cb = SpriteCache.GetCardBack();
+            if (cb == null || cb.texture == null) return;
+            if (lastBuiltDeckAtlasSource == cb.texture && pokemonDeckAtlasTex != null) return;
+
+            lastBuiltDeckAtlasSource = cb.texture;
+
+            const int AtlasSize = 1024;
+            const int SlotW = 242;
+            const int SlotH = 330;
+            const int CornerR = 14;
+            Color32 edgeDark = new Color32(30, 24, 32, 255);
+
+            Texture2D readable = null;
+            bool createdTemp = false;
+            try
+            {
+                readable = cb.texture.isReadable ? cb.texture : SpriteCache.MakeReadableCopy(cb.texture);
+                createdTemp = readable != null && !ReferenceEquals(readable, cb.texture);
+                if (readable == null) return;
+
+                Color32[] srcPixels = readable.GetPixels32();
+                int srcTexW = readable.width;
+                int srcTexH = readable.height;
+                Rect sr = cb.textureRect;
+
+                // Construir el bloque 242x330 del reverso oficial de Pokémon con esquinas redondeadas suaves
+                Color32[] cardStamp = new Color32[SlotW * SlotH];
+                for (int y = 0; y < SlotH; y++)
+                {
+                    float v = (y + 0.5f) / SlotH;
+                    float sy = Mathf.Clamp(sr.y + v * sr.height, 0f, srcTexH - 1f);
+                    int y0 = Mathf.FloorToInt(sy);
+                    int y1 = Mathf.Min(srcTexH - 1, y0 + 1);
+                    float fy = sy - y0;
+
+                    for (int x = 0; x < SlotW; x++)
+                    {
+                        float cornerDist = CalcRoundedCornerDist(x, y, SlotW, SlotH, CornerR);
+                        if (cornerDist >= 1f)
+                        {
+                            cardStamp[y * SlotW + x] = edgeDark;
+                            continue;
+                        }
+
+                        float u = (x + 0.5f) / SlotW;
+                        float sx = Mathf.Clamp(sr.x + u * sr.width, 0f, srcTexW - 1f);
+                        int x0 = Mathf.FloorToInt(sx);
+                        int x1 = Mathf.Min(srcTexW - 1, x0 + 1);
+                        float fx = sx - x0;
+
+                        Color32 c00 = srcPixels[y0 * srcTexW + x0];
+                        Color32 c10 = srcPixels[y0 * srcTexW + x1];
+                        Color32 c01 = srcPixels[y1 * srcTexW + x0];
+                        Color32 c11 = srcPixels[y1 * srcTexW + x1];
+
+                        byte r = (byte)Mathf.RoundToInt(Mathf.Lerp(Mathf.Lerp(c00.r, c10.r, fx), Mathf.Lerp(c01.r, c11.r, fx), fy));
+                        byte g = (byte)Mathf.RoundToInt(Mathf.Lerp(Mathf.Lerp(c00.g, c10.g, fx), Mathf.Lerp(c01.g, c11.g, fx), fy));
+                        byte b = (byte)Mathf.RoundToInt(Mathf.Lerp(Mathf.Lerp(c00.b, c10.b, fx), Mathf.Lerp(c01.b, c11.b, fx), fy));
+
+                        if (cornerDist > 0f)
+                        {
+                            r = (byte)Mathf.RoundToInt(Mathf.Lerp(r, edgeDark.r, cornerDist));
+                            g = (byte)Mathf.RoundToInt(Mathf.Lerp(g, edgeDark.g, cornerDist));
+                            b = (byte)Mathf.RoundToInt(Mathf.Lerp(b, edgeDark.b, cornerDist));
+                        }
+                        cardStamp[y * SlotW + x] = new Color32(r, g, b, 255);
+                    }
+                }
+
+                Color32[] atlasPixels = new Color32[AtlasSize * AtlasSize];
+                for (int i = 0; i < atlasPixels.Length; i++)
+                    atlasPixels[i] = edgeDark;
+
+                // Estampar el reverso de Pokémon en las 12 celdas del atlas 4x3 de MAT_PlayCard (incluyendo la celda superior izquierda de CardDeck)
+                for (int row = 0; row < 3; row++)
+                {
+                    int baseY = row == 2 ? 682 : (row == 1 ? 341 : 0);
+                    int cellH = row == 1 ? 341 : 342;
+                    int destY = baseY + (cellH - SlotH) / 2;
+                    for (int col = 0; col < 4; col++)
+                    {
+                        int destX = col * 256 + 7;
+                        for (int sy = 0; sy < SlotH; sy++)
+                        {
+                            Array.Copy(cardStamp, sy * SlotW, atlasPixels, (destY + sy) * AtlasSize + destX, SlotW);
+                        }
+                    }
+                }
+
+                if (pokemonDeckAtlasTex != null)
+                    Destroy(pokemonDeckAtlasTex);
+
+                pokemonDeckAtlasTex = new Texture2D(AtlasSize, AtlasSize, TextureFormat.RGBA32, true)
+                {
+                    name = "PokeTCG_MatchOnly_DeckAtlas",
+                    filterMode = FilterMode.Trilinear,
+                    anisoLevel = 8,
+                    wrapMode = TextureWrapMode.Clamp
+                };
+                pokemonDeckAtlasTex.SetPixels32(atlasPixels);
+                pokemonDeckAtlasTex.Apply(true, false);
+
+                pokemonDeckInstanceMat.mainTexture = pokemonDeckAtlasTex;
+                if (pokemonDeckInstanceMat.HasProperty("_MainTex"))
+                    pokemonDeckInstanceMat.SetTexture("_MainTex", pokemonDeckAtlasTex);
+                if (pokemonDeckInstanceMat.HasProperty("_BaseMap"))
+                    pokemonDeckInstanceMat.SetTexture("_BaseMap", pokemonDeckAtlasTex);
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning("EnsurePokemonDeckAtlasUpToDate: " + e.Message);
+            }
+            finally
+            {
+                if (createdTemp && readable != null)
+                    Destroy(readable);
+            }
+        }
+
+        static float CalcRoundedCornerDist(int x, int y, int w, int h, int r)
+        {
+            int cx = x < r ? (r - x) : (x >= w - r ? (x - (w - r - 1)) : 0);
+            int cy = y < r ? (r - y) : (y >= h - r ? (y - (h - r - 1)) : 0);
+            if (cx == 0 || cy == 0) return -1f;
+            float d = Mathf.Sqrt(cx * cx + cy * cy);
+            return Mathf.Clamp01(d - (r - 0.5f));
         }
 
         public void HideDefaultTableMats()
@@ -187,11 +468,62 @@ namespace PokeTCGPlay
                 if (set == null) continue;
                 if (set.m_PlayMatMesh != null) set.m_PlayMatMesh.gameObject.SetActive(false);
                 if (set.m_ComicBookMesh != null) set.m_ComicBookMesh.gameObject.SetActive(false);
+
+                // Ocultar cartas estáticas de abanico (CardFanRandomizer / CardSingle) y el CardDeck esquinero solo en ESTA mesa durante la partida
+                var fans = set.GetComponentsInChildren<CardFanRandomizer>(true);
+                for (int f = 0; f < fans.Length; f++)
+                {
+                    var fan = fans[f];
+                    if (fan == null || fan.m_CardFanGrpList == null) continue;
+                    for (int g = 0; g < fan.m_CardFanGrpList.Count; g++)
+                    {
+                        var grp = fan.m_CardFanGrpList[g];
+                        if (grp == null) continue;
+                        SavePropOnce(grp);
+                        grp.SetActive(false);
+                    }
+                }
+
+                var renderers = set.GetComponentsInChildren<MeshRenderer>(true);
+                for (int r = 0; r < renderers.Length; r++)
+                {
+                    var mr = renderers[r];
+                    if (mr == null) continue;
+                    string rName = mr.name ?? "";
+                    if (rName.StartsWith("CardSingle", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SavePropOnce(mr.gameObject, mr);
+                        mr.gameObject.SetActive(false);
+                    }
+                    else if (rName.StartsWith("CardDeck", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SavePropOnce(mr.gameObject, mr);
+                        if (pokemonDeckInstanceMat != null)
+                            mr.sharedMaterial = pokemonDeckInstanceMat;
+                        // Ocultamos la copia esquinera que cae sobre Trash porque nuestro Mazo 3D con esa misma malla se coloca exactamente sobre Deck
+                        mr.gameObject.SetActive(false);
+                    }
+                }
             }
         }
 
         public void DetachFromTable()
         {
+            // Restaurar intactos los materiales y objetos originales de esta mesa para no afectar ninguna partida posterior ni otras mesas
+            for (int i = 0; i < savedTableProps.Count; i++)
+            {
+                var sp = savedTableProps[i];
+                if (sp.Renderer != null && sp.OrigSharedMaterials != null)
+                {
+                    sp.Renderer.sharedMaterials = sp.OrigSharedMaterials;
+                }
+                if (sp.TargetGo != null)
+                {
+                    sp.TargetGo.SetActive(sp.WasActive);
+                }
+            }
+            savedTableProps.Clear();
+
             if (Table != null && Table.m_TableGameItemSetList != null)
             {
                 for (int i = 0; i < Table.m_TableGameItemSetList.Count; i++)
@@ -211,6 +543,20 @@ namespace PokeTCGPlay
             slotIndicators.Clear();
             tableSlots.Clear();
             cardPool = null;
+            physicalBlockPool = null;
+            nativeDeckSpec = null;
+            nativeDeckTemplateMat = null;
+            lastBuiltDeckAtlasSource = null;
+            if (pokemonDeckInstanceMat != null)
+            {
+                Destroy(pokemonDeckInstanceMat);
+                pokemonDeckInstanceMat = null;
+            }
+            if (pokemonDeckAtlasTex != null)
+            {
+                Destroy(pokemonDeckAtlasTex);
+                pokemonDeckAtlasTex = null;
+            }
             deckStacks[0] = null;
             deckStacks[1] = null;
             dragCardView = null;
@@ -218,6 +564,8 @@ namespace PokeTCGPlay
             inspectCardView = null;
             inspectBackdropGo = null;
             inspectBackdropMat = null;
+            statusCounters = null;
+            StatusCounters3D.ActivePopups.Clear();
             handDeployAnim = 0f;
             handTrayLiftAnim = 0f;
             Array.Clear(handLiftAnims, 0, handLiftAnims.Length);
@@ -329,46 +677,50 @@ namespace PokeTCGPlay
                 AttachSlotCollider(BenchAnchor[1, i], TableSlotKind.Bench, 1, i, 0.94f);
             }
 
-            // Mazos (Deck) y Descartes (Trash)
-            DeckAnchor[0] = CreateNormalizedAnchor("Deck_Player", 0.895f, 0.635f, 0.0015f, false, true, 1f);
-            DiscardAnchor[0] = CreateNormalizedAnchor("Trash_Player", 0.895f, 0.835f, 0.0015f, false, true, 1f);
-            DeckAnchor[1] = CreateNormalizedAnchor("Deck_NPC", 0.105f, 0.335f, 0.0015f, true, true, 1f);
-            DiscardAnchor[1] = CreateNormalizedAnchor("Trash_NPC", 0.105f, 0.130f, 0.0015f, true, true, 1f);
+            // Mazos (Deck) y Descartes (Trash) alineados con las cajas impresas en playmat.png
+            DeckAnchor[0] = CreateNormalizedAnchor("Deck_Player", 0.913f, 0.640f, 0.0015f, false, true, 1f);
+            DiscardAnchor[0] = CreateNormalizedAnchor("Trash_Player", 0.913f, 0.865f, 0.0015f, false, true, 1f);
+            DeckAnchor[1] = CreateNormalizedAnchor("Deck_NPC", 0.087f, 0.360f, 0.0015f, true, true, 1f);
+            DiscardAnchor[1] = CreateNormalizedAnchor("Trash_NPC", 0.087f, 0.135f, 0.0015f, true, true, 1f);
             AttachSlotCollider(DeckAnchor[0], TableSlotKind.Deck, 0, -1, 1f);
             AttachSlotCollider(DiscardAnchor[0], TableSlotKind.Discard, 0, -1, 1f);
             AttachSlotCollider(DeckAnchor[1], TableSlotKind.Deck, 1, -1, 1f);
             AttachSlotCollider(DiscardAnchor[1], TableSlotKind.Discard, 1, -1, 1f);
 
-            // Casillas de Premios (Side: 3 casillas por jugador, 6 premios totales)
-            float[] p0Ys = { 0.525f, 0.685f, 0.845f };
-            float[] p1Ys = { 0.115f, 0.275f, 0.435f };
+            // Casillas de Premios (Side: 3 casillas por jugador, 6 cartas físicas de premio totales)
+            float[] p0Ys = { 0.584f, 0.742f, 0.900f };
+            float[] p1Ys = { 0.100f, 0.258f, 0.416f };
             for (int b = 0; b < 3; b++)
             {
-                PrizeBoxAnchor[0, b] = CreateNormalizedAnchor($"PrizeBox_Player_{b}", 0.105f, p0Ys[b], 0.0015f, false, false, 0.86f);
-                PrizeBoxAnchor[1, b] = CreateNormalizedAnchor($"PrizeBox_NPC_{b}", 0.895f, p1Ys[b], 0.0015f, true, false, 0.86f);
+                PrizeBoxAnchor[0, b] = CreateNormalizedAnchor($"PrizeBox_Player_{b}", 0.092f, p0Ys[b], 0.0015f, false, false, 0.88f);
+                PrizeBoxAnchor[1, b] = CreateNormalizedAnchor($"PrizeBox_NPC_{b}", 0.908f, p1Ys[b], 0.0015f, true, false, 0.88f);
                 for (int k = 0; k < 2; k++)
                 {
                     int pIdx = b * 2 + k;
-                    PrizeAnchor[0, pIdx] = CreateNormalizedAnchor($"Prize_Player_{pIdx}", 0.105f - k * 0.008f, p0Ys[b] - k * 0.006f, 0.0015f + k * 0.0006f, false, false, 0.86f);
-                    PrizeAnchor[1, pIdx] = CreateNormalizedAnchor($"Prize_NPC_{pIdx}", 0.895f + k * 0.008f, p1Ys[b] + k * 0.006f, 0.0015f + k * 0.0006f, true, false, 0.86f);
+                    float staggerX = (k == 0) ? -0.009f : 0.002f;
+                    float staggerY = (k == 0) ? 0.005f : -0.002f;
+                    float stackH = 0.0015f + k * 0.0025f;
+                    PrizeAnchor[0, pIdx] = CreateNormalizedAnchor($"Prize_Player_{pIdx}", 0.092f + staggerX, p0Ys[b] + staggerY, stackH, false, false, 0.88f);
+                    PrizeAnchor[1, pIdx] = CreateNormalizedAnchor($"Prize_NPC_{pIdx}", 0.908f - staggerX, p1Ys[b] - staggerY, stackH, true, false, 0.88f);
                 }
             }
 
-            // Estadio (para futuras expansiones) y Moneda / Centro del campo (para Entrenadores globales)
-            StadiumAnchor = CreateNormalizedAnchor("Stadium", 0.31f, 0.50f, 0.0015f, false, false, 0.95f);
+            // Estadio (derecha del campo), Centro de Pokéball y Zona libre de Moneda (izquierda del campo)
+            StadiumAnchor = CreateNormalizedAnchor("Stadium", 0.748f, 0.50f, 0.0015f, false, false, 0.95f);
             CoinAnchor = CreateNormalizedAnchor("CoinCenter", 0.50f, 0.50f, 0.0018f, false, true, 1.35f);
+            CoinArenaAnchor = CreateNormalizedAnchor("CoinArena", 0.255f, 0.50f, 0.0018f, false, false, 1f);
             AttachSlotCollider(CoinAnchor, TableSlotKind.PlayfieldCenter, 0, -1, 1.45f);
 
             // F4 & F5: Anclajes 3D de Mano para la cámara desde los ojos del jugador sentado
-            // (Jugador: más baja en el borde inferior para NO tapar la Banca y solo elevarse al pasar el cursor;
-            //  NPC: sostenida frente al asiento opuesto)
-            HandAnchor[0] = CreateNormalizedAnchor("Hand_Player", 0.50f, 1.075f, 0.036f, false, false, 1f);
-            HandAnchor[0].localRotation = Quaternion.Euler(-40f, 0f, 0f);
+            // (Subida hasta el límite marcado justo debajo de Bench sin cubrir la Banca)
+            HandAnchor[0] = CreateNormalizedAnchor("Hand_Player", 0.50f, 1.018f, 0.066f, false, false, 1f);
+            HandAnchor[0].localRotation = Quaternion.Euler(-44.5f, 0f, 0f);
             HandAnchor[1] = CreateNormalizedAnchor("Hand_NPC", 0.50f, 0.020f, 0.055f, true, false, 1f);
             HandAnchor[1].localRotation = Quaternion.Euler(28f, 180f, 0f);
 
-            // F2: Inicializar el Pool de Cartas 3D y las Pilas 3D de Mazo
+            // F2: Inicializar el Pool de Cartas 3D, el Pool de Bloques Físicos (Mazo y Premios) y respaldo de Mazo
             cardPool = new CardViewPool(PlaymatRoot);
+            physicalBlockPool = new PhysicalCardBlockPool(PlaymatRoot);
             deckStacks[0] = new DeckStack3D(DeckAnchor[0]);
             deckStacks[1] = new DeckStack3D(DeckAnchor[1]);
             deckStacks[0].Sync(0);
@@ -395,12 +747,38 @@ namespace PokeTCGPlay
             inspectCardView.SetRaycastEnabled(false);
             inspectCardView.SetShadowEnabled(false);
             inspectCardView.gameObject.SetActive(false);
+
+            // F6: Inicializar el Pool 3D de Fichas de Daño y Marcadores de Estado
+            statusCounters = new StatusCounters3D(PlaymatRoot);
+            StatusCounters3D.ActivePopups.Clear();
+
+            // F7: Inicializar la Moneda 3D física sobre el Playmat
+            Coin = new Coin3D(PlaymatRoot, CoinArenaAnchor.localPosition);
+        }
+
+        public void ResetStatusTracking()
+        {
+            statusCounters?.ResetTracking();
+            Coin?.Reset();
+        }
+
+        public void LaunchStartCoinToss3D(bool headsResult, float duration)
+        {
+            if (Coin == null || CoinAnchor == null) return;
+            Vector3 launchOrigin = new Vector3(0f, MatThickness + 0.002f, -0.34f * MatLength);
+            Coin.LaunchStartToss(launchOrigin, CoinAnchor.localPosition, headsResult, duration);
+        }
+
+        public void LaunchGameCoinFlip3D(int playerIdx, bool headsResult, float duration, string reason)
+        {
+            if (Coin == null || CoinArenaAnchor == null) return;
+            float fromZ = playerIdx == 0 ? -0.24f * MatLength : 0.24f * MatLength;
+            Vector3 launchOrigin = new Vector3(CoinArenaAnchor.localPosition.x + 0.045f, MatThickness + 0.002f, fromZ);
+            Coin.LaunchGameFlip(launchOrigin, CoinArenaAnchor.localPosition, headsResult, duration, reason);
         }
 
         /// <summary>
-        /// F2, F4 & F5: Sincroniza todas las cartas en 3D sobre el tapete físico (Mazos realistas en capas,
-        /// Descartes apilados, Premios boca abajo, Activos, Banca, Energías debajo, Mano 3D en abanico,
-        /// Carta arrastrada en 3D e Inspección 3D elevada frente a cámara).
+        /// F2–F7: Sincroniza todas las cartas, fichas de daño/estado y moneda 3D sobre el tapete físico.
         /// </summary>
         public void SyncBoard3D(
             Game game,
@@ -415,15 +793,20 @@ namespace PokeTCGPlay
             bool isOverValidDropSlot = false,
             Vector3 zoomOriginWorldPos = default,
             Quaternion zoomOriginWorldRot = default,
-            float zoomOriginScale = 1f)
+            float zoomOriginScale = 1f,
+            bool startCoinSpinning = false)
         {
             if (PlaymatRoot == null || cardPool == null) return;
+            EnsurePokemonDeckAtlasUpToDate();
             cardPool.BeginFrame();
+            physicalBlockPool?.BeginFrame();
+            statusCounters?.BeginFrame();
 
             if (game == null)
             {
                 deckStacks[0]?.Sync(0);
                 deckStacks[1]?.Sync(0);
+                Coin?.SyncFrame(false, false, Vector3.zero, MatThickness + 0.0008f);
                 if (dragCardView != null && dragCardView.gameObject.activeSelf)
                     dragCardView.gameObject.SetActive(false);
                 if (inspectCardView != null && inspectCardView.gameObject.activeSelf)
@@ -434,14 +817,30 @@ namespace PokeTCGPlay
                 return;
             }
 
+            bool usePhysicalNativeMesh = nativeDeckSpec != null && nativeDeckSpec.IsValid && physicalBlockPool != null;
+            var anim = BoardAnimator.Instance;
+
             for (int p = 0; p < 2; p++)
             {
                 var ps = game.Players[p];
                 if (ps == null) continue;
 
-                // 1) Mazo como pila 3D en capas cuya altura depende de las cartas aún presentes en el mazo
-                int pendingDraws = BoardAnimator.Instance != null ? BoardAnimator.Instance.GetPendingDeckDraws(p) : 0;
-                deckStacks[p]?.Sync(ps.Deck.Count + pendingDraws);
+                // 1) Mazo físico 3D con reverso oficial de Pokémon (misma malla física redondeada de la baraja, exclusiva para esta partida)
+                int pendingDraws = anim != null ? anim.GetPendingDeckDraws(p) : 0;
+                int visibleDeckCount = ps.Deck.Count + pendingDraws;
+                if (usePhysicalNativeMesh)
+                {
+                    deckStacks[p]?.Sync(0);
+                    if (visibleDeckCount > 0)
+                    {
+                        float deckHeight = Mathf.Lerp(0.0024f, 0.032f, Mathf.Clamp01(visibleDeckCount / 60f));
+                        physicalBlockPool.SpawnBlock(DeckAnchor[p], Vector3.zero, nativeDeckSpec, 1.0f, deckHeight, 0f);
+                    }
+                }
+                else
+                {
+                    deckStacks[p]?.Sync(visibleDeckCount);
+                }
 
                 // 2) Descarte apilado en 3D con desorden leve (hasta las últimas 6 cartas visibles)
                 int dCount = ps.Discard.Count;
@@ -451,6 +850,8 @@ namespace PokeTCGPlay
                     var dCard = ps.Discard[k];
                     bool isTop = (k == dCount - 1);
                     if (isTop && zoomedPip == null && zoomedCard == dCard && zoomAnim > 0.02f)
+                        continue;
+                    if (isTop && anim != null && anim.IsCardFlyingToDiscard(p, dCard))
                         continue;
 
                     int layer = k - startD;
@@ -468,13 +869,22 @@ namespace PokeTCGPlay
                     }
                 }
 
-                // 3) Premios en 3D boca abajo sobre las casillas Side (hasta 6 cartas)
-                int pCount = Mathf.Min(6, ps.Prizes.Count);
+                // 3) Premios en 3D a los costados (Side): cartas físicas 3D con el mismo cuerpo y reverso que la baraja
+                int pendingPrizeTakes = anim != null ? anim.GetPendingPrizeTakes(p) : 0;
+                int pCount = Mathf.Min(6, ps.Prizes.Count + pendingPrizeTakes);
                 for (int i = 0; i < pCount; i++)
                 {
-                    var pCard = ps.Prizes[i];
-                    var cv = cardPool.Spawn(PrizeAnchor[p, i], Vector3.zero, pCard, true, 0.86f, false, 0f);
-                    if (cv != null) cv.SetRaycastEnabled(false);
+                    if (usePhysicalNativeMesh)
+                    {
+                        float subtleYaw = (i % 2 == 0) ? -0.8f : 0.6f;
+                        physicalBlockPool.SpawnBlock(PrizeAnchor[p, i], Vector3.zero, nativeDeckSpec, 0.88f, 0.0024f, subtleYaw);
+                    }
+                    else
+                    {
+                        var pCard = i < ps.Prizes.Count ? ps.Prizes[i] : null;
+                        var cv = cardPool.Spawn(PrizeAnchor[p, i], Vector3.zero, pCard, true, 0.88f, false, 0f);
+                        if (cv != null) cv.SetRaycastEnabled(false);
+                    }
                 }
 
                 // 4) Banca en 3D (5 casillas)
@@ -482,11 +892,11 @@ namespace PokeTCGPlay
                 {
                     var bPip = i < ps.Bench.Count ? ps.Bench[i] : null;
                     bool hl = retreatMode && p == 0 && bPip != null;
-                    SyncPokemonSlot3D(p, BenchAnchor[p, i], bPip, 0.94f, false, hl, zoomedPip, zoomAnim);
+                    SyncPokemonSlot3D(p, i, BenchAnchor[p, i], bPip, 0.94f, false, hl, zoomedPip, zoomAnim, game.Turn);
                 }
 
                 // 5) Pokémon Activo en el Campo de Batalla Central 3D
-                SyncPokemonSlot3D(p, ActiveAnchor[p], ps.Active, 1.08f, true, false, zoomedPip, zoomAnim);
+                SyncPokemonSlot3D(p, -1, ActiveAnchor[p], ps.Active, 1.08f, true, false, zoomedPip, zoomAnim, game.Turn);
             }
 
             // 6) F4 & F5: Mano 3D en abanico (más baja en reposo para no tapar la Banca; se eleva al pasar el cursor)
@@ -497,30 +907,75 @@ namespace PokeTCGPlay
 
             // 8) F5: Carta 3D en Inspección (sube hacia la cámara con giro interactivo y telón 3D oscurecido detrás)
             SyncInspectCard3D(zoomedCard, zoomAnim, zoomOriginWorldPos, zoomOriginWorldRot, zoomOriginScale);
+
+            // 9) F7: Moneda 3D (vista previa flotante en CoinToss, lanzamiento parabólico con rebote y reposo en el tapete)
+            bool inCoinChoice = game.Phase == Phase.CoinToss && !startCoinSpinning;
+            Vector3 centerLocal = CoinAnchor != null ? CoinAnchor.localPosition : Vector3.zero;
+            Coin?.SyncFrame(true, inCoinChoice, centerLocal, MatThickness + 0.0008f);
         }
 
-        void SyncPokemonSlot3D(int ownerIdx, Transform anchor, PokemonInPlay pip, float scale, bool isActive, bool highlight, PokemonInPlay zoomedPip, float zoomAnim)
+        public Vector3 GetAttachedEnergyWorldPos(int ownerIdx, int benchSlotIdx, int energySlotIdx)
+        {
+            int p = Mathf.Clamp(ownerIdx, 0, 1);
+            Transform anchor = benchSlotIdx < 0 ? ActiveAnchor[p] : BenchAnchor[p, Mathf.Clamp(benchSlotIdx, 0, 4)];
+            if (anchor == null) return PlaymatRoot != null ? PlaymatRoot.position : Vector3.zero;
+            float scale = benchSlotIdx < 0 ? 1.08f : 0.94f;
+            int idx = Mathf.Max(0, energySlotIdx);
+            Vector3 eOff = new Vector3(
+                (-0.012f - idx * 0.0085f) * scale,
+                0f,
+                (-0.011f - idx * 0.0075f) * scale);
+            return anchor.TransformPoint(eOff);
+        }
+
+        void SyncPokemonSlot3D(int ownerIdx, int benchSlotIdx, Transform anchor, PokemonInPlay pip, float scale, bool isActive, bool highlight, PokemonInPlay zoomedPip, float zoomAnim, int currentTurn)
         {
             if (anchor == null || pip == null) return;
             if (pip == zoomedPip && zoomAnim > 0.05f) return;
 
-            var curFlight = BoardAnimator.Instance?.Current;
-            bool isFlyingPokemon = curFlight != null && curFlight.Card == pip.Card &&
-                (curFlight.Kind == AnimKind.ToActive || curFlight.Kind == AnimKind.ToBench ||
-                 curFlight.Kind == AnimKind.AttackLunge || curFlight.Kind == AnimKind.RetreatSwap);
-            if (isFlyingPokemon) return;
+            var anim = BoardAnimator.Instance;
+            if (anim != null && anim.IsPokemonSlotInFlightOrQueued(ownerIdx, benchSlotIdx))
+                return;
 
-            bool isFlyingEvolve = curFlight != null && curFlight.Card == pip.Card && curFlight.Kind == AnimKind.Evolve;
-            bool isFlyingEnergy = curFlight != null && curFlight.Kind == AnimKind.AttachEnergy &&
-                                  pip.Energy.Count > 0 && pip.Energy[pip.Energy.Count - 1] == curFlight.Card;
+            var curFlight = anim?.Current;
+            int pendingEvolves = anim != null ? anim.GetPendingEvolveCount(ownerIdx, benchSlotIdx) : 0;
+            int queuedEnergies = anim != null ? anim.GetQueuedEnergyCount(ownerIdx, benchSlotIdx) : 0;
+
+            // Elevación suave de la carta objetivo al unir Energía:
+            // 1) Se eleva (0.00..0.34), 2) espera arriba mientras la Energía entra debajo (0.34..0.72), 3) desciende a su origen (0.72..1.00)
+            bool isTargetOfFlyingEnergy = curFlight != null &&
+                                          curFlight.Kind == AnimKind.AttachEnergy &&
+                                          curFlight.PlayerIndex == ownerIdx &&
+                                          curFlight.TargetBenchIndex == benchSlotIdx;
+            float energyAnimT = isTargetOfFlyingEnergy
+                ? Mathf.Clamp01(curFlight.Elapsed / Mathf.Max(0.05f, curFlight.Duration))
+                : -1f;
+            bool hideNewestStaticEnergy = isTargetOfFlyingEnergy && energyAnimT < 0.72f;
+
+            float energyLiftY = 0f;
+            float energyLiftPitch = 0f;
+            if (isTargetOfFlyingEnergy)
+            {
+                float liftFactor;
+                if (energyAnimT < 0.34f)
+                    liftFactor = Mathf.SmoothStep(0f, 1f, energyAnimT / 0.34f);
+                else if (energyAnimT < 0.72f)
+                    liftFactor = 1f;
+                else
+                    liftFactor = 1f - Mathf.SmoothStep(0f, 1f, (energyAnimT - 0.72f) / 0.28f);
+
+                energyLiftY = liftFactor * 0.026f;
+                energyLiftPitch = -5.5f * liftFactor;
+            }
 
             // 1) Energías adheridas físicamente DEBAJO del Pokémon (asomando por el borde inferior/izquierdo)
-            int eCount = pip.Energy.Count;
-            for (int i = eCount - 1; i >= 0; i--)
+            int visibleEnergyCount = Mathf.Max(0, pip.Energy.Count - queuedEnergies);
+            int renderedEnergyCount = hideNewestStaticEnergy ? Mathf.Max(0, visibleEnergyCount - 1) : visibleEnergyCount;
+            for (int i = visibleEnergyCount - 1; i >= 0; i--)
             {
-                if (isFlyingEnergy && i == eCount - 1) continue;
+                if (hideNewestStaticEnergy && i == visibleEnergyCount - 1) continue;
                 var eCard = pip.Energy[i];
-                int orderFromTop = eCount - 1 - i;
+                int orderFromTop = visibleEnergyCount - 1 - i;
                 Vector3 eOff = new Vector3(
                     (-0.012f - i * 0.0085f) * scale,
                     orderFromTop * (CardView.CardThickness + 0.00015f),
@@ -529,37 +984,46 @@ namespace PokeTCGPlay
                 if (eCv != null) eCv.SetRaycastEnabled(false);
             }
 
-            float baseY = eCount * (CardView.CardThickness + 0.00015f) + 0.0004f;
+            float baseY = renderedEnergyCount * (CardView.CardThickness + 0.00015f) + 0.0004f + energyLiftY;
 
             // 2) Etapas previas de evolución apiladas debajo del Pokémon evolucionado
-            int stackCount = pip.Stack != null ? pip.Stack.Count : 1;
-            for (int s = 0; s < stackCount - 1; s++)
+            int fullStackCount = pip.Stack != null ? pip.Stack.Count : 1;
+            int visibleStackCount = Mathf.Clamp(fullStackCount - pendingEvolves, 1, fullStackCount);
+            for (int s = 0; s < visibleStackCount - 1; s++)
             {
                 var preCard = pip.Stack[s];
-                int depth = stackCount - 1 - s;
+                int depth = visibleStackCount - 1 - s;
                 Vector3 preOff = new Vector3(0.0022f * depth, baseY + s * (CardView.CardThickness + 0.0002f), 0.0022f * depth);
-                var preCv = cardPool.Spawn(anchor, preOff, preCard, false, scale, false, 0f);
+                var preCv = cardPool.Spawn(anchor, preOff, preCard, false, scale, false, 0f, energyLiftPitch);
                 if (preCv != null) preCv.SetRaycastEnabled(false);
             }
 
-            if (isFlyingEvolve) return;
+            CardDef visibleTopCard = pip.Stack != null && pip.Stack.Count >= visibleStackCount
+                ? pip.Stack[visibleStackCount - 1]
+                : pip.Card;
 
-            // 3) Carta principal del Pokémon encima (con giro físico según estado alterado si está Activo)
-            float statusYaw = 0f;
-            if (isActive)
-            {
-                if (pip.Status == Status.Asleep) statusYaw = -90f;
-                else if (pip.Status == Status.Paralyzed) statusYaw = 90f;
-                else if (pip.Status == Status.Confused) statusYaw = 180f;
-            }
-            Vector3 topOff = new Vector3(0f, baseY + Math.Max(0, stackCount - 1) * (CardView.CardThickness + 0.0002f) + 0.0003f, 0f);
-            var topCv = cardPool.Spawn(anchor, topOff, pip.Card, false, scale, highlight, statusYaw);
+            // 3) F6: Rotación física suavizada según estado alterado (Dormido -90°, Paralizado +90°, Confundido 180°) + vibración al recibir golpe
+            float statusYaw = statusCounters != null
+                ? statusCounters.GetSmoothedStatusYaw(pip, isActive)
+                : 0f;
+            Vector3 hitShake = statusCounters != null
+                ? statusCounters.GetHitShakeLocalOffset(pip)
+                : Vector3.zero;
+
+            float topCardY = baseY + Math.Max(0, visibleStackCount - 1) * (CardView.CardThickness + 0.0002f) + 0.0003f;
+            Vector3 topOff = new Vector3(hitShake.x, topCardY, hitShake.z);
+            var topCv = cardPool.Spawn(anchor, topOff, visibleTopCard, false, scale, highlight, statusYaw, energyLiftPitch);
             if (topCv != null)
             {
                 topCv.OwnerIndex = ownerIdx;
                 topCv.BoundPip = pip;
                 topCv.SetRaycastEnabled(true);
+                if (statusCounters != null)
+                    topCv.SetStatusTintOverlay(statusCounters.GetAnimatedCardTintOverlay(pip));
             }
+
+            // 4) F6: Fichas 3D de Contadores de Daño (10, 50, 100) y Marcadores 3D (Veneno, Defender, PlusPower) sobre la carta
+            statusCounters?.SyncPokemonCounters(anchor, pip, topCardY + CardView.CardThickness * 0.5f, scale, currentTurn);
         }
 
         /// <summary>
@@ -674,7 +1138,7 @@ namespace PokeTCGPlay
 
             if (playerIdx == 0)
             {
-                float baseScale = 0.82f;
+                float baseScale = 0.85f;
                 float maxSpanX = 0.44f * deployFactor;
                 float idealStep = 0.055f * deployFactor;
                 float totalW = count <= 1 ? 0f : Mathf.Min(maxSpanX, (count - 1) * idealStep);
@@ -695,14 +1159,14 @@ namespace PokeTCGPlay
                 float maxYaw = Mathf.Min(15f, (count - 1) * 2.3f) * deployFactor;
                 yawDeg = t * maxYaw * (1f - liftT * 0.94f);
 
-                // En reposo el abanico se mantiene más bajo para no tapar la Banca;
+                // En reposo el abanico llega hasta el límite inferior de Bench;
                 // al pasar el cursor por encima (trayLift / liftT) se eleva suavemente para seleccionar la carta.
                 float idleWave = Mathf.Sin(Time.time * 2.2f + index * 0.55f) * 0.0012f * (1f - liftT);
-                float y = index * 0.0015f + trayLift * 0.008f + liftT * 0.032f + idleWave;
-                float z = archZ + trayLift * 0.012f + liftT * 0.058f;
+                float y = index * 0.0015f + trayLift * 0.006f + liftT * 0.028f + idleWave;
+                float z = archZ + trayLift * 0.010f + liftT * 0.048f;
 
                 localPos = new Vector3(x, y, z);
-                scale = Mathf.Lerp(baseScale, 1.14f, liftT);
+                scale = Mathf.Lerp(baseScale, 1.13f, liftT);
             }
             else
             {
