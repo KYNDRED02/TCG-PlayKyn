@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PokeTCGPlay
 {
@@ -22,8 +24,7 @@ namespace PokeTCGPlay
         float toastTimer;
         int selHand = -1;
         bool retreatMode;
-        bool showLogPanel;
-        Vector2 logScroll;
+        bool showSettingsModal;
 
         // --- F4: Mano e Input 3D (Hover, Selección, Arrastre Drag & Drop y Raycast 3D) ---
         int hoveredHandIdx = -1;
@@ -78,6 +79,48 @@ namespace PokeTCGPlay
         Rect playmatRect;
         float slotW, slotH;
 
+        // --- Overlay uGUI + TextMeshProUGUI con la fuente nativa del juego (FredokaOne-Regular SDF) ---
+        GameObject nativeOverlayRoot;
+        RectTransform dynamicPoolRoot;
+        readonly List<Image> nativeImgPool = new List<Image>();
+        readonly List<RawImage> nativeRawPool = new List<RawImage>();
+        readonly List<TextMeshProUGUI> nativeTmpPool = new List<TextMeshProUGUI>();
+        int usedNativeImg;
+        int usedNativeRaw;
+        int usedNativeTmp;
+        int nativeSiblingCursor;
+        bool isNativeRepaintPass;
+
+        GameObject waitingGroup;
+        RectTransform waitingTitleRt;
+        TextMeshProUGUI waitingTitleTmp;
+        RectTransform waitingBtnRt;
+        Image waitingBtnImg;
+        TextMeshProUGUI waitingBtnTmp;
+
+        GameObject gameOverGroup;
+        RectTransform gameOverTitleRt;
+        TextMeshProUGUI gameOverTitleTmp;
+        RectTransform gameOverBoxRt;
+        RectTransform gameOverSubBoxRt;
+        RectTransform gameOverHeaderRt;
+        TextMeshProUGUI gameOverHeaderTmp;
+        RectTransform gameOverBodyRt;
+        TextMeshProUGUI gameOverBodyTmp;
+        RectTransform rematchBtnRt;
+        Image rematchBtnImg;
+        TextMeshProUGUI rematchBtnTmp;
+        RectTransform leaveBtnRt;
+        Image leaveBtnImg;
+        TextMeshProUGUI leaveBtnTmp;
+        bool nativeFontSynced;
+
+        public static Sprite sPanelSprite, sSubPanelSprite, sGlowSprite, sDarkBackdropSprite,
+                             sBtnBlueN, sBtnBlueH, sBtnBlueA,
+                             sBtnGreenN, sBtnGreenH, sBtnGreenA,
+                             sBtnGoldN, sBtnGoldH, sBtnGoldA,
+                             sBtnRedN, sBtnRedH, sBtnRedA;
+
         PlayerState Me => game.Players[0];
         PlayerState Cpu => game.Players[1];
 
@@ -114,8 +157,8 @@ namespace PokeTCGPlay
                 if (missing.Count > 0) errors.Insert(0, $"Cartas desconocidas: {string.Join(", ", missing)}");
                 if (errors.Count > 0) throw new Exception($"Tu mazo '{active.Name}' no es válido: {errors[0]}");
 
-                // El mazo del NPC se genera aleatoriamente en cada partida, con el mismo formato
-                List<CardDef> npcDeck = DeckLoader.GenerateRandomNpcDeck(null, format);
+                // El mazo del NPC se obtiene según la opción configurada (Mazos Temáticos Oficiales de Base Era o Aleatorio)
+                List<CardDef> npcDeck = DeckLoader.GenerateNpcDeck(null, format, out string npcDeckLabel);
 
                 flightQueue.Clear();
                 currentFlight = null;
@@ -124,10 +167,14 @@ namespace PokeTCGPlay
                 StatusCounters3D.ActivePopups.Clear();
                 game = new Game(playerDeck, npcDeck);
                 game.Players[1].Name = "Cliente";
+                game.Say($"El cliente juega con el mazo: {npcDeckLabel}.");
                 game.OnAnim = OnGameAnimEvent;
 
                 selHand = -1;
                 retreatMode = false;
+                showSettingsModal = false;
+                if (waitingGroup != null) waitingGroup.SetActive(false);
+                if (gameOverGroup != null) gameOverGroup.SetActive(false);
                 Reset3DInputState();
                 zoomedCard = null;
                 zoomedPip = null;
@@ -155,6 +202,11 @@ namespace PokeTCGPlay
         {
             open = false;
             game = null;
+            showSettingsModal = false;
+            if (waitingGroup != null) waitingGroup.SetActive(false);
+            if (gameOverGroup != null) gameOverGroup.SetActive(false);
+            if (nativeOverlayRoot != null) nativeOverlayRoot.SetActive(false);
+            ClearNativeDynamicPool();
             Reset3DInputState();
             zoomedCard = null;
             zoomedPip = null;
@@ -171,6 +223,11 @@ namespace PokeTCGPlay
             bool won = finished && game.Winner == Me;
             open = false;
             game = null;
+            showSettingsModal = false;
+            if (waitingGroup != null) waitingGroup.SetActive(false);
+            if (gameOverGroup != null) gameOverGroup.SetActive(false);
+            if (nativeOverlayRoot != null) nativeOverlayRoot.SetActive(false);
+            ClearNativeDynamicPool();
             Reset3DInputState();
             zoomedCard = null;
             zoomedPip = null;
@@ -212,23 +269,32 @@ namespace PokeTCGPlay
 
             if (PlayTableSession.IsWaitingForNpc)
             {
+                PlayTableSession.EnforcePlayerCameraAndMovementLock();
                 PlayTableSession.UpdateWaiting();
-                InputManager.SetCursorLockMode(CursorLockMode.None);
-                Cursor.visible = true;
                 if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
                     LeaveTable();
                 return;
             }
 
+            if (waitingGroup != null && waitingGroup.activeSelf)
+                waitingGroup.SetActive(false);
+
             if (!open || game == null)
             {
+                if (gameOverGroup != null && gameOverGroup.activeSelf)
+                    gameOverGroup.SetActive(false);
+                ClearNativeDynamicPool();
                 if (PlayTableSession.CurrentTable != null)
                     LeaveTable();
                 return;
             }
 
-            InputManager.SetCursorLockMode(CursorLockMode.None);
-            Cursor.visible = true;
+            if ((game.Phase != Phase.GameOver || IsAnimBusy()) && gameOverGroup != null && gameOverGroup.activeSelf)
+            {
+                gameOverGroup.SetActive(false);
+            }
+
+            PlayTableSession.EnforcePlayerCameraAndMovementLock();
 
             ComputePlaymatGeometry();
 
@@ -272,14 +338,18 @@ namespace PokeTCGPlay
             // Actualizar animación de moneda inicial
             if (startCoinSpinning)
             {
-                startCoinTimer += Time.deltaTime;
+                startCoinTimer += Time.deltaTime * Loc.AnimSpeed;
                 // Solo cuando la moneda ya cayó sobre la mesa y mostró su resultado (t >= 0.88),
                 // pasamos a Fase de Preparación, repartimos la mano inicial y, si el NPC ganó, prepara su jugada tras el reparto.
                 if (startCoinTimer >= StartCoinDuration * 0.88f && !startCoinDone)
                 {
                     startCoinDone = true;
                     game.OnStartCoinLanded(startCoinResultHeads);
-                    message = "Coloca tu primer Pokémon Básico en el Campo de Batalla para comenzar la partida.";
+                    if (!string.IsNullOrEmpty(game.MulliganSummary))
+                        ShowToast("Mulligan: " + game.MulliganSummary, 5.5f);
+                    message = Loc.T(
+                        "Coloca tu primer Pokémon Básico en el Campo de Batalla para comenzar la partida.",
+                        "Place your first Basic Pokémon in the Active spot to begin the match.");
                 }
                 if (startCoinTimer >= StartCoinDuration + 0.85f)
                 {
@@ -290,7 +360,7 @@ namespace PokeTCGPlay
             // Actualizar vuelo de cartas sobre el tapete
             if (currentFlight != null)
             {
-                currentFlight.Elapsed += Time.deltaTime;
+                currentFlight.Elapsed += Time.deltaTime * Loc.AnimSpeed;
                 if (currentFlight.Elapsed >= currentFlight.Duration)
                     currentFlight = null;
             }
@@ -299,11 +369,18 @@ namespace PokeTCGPlay
                 currentFlight = flightQueue.Dequeue();
             }
 
+            // F8: Aplicar recompensas de tienda cuando termina la última animación de la partida
+            if (game.Phase == Phase.GameOver && !game.RewardsApplied && !IsAnimBusy())
+            {
+                PlayTableSession.ApplyMatchOutcomeRewards(game);
+                TcgAudio.PlayMatchResult(game.Winner == Me);
+            }
+
             // Ejecutar colocación inicial o turno de la IA cuando terminen las animaciones 3D y 2D en curso
             bool flightsBusy = currentFlight != null || flightQueue.Count > 0 || (BoardAnimator.Instance != null && BoardAnimator.Instance.IsAnimating);
             if (game.PendingAiSetup && !flightsBusy && !startCoinSpinning)
             {
-                aiSetupDelay += Time.deltaTime;
+                aiSetupDelay += Time.deltaTime * Loc.AnimSpeed;
                 if (aiSetupDelay >= 0.30f)
                 {
                     aiSetupDelay = 0f;
@@ -312,7 +389,7 @@ namespace PokeTCGPlay
             }
             if (game.PendingAiTurn && !IsAnimBusy() && !startCoinSpinning)
             {
-                aiTurnDelay += Time.deltaTime;
+                aiTurnDelay += Time.deltaTime * Loc.AnimSpeed;
                 if (aiTurnDelay >= 0.55f)
                 {
                     aiTurnDelay = 0f;
@@ -322,7 +399,8 @@ namespace PokeTCGPlay
 
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if (zoomedCard != null) zoomClosing = true;
+                if (showSettingsModal) showSettingsModal = false;
+                else if (zoomedCard != null) zoomClosing = true;
             }
         }
 
@@ -771,6 +849,8 @@ namespace PokeTCGPlay
         }
 
         // ==================== Renderizado Principal ====================
+        public bool IsMatchUiActive => open && game != null;
+
         void OnGUI()
         {
             EnsureStyles();
@@ -781,72 +861,91 @@ namespace PokeTCGPlay
                 GUI.Box(new Rect((Screen.width - 520) * 0.5f, 40, 520, 48), toastMessage, ToastStyle);
             }
 
-            if (PlayTableSession.IsWaitingForNpc)
+            if (!PlayTableSession.IsWaitingForNpc && (!open || game == null))
             {
-                float ww = 660f, wh = 135f;
-                Rect wr = new Rect((Screen.width - ww) * 0.5f, (Screen.height - wh) * 0.5f, ww, wh);
-                GUI.Box(wr, "", BoxBgStyle);
-                GUILayout.BeginArea(new Rect(wr.x + 22, wr.y + 16, wr.width - 44, wr.height - 32));
-                GUILayout.Label("<size=19><b>Sentado en la mesa de juego (Playmat 3D listo)</b></size>", HeaderStyle);
-                GUILayout.Space(4);
-                GUILayout.Label("Esperando a que un cliente se acerque y tome asiento frente a ti...", SubHeaderStyle);
-                GUILayout.Space(12);
-                if (GUILayout.Button("Levantarse de la mesa (Clic derecho / Esc)", BtnRedStyle, GUILayout.Height(34), GUILayout.Width(340)))
-                {
-                    PlayClickSound(2);
-                    LeaveTable();
-                }
-                GUILayout.EndArea();
+                if (waitingGroup != null && waitingGroup.activeSelf)
+                    waitingGroup.SetActive(false);
+                if (gameOverGroup != null && gameOverGroup.activeSelf)
+                    gameOverGroup.SetActive(false);
+                if (nativeOverlayRoot != null && nativeOverlayRoot.activeSelf)
+                    nativeOverlayRoot.SetActive(false);
                 return;
             }
 
-            if (!open || game == null) return;
-
-            ComputePlaymatGeometry();
-            Update3DSlotHighlights();
-
-            // 1. Tapete 3D sobre la mesa (solo dibuja respaldo 2D si TableView aún no está activo)
-            DrawPlaymatSurface();
-
-            // 2. Barra superior compacta (puede cerrar la partida si se pulsa "Levantarse")
-            DrawTopBar();
-            if (!open || game == null) return;
-
-            // 3. Dibujar todas las zonas alineadas a los anclajes 3D del Playmat
-            DrawAllPlaymatZones();
-
-            // 4. Mano del NPC (arriba boca abajo) y Mano del Jugador (abajo)
-            DrawOpponentHand();
-            DrawPlayerHand();
-
-            // 5. Controles de Acción (Ataques, Retirada, Fin de turno) a la derecha del tapete
-            DrawSideControls();
-            if (!open || game == null) return;
-
-            // 6. Vuelo animado de cartas (movimientos propios y del NPC) + Textos flotantes 3D de daño/estado (F6)
-            DrawCurrentFlight();
-            DrawFloatingPopups3D();
-
-            // 7. Moneda secundaria (ataques / estados)
-            if (subCoinTimer > 0f)
-                DrawSubCoinFlip();
-
-            // 8. Fase de Moneda Inicial antes de iniciar la partida (se oculta el modal mientras gira la moneda)
-            if (game.Phase == Phase.CoinToss && !startCoinSpinning)
-                DrawInitialCoinTossModal();
-
-            // 9. Pantalla de Fin de Partida (puede cerrar la partida al levantarse)
-            if (game.Phase == Phase.GameOver)
+            BeginNativeRepaint();
+            try
             {
-                DrawGameOverModal();
+                if (PlayTableSession.IsWaitingForNpc)
+                {
+                    if (gameOverGroup != null && gameOverGroup.activeSelf)
+                        gameOverGroup.SetActive(false);
+                    DrawWaitingForOpponentScreen();
+                    return;
+                }
+
+                if (waitingGroup != null && waitingGroup.activeSelf)
+                    waitingGroup.SetActive(false);
+
+                ComputePlaymatGeometry();
+                Update3DSlotHighlights();
+
+                // 1. Tapete 3D sobre la mesa (solo dibuja respaldo 2D si TableView aún no está activo)
+                DrawPlaymatSurface();
+
+                // 9. Pantalla de Fin de Partida (se muestra tras concluir las animaciones finales de KO/Premio)
+                if (game.Phase == Phase.GameOver && !IsAnimBusy())
+                {
+                    DrawGameOverModal();
+                    return;
+                }
+
+                if (gameOverGroup != null && gameOverGroup.activeSelf)
+                    gameOverGroup.SetActive(false);
+
+                // 2. Botones de "Opciones" y "Levantarse" a la izquierda de la pantalla con la fuente del juego (sin cuadro superior ni registro)
+                DrawLeftSideButtons();
                 if (!open || game == null) return;
-            }
 
-            // 10. Zoom con Clic Derecho (la carta se eleva desde la mesa y regresa a ella)
-            if (zoomedCard != null)
+                // 11. F10: Modal de Configuración en Vivo con la fuente del juego
+                if (showSettingsModal)
+                {
+                    PolishEffects3D.DrawSettingsModal(ref showSettingsModal);
+                    return;
+                }
+
+                // 3. Dibujar todas las zonas alineadas a los anclajes 3D del Playmat
+                DrawAllPlaymatZones();
+
+                // 4. Mano del NPC (arriba boca abajo) y Mano del Jugador (abajo)
+                DrawOpponentHand();
+                DrawPlayerHand();
+
+                // 5. Controles de Acción (Ataques, Retirada, Fin de turno) a la derecha del tapete
+                DrawSideControls();
+                if (!open || game == null) return;
+
+                // 6. Vuelo animado de cartas (movimientos propios y del NPC) + Textos flotantes 3D de daño/estado (F6)
+                DrawCurrentFlight();
+                DrawFloatingPopups3D();
+
+                // 7. Moneda secundaria (ataques / estados)
+                if (subCoinTimer > 0f)
+                    DrawSubCoinFlip();
+
+                // 8. Fase de Moneda Inicial antes de iniciar la partida (se oculta el modal mientras gira la moneda)
+                if (game.Phase == Phase.CoinToss && !startCoinSpinning)
+                    DrawInitialCoinTossModal();
+
+                // 10. Zoom con Clic Derecho (la carta se eleva desde la mesa y regresa a ella)
+                if (zoomedCard != null)
+                {
+                    if (DrawElevatedZoomOverlay(zoomedCard, zoomedPip, zoomOriginRect, zoomAnim))
+                        zoomClosing = true;
+                }
+            }
+            finally
             {
-                if (DrawElevatedZoomOverlay(zoomedCard, zoomedPip, zoomOriginRect, zoomAnim))
-                    zoomClosing = true;
+                EndNativeRepaint();
             }
         }
 
@@ -874,33 +973,25 @@ namespace PokeTCGPlay
                 GUI.Box(playmatRect, "");
         }
 
-        void DrawTopBar()
+        void DrawLeftSideButtons()
         {
-            float topW = Mathf.Min(Screen.width - 32f, 1180f);
-            Rect topBar = new Rect((Screen.width - topW) * 0.5f, 4f, topW, 34f);
-            GUI.Box(topBar, "", BoxBgStyle);
-            GUILayout.BeginArea(new Rect(topBar.x + 12f, topBar.y + 4f, topBar.width - 24f, 26f));
-            GUILayout.BeginHorizontal();
-            string phaseTxt = game.Phase == Phase.CoinToss ? "Lanzamiento de Moneda"
-                            : game.Phase == Phase.Setup ? "Preparación"
-                            : $"Turno {game.Turn} ({game.Current.Name})";
-            GUILayout.Label($"<b>Pokémon TCG</b> — <color=#9ecbff>{phaseTxt}</color>", HeaderStyle);
-            GUILayout.Space(14);
-            GUILayout.Label($"<color=#ffe066>{message}</color>", SubHeaderStyle);
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button(showLogPanel ? "Ocultar Registro" : "Ver Registro", BtnStyle, GUILayout.Width(135), GUILayout.Height(24)))
+            // Botones un poco más grandes a la izquierda de la pantalla con la fuente del juego (sin icono en Opciones)
+            float leftX = 24f;
+            float btnW = 176f;
+            float btnH = 48f;
+            Rect optRect = new Rect(leftX, 102f, btnW, btnH);
+            Rect standRect = new Rect(leftX, 160f, btnW, btnH);
+
+            if (DrawNativeButton(optRect, Loc.T("Opciones", "Settings"), 21f, sBtnGoldN, sBtnGoldH, sBtnGoldA))
             {
                 PlayClickSound(0);
-                showLogPanel = !showLogPanel;
+                showSettingsModal = !showSettingsModal;
             }
-            GUILayout.Space(6);
-            if (GUILayout.Button("Levantarse", BtnRedStyle, GUILayout.Width(110), GUILayout.Height(24)))
+            if (DrawNativeButton(standRect, Loc.T("Levantarse", "Stand Up"), 21f, sBtnRedN, sBtnRedH, sBtnRedA))
             {
                 PlayClickSound(2);
                 LeaveTable();
             }
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
         }
 
         void DrawAllPlaymatZones()
@@ -1034,6 +1125,14 @@ namespace PokeTCGPlay
         void DrawPokemonOnMat(PlayerState owner, PokemonInPlay pip, Rect rect, bool isActive, bool allowClick)
         {
             if (pip == null) return;
+
+            // F8: En Fase de Preparación (Setup), los Pokémon iniciales están boca abajo esperando la revelación simultánea
+            if (game.Phase == Phase.Setup)
+            {
+                if (!(TableView.Instance != null && TableView.Instance.IsBoard3DReady))
+                    DrawCardBackRect(rect);
+                return;
+            }
 
             // Si esta carta es la que está haciendo zoom elevado, no la dibujamos duplicada en la mesa
             if (zoomedCard == pip.Card && zoomedPip == pip && zoomAnim > 0.05f) return;
@@ -1247,14 +1346,16 @@ namespace PokeTCGPlay
             if (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me)
             {
                 GUI.Box(new Rect(0, 0, panelW, 95f), "", BoxBgStyle);
-                GUILayout.Label("<color=#ffd166><b>Tu Pokémon Activo cayó:</b>\nHaz clic izquierdo en un Pokémon de tu Banca para enviarlo al Campo de Batalla.</color>", SubHeaderStyle);
+                GUILayout.Label(Loc.T(
+                    "<color=#ffd166><b>Tu Pokémon Activo cayó:</b>\nHaz clic izquierdo en un Pokémon de tu Banca para enviarlo al Campo de Batalla.</color>",
+                    "<color=#ffd166><b>Your Active Pokémon was Knocked Out:</b>\nLeft-click a Benched Pokémon to promote it to the Active spot.</color>"), SubHeaderStyle);
             }
             else if (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy())
             {
                 GUI.Box(new Rect(0, 0, panelW, 315f), "", BoxBgStyle);
                 GUILayout.BeginVertical(GUILayout.Width(panelW - 10f));
                 GUILayout.Space(6);
-                GUILayout.Label($"<b>Acciones — {Me.Active.Card.Name}</b>", HeaderStyle);
+                GUILayout.Label($"<b>{Loc.T("Acciones", "Actions")} — {Me.Active.Card.Name}</b>", HeaderStyle);
                 GUILayout.Space(6);
 
                 var a = Me.Active;
@@ -1271,7 +1372,7 @@ namespace PokeTCGPlay
                     GUILayout.Space(4);
                 }
 
-                if (GUILayout.Button(retreatMode ? "Cancelar Retirada" : $"Retirarse (Coste: {a.Card.RetreatCost})", retreatMode ? BtnRedStyle : BtnStyle, GUILayout.Height(33)))
+                if (GUILayout.Button(retreatMode ? Loc.T("Cancelar Retirada", "Cancel Retreat") : $"{Loc.T("Retirarse (Coste:", "Retreat (Cost:")} {a.Card.RetreatCost})", retreatMode ? BtnRedStyle : BtnStyle, GUILayout.Height(33)))
                 {
                     PlayClickSound(0);
                     retreatMode = !retreatMode;
@@ -1281,12 +1382,12 @@ namespace PokeTCGPlay
                 if (selHand >= 0 && selHand < Me.Hand.Count)
                 {
                     var c = Me.Hand[selHand];
-                    if (c.IsBasicPokemon && GUILayout.Button("Bajar a la Banca", BtnGreenStyle, GUILayout.Height(33)))
+                    if (c.IsBasicPokemon && GUILayout.Button(Loc.T("Bajar a la Banca", "Play to Bench"), BtnGreenStyle, GUILayout.Height(33)))
                     {
                         PlayClickSound(1);
                         Report(game.PlayBasic(Me, selHand));
                     }
-                    if (c.Supertype == Supertype.Trainer && GUILayout.Button("Usar Entrenador", BtnGreenStyle, GUILayout.Height(33)))
+                    if (c.Supertype == Supertype.Trainer && GUILayout.Button(Loc.T("Usar Entrenador", "Play Trainer"), BtnGreenStyle, GUILayout.Height(33)))
                     {
                         PlayClickSound(1);
                         Report(game.PlayTrainer(Me, selHand, null));
@@ -1294,22 +1395,11 @@ namespace PokeTCGPlay
                 }
 
                 GUILayout.Space(8);
-                if (GUILayout.Button("Terminar Turno", BtnGoldStyle, GUILayout.Height(36)))
+                if (GUILayout.Button(Loc.T("Terminar Turno", "End Turn"), BtnGoldStyle, GUILayout.Height(36)))
                 {
                     PlayClickSound(1);
                     Report(game.EndTurn());
                 }
-                GUILayout.EndVertical();
-            }
-
-            if (showLogPanel)
-            {
-                GUILayout.Space(12);
-                GUILayout.BeginVertical(BoxBgStyle, GUILayout.ExpandHeight(true));
-                GUILayout.Label("<b>Registro de jugadas</b>", SubHeaderStyle);
-                logScroll = GUILayout.BeginScrollView(logScroll);
-                GUILayout.Label(string.Join("\n", game.Log.Skip(Math.Max(0, game.Log.Count - 40))), SubHeaderStyle);
-                GUILayout.EndScrollView();
                 GUILayout.EndVertical();
             }
 
@@ -1331,81 +1421,73 @@ namespace PokeTCGPlay
         {
             if (startCoinSpinning) return;
 
-            bool has3D = TableView.Instance != null && TableView.Instance.IsBoard3DReady;
-            if (has3D)
-            {
-                // En mesa 3D la moneda real flota y gira frente al jugador en el centro del tapete:
-                // colocamos un panel inferior compacto para no tapar la moneda 3D.
-                float mw3 = 560f, mh3 = 152f;
-                Rect mr3 = new Rect((Screen.width - mw3) * 0.5f, Screen.height - mh3 - 34f, mw3, mh3);
-                GUI.Box(mr3, "", BoxBgStyle);
+            // Cuadro compacto subido respecto al borde inferior, mostrando únicamente las monedas de Cara y Cruz
+            // con su texto debajo ("Cara" y "Cruz" en la fuente del juego), iluminándose al pasar el cursor y al hacer clic.
+            float mw = 310f;
+            float mh = 166f;
+            Rect boxRect = new Rect((Screen.width - mw) * 0.5f, Screen.height - mh - 98f, mw, mh);
+            DrawNativeBox(boxRect, sPanelSprite, Color.white);
 
-                GUILayout.BeginArea(new Rect(mr3.x + 20f, mr3.y + 12f, mr3.width - 40f, mr3.height - 24f));
-                GUILayout.Label("<size=19><b>Lanzamiento de Moneda Inicial (3D)</b></size>", HeaderStyle);
-                GUILayout.Label("Elige una cara para lanzar la moneda sobre el tapete y decidir quién inicia:", SubHeaderStyle);
-                GUILayout.Space(10);
+            float coinSize = 96f;
+            Rect headsRect = new Rect(boxRect.x + 38f, boxRect.y + 16f, coinSize, coinSize);
+            Rect tailsRect = new Rect(boxRect.x + mw - 38f - coinSize, boxRect.y + 16f, coinSize, coinSize);
 
-                GUILayout.BeginHorizontal();
-                Rect rMiniHeads = GUILayoutUtility.GetRect(42f, 42f, GUILayout.Width(42f), GUILayout.Height(42f));
-                if (SpriteCache.CoinHeadsTex != null) GUI.DrawTexture(rMiniHeads, SpriteCache.CoinHeadsTex, ScaleMode.ScaleToFit);
-                GUILayout.Space(6);
-                if (GUILayout.Button("Elegir CARA (Pikachu)", BtnGoldStyle, GUILayout.Height(42)))
-                {
-                    TriggerStartCoinToss(true);
-                }
-
-                GUILayout.Space(18);
-
-                Rect rMiniTails = GUILayoutUtility.GetRect(42f, 42f, GUILayout.Width(42f), GUILayout.Height(42f));
-                if (SpriteCache.CoinTailsTex != null) GUI.DrawTexture(rMiniTails, SpriteCache.CoinTailsTex, ScaleMode.ScaleToFit);
-                GUILayout.Space(6);
-                if (GUILayout.Button("Elegir CRUZ (Pokéball)", BtnStyle, GUILayout.Height(42)))
-                {
-                    TriggerStartCoinToss(false);
-                }
-                GUILayout.EndHorizontal();
-                GUILayout.EndArea();
-                return;
-            }
-
-            float mw = 540f, mh = 360f;
-            Rect mr = new Rect((Screen.width - mw) * 0.5f, (Screen.height - mh) * 0.5f, mw, mh);
-            GUI.Box(mr, "", BoxBgStyle);
-
-            GUILayout.BeginArea(new Rect(mr.x + 24f, mr.y + 20f, mr.width - 48f, mr.height - 40f));
-            GUILayout.Label("<size=22><b>Lanzamiento de Moneda Inicial</b></size>", HeaderStyle);
-            GUILayout.Space(6);
-            GUILayout.Label("Elige una cara de la moneda para decidir quién empieza la partida:", SubHeaderStyle);
-            GUILayout.Space(16);
-
-            GUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-
-            // Opción CARA (Pikachu dorado)
-            GUILayout.BeginVertical(GUILayout.Width(170));
-            Rect rHeads = GUILayoutUtility.GetRect(150f, 150f);
-            if (SpriteCache.CoinHeadsTex != null) GUI.DrawTexture(rHeads, SpriteCache.CoinHeadsTex, ScaleMode.ScaleToFit);
-            if (GUILayout.Button("Elegir CARA (Pikachu)", BtnGoldStyle, GUILayout.Height(36)))
+            if (DrawNativeCoinChoice(headsRect, SpriteCache.CoinHeadsTex, Loc.T("Cara", "Heads")))
             {
                 TriggerStartCoinToss(true);
             }
-            GUILayout.EndVertical();
-
-            GUILayout.Space(40);
-
-            // Opción CRUZ (Pokéball negra)
-            GUILayout.BeginVertical(GUILayout.Width(170));
-            Rect rTails = GUILayoutUtility.GetRect(150f, 150f);
-            if (SpriteCache.CoinTailsTex != null) GUI.DrawTexture(rTails, SpriteCache.CoinTailsTex, ScaleMode.ScaleToFit);
-            if (GUILayout.Button("Elegir CRUZ (Pokéball)", BtnStyle, GUILayout.Height(36)))
+            if (DrawNativeCoinChoice(tailsRect, SpriteCache.CoinTailsTex, Loc.T("Cruz", "Tails")))
             {
                 TriggerStartCoinToss(false);
             }
-            GUILayout.EndVertical();
+        }
 
-            GUILayout.FlexibleSpace();
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+        bool DrawNativeCoinChoice(Rect coinRect, Texture2D coinTex, string label)
+        {
+            EnsureNativeCanvasOverlay();
+            Vector2 guiMouse = Event.current.mousePosition;
+            bool hover = coinRect.Contains(guiMouse);
+            bool pressed = hover && Input.GetMouseButton(0);
+
+            // Halo suave de iluminación detrás de la moneda al pasar el cursor o seleccionarla
+            if (hover || pressed)
+            {
+                float pad = pressed ? 16f : 12f;
+                Rect glowRect = new Rect(coinRect.x - pad, coinRect.y - pad, coinRect.width + pad * 2f, coinRect.height + pad * 2f);
+                Color glowCol = pressed
+                    ? new Color(1.00f, 0.92f, 0.45f, 0.80f)
+                    : new Color(1.00f, 0.88f, 0.38f, 0.48f);
+                DrawNativeBox(glowRect, sGlowSprite, glowCol);
+            }
+
+            float scale = pressed ? 1.10f : (hover ? 1.06f : 1.00f);
+            float sw = coinRect.width * scale;
+            float sh = coinRect.height * scale;
+            Rect drawRect = new Rect(
+                coinRect.center.x - sw * 0.5f,
+                coinRect.center.y - sh * 0.5f,
+                sw,
+                sh);
+
+            if (coinTex != null)
+            {
+                DrawNativeRawTex(drawRect, coinTex, Color.white);
+            }
+
+            // Iluminación ligera sobre la propia imagen de la moneda al pasar el cursor y al seleccionarla
+            if (hover || pressed)
+            {
+                Color shineCol = pressed
+                    ? new Color(1.00f, 0.98f, 0.78f, 0.42f)
+                    : new Color(1.00f, 0.96f, 0.72f, 0.24f);
+                DrawNativeBox(drawRect, sGlowSprite, shineCol);
+            }
+
+            Rect lblRect = new Rect(coinRect.x - 18f, coinRect.yMax + 6f, coinRect.width + 36f, 34f);
+            Color lblCol = (hover || pressed) ? new Color(1.00f, 0.90f, 0.36f, 1f) : Color.white;
+            DrawNativeLabel(lblRect, label, 23f, TextAlignmentOptions.Center, lblCol);
+
+            return GUI.Button(coinRect, GUIContent.none, GUIStyle.none);
         }
 
         void DrawSubCoinFlip()
@@ -1446,23 +1528,26 @@ namespace PokeTCGPlay
         // ==================== Animación de Movimiento de Cartas ====================
         void DrawCurrentFlight()
         {
-            // Si la moneda inicial está girando, en 3D vuela físicamente Coin3D y mostramos el rótulo superior; en 2D usamos respaldo
+            // Si la moneda inicial está girando, en 3D vuela físicamente Coin3D y mostramos el resultado con la fuente del juego sin cuadro superior
             if (startCoinSpinning)
             {
                 float t = Mathf.Clamp01(startCoinTimer / StartCoinDuration);
-                string choiceName = startCoinPlayerChoseHeads ? "CARA" : "CRUZ";
                 bool has3D = TableView.Instance != null && TableView.Instance.IsBoard3DReady;
-                string resultTxt = t >= 0.84f
-                    ? $"¡Salió {(startCoinResultHeads ? "CARA (Pikachu)" : "CRUZ (Pokéball)")}! Inicia {game.Current.Name}"
-                    : $"Elegiste {choiceName} — Lanzando moneda...";
-
                 if (has3D)
                 {
-                    Rect capRect = new Rect(Screen.width * 0.5f - 210f, 48f, 420f, 36f);
-                    GUI.Box(capRect, resultTxt, ToastStyle);
+                    if (t >= 0.84f)
+                    {
+                        string resName = startCoinResultHeads ? Loc.T("Cara", "Heads") : Loc.T("Cruz", "Tails");
+                        string resultTxt = $"<color=#ffe066>¡{resName}!</color> — {Loc.T("Inicia", "Starts:")} {game.Current.Name}";
+                        DrawNativeLabel(new Rect((Screen.width - 540f) * 0.5f, Screen.height - 150f, 540f, 44f), resultTxt, 28f, TextAlignmentOptions.Center, Color.white);
+                    }
                 }
                 else
                 {
+                    string choiceName = startCoinPlayerChoseHeads ? "CARA" : "CRUZ";
+                    string resultTxt = t >= 0.84f
+                        ? $"¡Salió {(startCoinResultHeads ? "CARA (Pikachu)" : "CRUZ (Pokéball)")}! Inicia {game.Current.Name}"
+                        : $"Elegiste {choiceName} — Lanzando moneda...";
                     DrawAnimatedCoin(Screen.width * 0.5f, Screen.height * 0.44f, 175f, t, startCoinResultHeads, resultTxt);
                 }
             }
@@ -1542,30 +1627,508 @@ namespace PokeTCGPlay
             GUI.color = prevCol;
         }
 
-        void DrawGameOverModal()
+        static Sprite MakeSlicedSprite(Texture2D tex, float border)
         {
-            float mw = 480f, mh = 220f;
-            Rect mr = new Rect((Screen.width - mw) * 0.5f, (Screen.height - mh) * 0.5f, mw, mh);
-            GUI.Box(mr, "", BoxBgStyle);
-            GUILayout.BeginArea(new Rect(mr.x + 24f, mr.y + 20f, mr.width - 48f, mr.height - 40f));
-            GUILayout.Label($"<size=24><color=#66ff99><b>¡GANA {game.Winner.Name.ToUpper()}!</b></color></size>", HeaderStyle);
-            GUILayout.Space(6);
-            GUILayout.Label(game.WinReason, SubHeaderStyle);
-            GUILayout.Space(20);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Jugar Revancha (Nuevo mazo NPC)", BtnGreenStyle, GUILayout.Height(38)))
+            if (tex == null) return null;
+            return Sprite.Create(
+                tex,
+                new Rect(0f, 0f, tex.width, tex.height),
+                new Vector2(0.5f, 0.5f),
+                100f,
+                0u,
+                SpriteMeshType.FullRect,
+                new Vector4(border, border, border, border));
+        }
+
+        static void SetScreenRect(RectTransform rt, Rect guiRect)
+        {
+            if (rt == null) return;
+            rt.anchorMin = new Vector2(0f, 1f);
+            rt.anchorMax = new Vector2(0f, 1f);
+            rt.pivot = new Vector2(0f, 1f);
+            rt.anchoredPosition = new Vector2(guiRect.x, -guiRect.y);
+            rt.sizeDelta = new Vector2(guiRect.width, guiRect.height);
+            rt.localScale = Vector3.one;
+        }
+
+        static TextMeshProUGUI GetReferenceGameTmp()
+        {
+            try
             {
-                PlayClickSound(1);
-                StartTableMatch(PlayTableSession.CurrentOpponent);
+                GameUIScreen gui = CSingleton<GameUIScreen>.InstanceExist()
+                    ? CSingleton<GameUIScreen>.Instance
+                    : FindFirstObjectByType<GameUIScreen>();
+                if (gui != null)
+                {
+                    if (gui.m_GoNextDayText != null) return gui.m_GoNextDayText;
+                    if (gui.m_TimeText != null) return gui.m_TimeText;
+                    if (gui.m_ShopLevelText != null) return gui.m_ShopLevelText;
+                }
             }
-            GUILayout.Space(12);
-            if (GUILayout.Button("Levantarse de la mesa", BtnRedStyle, GUILayout.Height(38)))
+            catch { }
+            return null;
+        }
+
+        static TextMeshProUGUI CreateNativeTmp(string name, Transform parent, float fontSize, TextAlignmentOptions align, out RectTransform rt)
+        {
+            TextMeshProUGUI refTmp = GetReferenceGameTmp();
+            GameObject go;
+            TextMeshProUGUI tmp;
+
+            if (refTmp != null)
+            {
+                go = Instantiate(refTmp.gameObject, parent, false);
+                go.name = name;
+                foreach (var mb in go.GetComponents<MonoBehaviour>())
+                {
+                    if (!(mb is TextMeshProUGUI))
+                        DestroyImmediate(mb);
+                }
+                for (int i = go.transform.childCount - 1; i >= 0; i--)
+                    DestroyImmediate(go.transform.GetChild(i).gameObject);
+
+                tmp = go.GetComponent<TextMeshProUGUI>();
+                tmp.font = refTmp.font;
+                tmp.fontSharedMaterial = refTmp.fontSharedMaterial;
+            }
+            else
+            {
+                go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+                go.transform.SetParent(parent, false);
+                tmp = go.GetComponent<TextMeshProUGUI>();
+            }
+
+            go.SetActive(true);
+            rt = go.GetComponent<RectTransform>();
+            tmp.fontSize = fontSize;
+            tmp.alignment = align;
+            tmp.enableAutoSizing = false;
+            tmp.textWrappingMode = TextWrappingModes.Normal;
+            tmp.overflowMode = TextOverflowModes.Overflow;
+            tmp.richText = true;
+            tmp.raycastTarget = false;
+            tmp.color = Color.white;
+            return tmp;
+        }
+
+        static Image CreateSlicedImage(string name, Transform parent, Sprite sprite, out RectTransform rt)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            go.transform.SetParent(parent, false);
+            rt = go.GetComponent<RectTransform>();
+            var img = go.GetComponent<Image>();
+            img.sprite = sprite;
+            img.type = Image.Type.Sliced;
+            img.raycastTarget = false;
+            img.color = Color.white;
+            return img;
+        }
+
+        static Texture2D MakeSoftDiscTex(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.wrapMode = TextureWrapMode.Clamp;
+            float half = (size - 1) * 0.5f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = (x - half) / half;
+                    float dy = (y - half) / half;
+                    float r = Mathf.Clamp01(Mathf.Sqrt(dx * dx + dy * dy));
+                    float a = Mathf.Pow(1f - r, 1.85f);
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                }
+            }
+            tex.Apply();
+            return tex;
+        }
+
+        void EnsureNativeCanvasOverlay()
+        {
+            EnsureStyles();
+            if (sPanelSprite == null)
+            {
+                sPanelSprite = MakeSlicedSprite(darkTex, 12f);
+                sSubPanelSprite = MakeSlicedSprite(subPanelTex, 10f);
+                sBtnBlueN = MakeSlicedSprite(btnBlueN, 10f);
+                sBtnBlueH = MakeSlicedSprite(btnBlueH, 10f);
+                sBtnBlueA = MakeSlicedSprite(btnBlueA, 10f);
+                sBtnGreenN = MakeSlicedSprite(btnGreenN, 10f);
+                sBtnGreenH = MakeSlicedSprite(btnGreenH, 10f);
+                sBtnGreenA = MakeSlicedSprite(btnGreenA, 10f);
+                sBtnGoldN = MakeSlicedSprite(btnGoldN, 10f);
+                sBtnGoldH = MakeSlicedSprite(btnGoldH, 10f);
+                sBtnGoldA = MakeSlicedSprite(btnGoldA, 10f);
+                sBtnRedN = MakeSlicedSprite(btnRedN, 10f);
+                sBtnRedH = MakeSlicedSprite(btnRedH, 10f);
+                sBtnRedA = MakeSlicedSprite(btnRedA, 10f);
+
+                var glowTex = MakeSoftDiscTex(64);
+                sGlowSprite = Sprite.Create(glowTex, new Rect(0, 0, glowTex.width, glowTex.height), new Vector2(0.5f, 0.5f), 100f);
+                sDarkBackdropSprite = Sprite.Create(zoomBgTex, new Rect(0, 0, zoomBgTex.width, zoomBgTex.height), new Vector2(0.5f, 0.5f), 100f);
+            }
+
+            if (nativeOverlayRoot == null)
+            {
+                nativeOverlayRoot = new GameObject("PokeTCG_NativeCanvasOverlay", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+                DontDestroyOnLoad(nativeOverlayRoot);
+                var canvas = nativeOverlayRoot.GetComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.sortingOrder = 500;
+                canvas.pixelPerfect = true;
+
+                var scaler = nativeOverlayRoot.GetComponent<CanvasScaler>();
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+                scaler.scaleFactor = 1f;
+
+                var poolGo = new GameObject("DynamicPoolRoot", typeof(RectTransform));
+                poolGo.transform.SetParent(nativeOverlayRoot.transform, false);
+                dynamicPoolRoot = poolGo.GetComponent<RectTransform>();
+                SetScreenRect(dynamicPoolRoot, new Rect(0f, 0f, Screen.width, Screen.height));
+
+                // 1) Grupo de Espera ("Esperando un oponente..." + botón céntrico "Levantarse de la mesa")
+                waitingGroup = new GameObject("WaitingGroup", typeof(RectTransform));
+                waitingGroup.transform.SetParent(nativeOverlayRoot.transform, false);
+                SetScreenRect(waitingGroup.GetComponent<RectTransform>(), new Rect(0f, 0f, Screen.width, Screen.height));
+
+                waitingTitleTmp = CreateNativeTmp("WaitingTitleTmp", waitingGroup.transform, 38f, TextAlignmentOptions.Center, out waitingTitleRt);
+                waitingBtnImg = CreateSlicedImage("WaitingStandUpBtn", waitingGroup.transform, sBtnRedN, out waitingBtnRt);
+                waitingBtnTmp = CreateNativeTmp("WaitingStandUpBtnLabel", waitingBtnRt, 22f, TextAlignmentOptions.Center, out var waitBtnLabelRt);
+                waitBtnLabelRt.anchorMin = Vector2.zero;
+                waitBtnLabelRt.anchorMax = Vector2.one;
+                waitBtnLabelRt.pivot = new Vector2(0.5f, 0.5f);
+                waitBtnLabelRt.anchoredPosition = new Vector2(0f, 1f);
+                waitBtnLabelRt.sizeDelta = Vector2.zero;
+                waitingGroup.SetActive(false);
+
+                // 2) Grupo de Fin de Partida ("¡Victoria!" flotante sin cuadro encima del cuadro de Resumen de la Partida)
+                gameOverGroup = new GameObject("GameOverGroup", typeof(RectTransform));
+                gameOverGroup.transform.SetParent(nativeOverlayRoot.transform, false);
+                SetScreenRect(gameOverGroup.GetComponent<RectTransform>(), new Rect(0f, 0f, Screen.width, Screen.height));
+
+                gameOverTitleTmp = CreateNativeTmp("GameOverTitleTmp", gameOverGroup.transform, 58f, TextAlignmentOptions.Center, out gameOverTitleRt);
+                CreateSlicedImage("GameOverBox", gameOverGroup.transform, sPanelSprite, out gameOverBoxRt);
+                CreateSlicedImage("GameOverSubBox", gameOverGroup.transform, sSubPanelSprite, out gameOverSubBoxRt);
+                gameOverHeaderTmp = CreateNativeTmp("GameOverHeaderTmp", gameOverGroup.transform, 23f, TextAlignmentOptions.Center, out gameOverHeaderRt);
+                gameOverBodyTmp = CreateNativeTmp("GameOverBodyTmp", gameOverGroup.transform, 18.5f, TextAlignmentOptions.TopLeft, out gameOverBodyRt);
+
+                rematchBtnImg = CreateSlicedImage("RematchBtn", gameOverGroup.transform, sBtnGreenN, out rematchBtnRt);
+                rematchBtnTmp = CreateNativeTmp("RematchBtnLabel", rematchBtnRt, 19f, TextAlignmentOptions.Center, out var remLabelRt);
+                remLabelRt.anchorMin = Vector2.zero;
+                remLabelRt.anchorMax = Vector2.one;
+                remLabelRt.pivot = new Vector2(0.5f, 0.5f);
+                remLabelRt.anchoredPosition = new Vector2(0f, 1f);
+                remLabelRt.sizeDelta = Vector2.zero;
+
+                leaveBtnImg = CreateSlicedImage("LeaveBtn", gameOverGroup.transform, sBtnRedN, out leaveBtnRt);
+                leaveBtnTmp = CreateNativeTmp("LeaveBtnLabel", leaveBtnRt, 19f, TextAlignmentOptions.Center, out var lvLabelRt);
+                lvLabelRt.anchorMin = Vector2.zero;
+                lvLabelRt.anchorMax = Vector2.one;
+                lvLabelRt.pivot = new Vector2(0.5f, 0.5f);
+                lvLabelRt.anchoredPosition = new Vector2(0f, 1f);
+                lvLabelRt.sizeDelta = Vector2.zero;
+
+                gameOverGroup.SetActive(false);
+                nativeFontSynced = GetReferenceGameTmp() != null;
+            }
+
+            if (!nativeFontSynced)
+            {
+                var refTmp = GetReferenceGameTmp();
+                if (refTmp != null && refTmp.font != null)
+                {
+                    TextMeshProUGUI[] all =
+                    {
+                        waitingTitleTmp, waitingBtnTmp,
+                        gameOverTitleTmp, gameOverHeaderTmp, gameOverBodyTmp,
+                        rematchBtnTmp, leaveBtnTmp
+                    };
+                    foreach (var t in all)
+                    {
+                        if (t == null) continue;
+                        t.font = refTmp.font;
+                        t.fontSharedMaterial = refTmp.fontSharedMaterial;
+                    }
+                    for (int i = 0; i < nativeTmpPool.Count; i++)
+                    {
+                        if (nativeTmpPool[i] != null)
+                        {
+                            nativeTmpPool[i].font = refTmp.font;
+                            nativeTmpPool[i].fontSharedMaterial = refTmp.fontSharedMaterial;
+                        }
+                    }
+                    nativeFontSynced = true;
+                }
+            }
+        }
+
+        public void BeginNativeRepaint()
+        {
+            EnsureNativeCanvasOverlay();
+            if (nativeOverlayRoot != null && !nativeOverlayRoot.activeSelf)
+                nativeOverlayRoot.SetActive(true);
+            if (Event.current != null && Event.current.type == EventType.Repaint)
+            {
+                isNativeRepaintPass = true;
+                usedNativeImg = 0;
+                usedNativeRaw = 0;
+                usedNativeTmp = 0;
+                nativeSiblingCursor = 0;
+                if (dynamicPoolRoot != null && !dynamicPoolRoot.gameObject.activeSelf)
+                    dynamicPoolRoot.gameObject.SetActive(true);
+            }
+            else
+            {
+                isNativeRepaintPass = false;
+            }
+        }
+
+        public void EndNativeRepaint()
+        {
+            if (!isNativeRepaintPass) return;
+            isNativeRepaintPass = false;
+
+            for (int i = usedNativeImg; i < nativeImgPool.Count; i++)
+            {
+                if (nativeImgPool[i] != null && nativeImgPool[i].gameObject.activeSelf)
+                    nativeImgPool[i].gameObject.SetActive(false);
+            }
+            for (int i = usedNativeRaw; i < nativeRawPool.Count; i++)
+            {
+                if (nativeRawPool[i] != null && nativeRawPool[i].gameObject.activeSelf)
+                    nativeRawPool[i].gameObject.SetActive(false);
+            }
+            for (int i = usedNativeTmp; i < nativeTmpPool.Count; i++)
+            {
+                if (nativeTmpPool[i] != null && nativeTmpPool[i].gameObject.activeSelf)
+                    nativeTmpPool[i].gameObject.SetActive(false);
+            }
+        }
+
+        public void ClearNativeDynamicPool()
+        {
+            usedNativeImg = 0;
+            usedNativeRaw = 0;
+            usedNativeTmp = 0;
+            for (int i = 0; i < nativeImgPool.Count; i++)
+            {
+                if (nativeImgPool[i] != null && nativeImgPool[i].gameObject.activeSelf)
+                    nativeImgPool[i].gameObject.SetActive(false);
+            }
+            for (int i = 0; i < nativeRawPool.Count; i++)
+            {
+                if (nativeRawPool[i] != null && nativeRawPool[i].gameObject.activeSelf)
+                    nativeRawPool[i].gameObject.SetActive(false);
+            }
+            for (int i = 0; i < nativeTmpPool.Count; i++)
+            {
+                if (nativeTmpPool[i] != null && nativeTmpPool[i].gameObject.activeSelf)
+                    nativeTmpPool[i].gameObject.SetActive(false);
+            }
+        }
+
+        public void DrawNativeBox(Rect rect, Sprite sprite, Color col, bool sliced = true)
+        {
+            if (!isNativeRepaintPass) return;
+            EnsureNativeCanvasOverlay();
+            Image img;
+            if (usedNativeImg < nativeImgPool.Count)
+            {
+                img = nativeImgPool[usedNativeImg];
+            }
+            else
+            {
+                img = CreateSlicedImage("PooledImg_" + nativeImgPool.Count, dynamicPoolRoot, sprite, out _);
+                nativeImgPool.Add(img);
+            }
+            usedNativeImg++;
+            if (!img.gameObject.activeSelf) img.gameObject.SetActive(true);
+            img.sprite = sprite;
+            img.type = (sliced && sprite != sGlowSprite && sprite != sDarkBackdropSprite) ? Image.Type.Sliced : Image.Type.Simple;
+            img.color = col;
+            var rt = img.rectTransform;
+            SetScreenRect(rt, rect);
+            rt.SetSiblingIndex(nativeSiblingCursor++);
+        }
+
+        public void DrawNativeRawTex(Rect rect, Texture tex, Color col)
+        {
+            if (!isNativeRepaintPass || tex == null) return;
+            EnsureNativeCanvasOverlay();
+            RawImage raw;
+            if (usedNativeRaw < nativeRawPool.Count)
+            {
+                raw = nativeRawPool[usedNativeRaw];
+            }
+            else
+            {
+                var go = new GameObject("PooledRaw_" + nativeRawPool.Count, typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                go.transform.SetParent(dynamicPoolRoot, false);
+                raw = go.GetComponent<RawImage>();
+                raw.raycastTarget = false;
+                nativeRawPool.Add(raw);
+            }
+            usedNativeRaw++;
+            if (!raw.gameObject.activeSelf) raw.gameObject.SetActive(true);
+            raw.texture = tex;
+            raw.color = col;
+            var rt = raw.rectTransform;
+            SetScreenRect(rt, rect);
+            rt.SetSiblingIndex(nativeSiblingCursor++);
+        }
+
+        public void DrawNativeLabel(Rect rect, string text, float fontSize, TextAlignmentOptions align, Color col)
+        {
+            if (!isNativeRepaintPass) return;
+            EnsureNativeCanvasOverlay();
+            TextMeshProUGUI tmp;
+            if (usedNativeTmp < nativeTmpPool.Count)
+            {
+                tmp = nativeTmpPool[usedNativeTmp];
+            }
+            else
+            {
+                tmp = CreateNativeTmp("PooledTmp_" + nativeTmpPool.Count, dynamicPoolRoot, fontSize, align, out _);
+                nativeTmpPool.Add(tmp);
+            }
+            usedNativeTmp++;
+            if (!tmp.gameObject.activeSelf) tmp.gameObject.SetActive(true);
+            tmp.text = text;
+            tmp.fontSize = fontSize;
+            tmp.alignment = align;
+            tmp.color = col;
+            var rt = tmp.rectTransform;
+            SetScreenRect(rt, rect);
+            rt.SetSiblingIndex(nativeSiblingCursor++);
+        }
+
+        public bool DrawNativeButton(Rect rect, string label, float fontSize, Sprite sNorm, Sprite sHov, Sprite sAct)
+        {
+            Vector2 guiMouse = Event.current != null ? Event.current.mousePosition : Vector2.zero;
+            bool hover = rect.Contains(guiMouse);
+            bool pressed = hover && Input.GetMouseButton(0);
+
+            DrawNativeBox(rect, pressed ? sAct : (hover ? sHov : sNorm), Color.white);
+            Rect lblRect = new Rect(rect.x + 6f, rect.y + (pressed ? 1.5f : -0.5f), rect.width - 12f, rect.height);
+            Color lblCol = hover ? new Color(1f, 0.98f, 0.85f, 1f) : Color.white;
+            DrawNativeLabel(lblRect, label, fontSize, TextAlignmentOptions.Center, lblCol);
+
+            return GUI.Button(rect, GUIContent.none, GUIStyle.none);
+        }
+
+        void DrawWaitingForOpponentScreen()
+        {
+            EnsureNativeCanvasOverlay();
+            if (waitingGroup != null && !waitingGroup.activeSelf)
+                waitingGroup.SetActive(true);
+
+            // Puntos suspensivos que avanzan de 1 en 1 (. -> .. -> ...) y al llegar a 3 se reinician en bucle
+            int dotCount = ((int)(Time.unscaledTime / 0.52f) % 3) + 1;
+            string visibleDots = new string('.', dotCount);
+            string hiddenDots = new string('.', 3 - dotCount);
+            string baseWait = Loc.T("Esperando un oponente", "Waiting for an opponent");
+
+            float centerX = Screen.width * 0.5f;
+            float centerY = Screen.height * 0.45f;
+            Rect titleRect = new Rect(centerX - 380f, centerY - 38f, 760f, 58f);
+            Rect btnRect = new Rect(centerX - 155f, centerY + 30f, 310f, 54f);
+
+            SetScreenRect(waitingTitleRt, titleRect);
+            waitingTitleTmp.text = $"{baseWait}{visibleDots}<color=#00000000>{hiddenDots}</color>";
+
+            SetScreenRect(waitingBtnRt, btnRect);
+            waitingBtnTmp.text = Loc.T("Levantarse de la mesa", "Stand up from table");
+
+            Vector2 guiMouse = Event.current.mousePosition;
+            bool hover = btnRect.Contains(guiMouse);
+            bool pressed = hover && Input.GetMouseButton(0);
+            waitingBtnImg.sprite = pressed ? sBtnRedA : (hover ? sBtnRedH : sBtnRedN);
+
+            if (GUI.Button(btnRect, GUIContent.none, GUIStyle.none))
             {
                 PlayClickSound(2);
                 LeaveTable();
             }
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+        }
+
+        void DrawGameOverModal()
+        {
+            if (!game.RewardsApplied)
+                PlayTableSession.ApplyMatchOutcomeRewards(game);
+
+            EnsureNativeCanvasOverlay();
+            if (gameOverGroup != null && !gameOverGroup.activeSelf)
+                gameOverGroup.SetActive(true);
+
+            bool playerWon = game.Winner == Me;
+            var reward = PlayTableSession.LastReward;
+            int xp = playerWon && reward != null ? reward.ExpGained : 0;
+            int turns = Math.Max(1, game.Turn);
+            string reason = !string.IsNullOrEmpty(game.WinReason)
+                ? game.WinReason
+                : (playerWon
+                    ? Loc.T("Tu oponente se quedó sin Pokémon", "Your opponent ran out of Pokémon")
+                    : Loc.T("Te quedaste sin Pokémon", "You ran out of Pokémon"));
+
+            // Cuadro de resumen de partida centrado debajo del mensaje grande "¡Victoria!"
+            float mw = 520f, mh = 238f;
+            Rect boxRect = new Rect((Screen.width - mw) * 0.5f, (Screen.height - mh) * 0.5f + 28f, mw, mh);
+
+            // Mensaje grande encima del cuadro de resumen (solo texto en la fuente del juego, sin cuadro alrededor)
+            Rect titleRect = new Rect((Screen.width - 720f) * 0.5f, boxRect.y - 82f, 720f, 74f);
+            SetScreenRect(gameOverTitleRt, titleRect);
+            gameOverTitleTmp.text = playerWon
+                ? Loc.T("<color=#70ff94>¡Victoria!</color>", "<color=#70ff94>Victory!</color>")
+                : Loc.T("<color=#ff7b7b>¡Derrota!</color>", "<color=#ff7b7b>Defeat!</color>");
+
+            SetScreenRect(gameOverBoxRt, boxRect);
+
+            // Subcuadro con el Resumen de la Partida (Motivo, Turnos y únicamente la cantidad de XP ganada)
+            Rect subRect = new Rect(boxRect.x + 22f, boxRect.y + 18f, mw - 44f, 136f);
+            SetScreenRect(gameOverSubBoxRt, subRect);
+
+            SetScreenRect(gameOverHeaderRt, new Rect(subRect.x + 14f, subRect.y + 10f, subRect.width - 28f, 30f));
+            gameOverHeaderTmp.text = Loc.T("Resumen de la Partida", "Match Summary");
+
+            SetScreenRect(gameOverBodyRt, new Rect(subRect.x + 20f, subRect.y + 44f, subRect.width - 40f, 84f));
+            gameOverBodyTmp.text =
+                $"• <color=#9ecbff>{Loc.T("Motivo:", "Reason:")}</color> <color=#ffe066>{reason}</color>\n" +
+                $"• <color=#9ecbff>{Loc.T("Turnos:", "Turns:")}</color> {turns}\n" +
+                $"• <color=#9ecbff>{Loc.T("EXP ganada:", "EXP gained:")}</color> <color=#80ed99>+{xp} XP</color>";
+
+            // Botones ajustados dentro del cuadro de victoria con margen amplio para que quepan adecuadamente
+            float btnW = (mw - 44f - 16f) * 0.5f;
+            float btnH = 46f;
+            float btnY = boxRect.y + 170f;
+            Rect rematchRect = new Rect(boxRect.x + 22f, btnY, btnW, btnH);
+            Rect leaveRect = new Rect(boxRect.x + 22f + btnW + 16f, btnY, btnW, btnH);
+
+            SetScreenRect(rematchBtnRt, rematchRect);
+            rematchBtnTmp.text = Loc.T("Jugar Revancha", "Play Rematch");
+
+            SetScreenRect(leaveBtnRt, leaveRect);
+            leaveBtnTmp.text = Loc.T("Levantarse de la mesa", "Stand up from table");
+
+            Vector2 guiMouse = Event.current.mousePosition;
+            bool hovRematch = rematchRect.Contains(guiMouse);
+            bool hovLeave = leaveRect.Contains(guiMouse);
+            rematchBtnImg.sprite = (hovRematch && Input.GetMouseButton(0)) ? sBtnGreenA : (hovRematch ? sBtnGreenH : sBtnGreenN);
+            leaveBtnImg.sprite = (hovLeave && Input.GetMouseButton(0)) ? sBtnRedA : (hovLeave ? sBtnRedH : sBtnRedN);
+
+            if (GUI.Button(rematchRect, GUIContent.none, GUIStyle.none))
+            {
+                PlayClickSound(1);
+                if (gameOverGroup != null) gameOverGroup.SetActive(false);
+                StartTableMatch(PlayTableSession.CurrentOpponent);
+                return;
+            }
+            if (GUI.Button(leaveRect, GUIContent.none, GUIStyle.none))
+            {
+                PlayClickSound(2);
+                if (gameOverGroup != null) gameOverGroup.SetActive(false);
+                LeaveTable();
+            }
         }
 
         // ==================== F5: Inspección 3D con Elevación hacia Cámara e Iconos de Energía ====================
@@ -1606,11 +2169,11 @@ namespace PokeTCGPlay
         /// y telón 3D oscurecido detrás; a la derecha se despliega el panel con ataques, costes como iconos de energía,
         /// debilidad, resistencia y coste de retirada). Devuelve true si el usuario cerró la inspección.
         /// </summary>
-        public static bool DrawElevatedZoomOverlay(CardDef card, PokemonInPlay pip, Rect originRect, float animT)
+        public static bool DrawElevatedZoomOverlay(CardDef card, PokemonInPlay pip, Rect originRect, float animT, bool force3DCard = false, Action extraFooterUI = null)
         {
             EnsureStyles();
             float smooth = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(animT));
-            bool use3DCard = Instance != null && Instance.open && TableView.Instance != null && TableView.Instance.IsBoard3DReady;
+            bool use3DCard = force3DCard || (Instance != null && Instance.open && TableView.Instance != null && TableView.Instance.IsBoard3DReady);
 
             Color prevCol = GUI.color;
             float targetH = Mathf.Min(Screen.height * 0.74f, 570f);
@@ -1813,8 +2376,14 @@ namespace PokeTCGPlay
                     GUILayout.FlexibleSpace();
                 }
 
+                if (extraFooterUI != null)
+                {
+                    GUILayout.Space(6);
+                    extraFooterUI.Invoke();
+                }
+
                 GUILayout.Space(6);
-                GUILayout.Label("<color=#aebcd0><i>Mueve el ratón para inclinar la carta 3D  •  Clic o Esc para devolverla a su sitio</i></color>", SubHeaderStyle);
+                GUILayout.Label("<color=#aebcd0><i>Mueve el ratón para inclinar la carta 3D  •  Clic fuera o Esc para cerrar</i></color>", SubHeaderStyle);
                 GUILayout.EndArea();
                 GUI.color = prevCol;
             }
@@ -1880,18 +2449,17 @@ namespace PokeTCGPlay
         // ==================== F4: Interacciones 3D (Mano en Abanico, Hover, Drag & Drop y Raycast 3D) ====================
         bool IsMouseOverHud(Vector2 guiMouse)
         {
-            float topW = Mathf.Min(Screen.width - 32f, 1180f);
-            Rect topBar = new Rect((Screen.width - topW) * 0.5f, 4f, topW, 34f);
-            if (topBar.Contains(guiMouse)) return true;
+            // Botones laterales izquierdos ("Opciones" y "Levantarse")
+            Rect leftBtns = new Rect(20f, 98f, 184f, 114f);
+            if (leftBtns.Contains(guiMouse)) return true;
 
-            bool hasRightPanel = showLogPanel ||
-                                 (game != null && (
+            bool hasRightPanel = game != null && (
                                      (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me) ||
-                                     (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy())));
+                                     (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy()));
             if (hasRightPanel)
             {
                 float panelW = 248f;
-                float panelH = showLogPanel ? (Screen.height - 96f) : 340f;
+                float panelH = 340f;
                 Rect rightPanel = new Rect(Screen.width - panelW - 14f, 46f, panelW, panelH);
                 if (rightPanel.Contains(guiMouse)) return true;
             }
@@ -1905,7 +2473,7 @@ namespace PokeTCGPlay
             if (tv == null || !tv.IsBoard3DReady || game == null) return;
 
             bool animBusy = IsAnimBusy();
-            bool allow3DInput = zoomedCard == null && game.Phase != Phase.CoinToss && game.Phase != Phase.GameOver &&
+            bool allow3DInput = zoomedCard == null && !showSettingsModal && game.Phase != Phase.CoinToss && game.Phase != Phase.GameOver &&
                                 !startCoinSpinning && !animBusy && !game.PendingAiTurn;
 
             if (!allow3DInput)
@@ -2493,7 +3061,6 @@ namespace PokeTCGPlay
         {
             message = err ?? "";
             if (err == null) selHand = -1;
-            logScroll.y = float.MaxValue;
         }
     }
 }

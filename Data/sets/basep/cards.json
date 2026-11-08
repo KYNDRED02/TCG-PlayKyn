@@ -1,0 +1,1615 @@
+﻿[
+    {
+        "id":  "basep-1",
+        "name":  "Pikachu",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "16",
+        "hp":  "60",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Raichu"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Growl",
+                            "cost":  [
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "If the Defending PokÃ©mon attacks Pikachu during your opponent\u0027s next turn, any damage done by the attack is reduced by 10 (after applying Weakness and Resistance). (Benching either PokÃ©mon ends this effect.)"
+                        },
+                        {
+                            "name":  "Thundershock",
+                            "cost":  [
+                                         "Lightning",
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "20",
+                            "text":  "Flip a coin. If heads, the Defending PokÃ©mon is now Paralyzed."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "1",
+        "artist":  "Keiji Kinebuchi",
+        "rarity":  "Promo",
+        "flavorText":  "When several of these PokÃ©mon gather, their electricity could build and cause lightning storms.",
+        "nationalPokedexNumbers":  [
+                                       25
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/1.png",
+                       "large":  "https://images.pokemontcg.io/basep/1_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-2",
+        "name":  "Electabuzz",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "20",
+        "hp":  "60",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Electivire"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Light Screen",
+                            "cost":  [
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Whenever an attack does damage to Electabuzz (after applying Weakness and Resistance) during your opponent\u0027s next turn, that attack only does half the damage to Electabuzz (rounded down to the nearest 10). (Any other effects of attacks still happen.)"
+                        },
+                        {
+                            "name":  "Quick Attack",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "10+",
+                            "text":  "Flip a coin. If heads, this attack does 10 damage plus 20 more damage; if tails, this attack does 10 damage."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless",
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  2,
+        "number":  "2",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "A wild PokÃ©mon with a short temper. It is able to distinguish colors, and likes the color red.",
+        "nationalPokedexNumbers":  [
+                                       125
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/2.png",
+                       "large":  "https://images.pokemontcg.io/basep/2_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-3",
+        "name":  "Mewtwo",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "60",
+        "hp":  "70",
+        "types":  [
+                      "Psychic"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Energy Absorption",
+                            "cost":  [
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Choose up to 2 Energy cards from your discard pile and attach them to Mewtwo."
+                        },
+                        {
+                            "name":  "Psyburn",
+                            "cost":  [
+                                         "Psychic",
+                                         "Psychic",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "40",
+                            "text":  ""
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Psychic",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless",
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  2,
+        "number":  "3",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "Years of genetic experiments resulted in the creation of this never-before-seen violent PokÃ©mon.",
+        "nationalPokedexNumbers":  [
+                                       150
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/3.png",
+                       "large":  "https://images.pokemontcg.io/basep/3_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-4",
+        "name":  "Pikachu",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "13",
+        "hp":  "50",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Raichu"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Recharge",
+                            "cost":  [
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Search your deck for a Lightning Energy card and attach it to Pikachu. Shuffle your deck afterward."
+                        },
+                        {
+                            "name":  "Thunderbolt",
+                            "cost":  [
+                                         "Lightning",
+                                         "Lightning",
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "50",
+                            "text":  "Discard all Energy cards attached to Pikachu in order to use this attack."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "4",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "When several of these PokÃ©mon gather, they attract so much electricity that they can cause lightning to strike.",
+        "nationalPokedexNumbers":  [
+                                       25
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/4.png",
+                       "large":  "https://images.pokemontcg.io/basep/4_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-5",
+        "name":  "Dragonite",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Stage 2"
+                     ],
+        "level":  "43",
+        "hp":  "90",
+        "types":  [
+                      "Colorless"
+                  ],
+        "evolvesFrom":  "Dragonair",
+        "abilities":  [
+                          {
+                              "name":  "Special Delivery",
+                              "text":  "Once during your turn (before your attack), you may draw a card. If you do, choose a card from your hand and put it on top of your deck. This power can\u0027t be used if Dragonite is Asleep, Confused, or Paralyzed.",
+                              "type":  "PokÃ©mon Power"
+                          }
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Supersonic Flight",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "60",
+                            "text":  "Flip a coin. If tails, this attack does nothing."
+                        }
+                    ],
+        "resistances":  [
+                            {
+                                "type":  "Fighting",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless",
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  2,
+        "number":  "5",
+        "artist":  "Toshinao Aoki",
+        "rarity":  "Promo",
+        "flavorText":  "This PokÃ©mon can fly is spite of its large bulk. It is said to be able to circumnavigate the earth in just 16 hours.",
+        "nationalPokedexNumbers":  [
+                                       149
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/5.png",
+                       "large":  "https://images.pokemontcg.io/basep/5_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-6",
+        "name":  "Arcanine",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Stage 1"
+                     ],
+        "level":  "34",
+        "hp":  "70",
+        "types":  [
+                      "Fire"
+                  ],
+        "evolvesFrom":  "Growlithe",
+        "attacks":  [
+                        {
+                            "name":  "Quick Attack",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "10+",
+                            "text":  "Flip a coin. If heads, this attack does 10 damage plus 20 more damage; if tails, this attack does 10 damage."
+                        },
+                        {
+                            "name":  "Flames of Rage",
+                            "cost":  [
+                                         "Fire",
+                                         "Fire"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "40+",
+                            "text":  "Discard 2 Fire Energy cards attached to Arcanine in order to use this attack. This attack does 40 damage plus 10 more damage for each damage counter on Arcanine."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Water",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "6",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "A legendary PokÃ©mon famous for its beauty. It looks almost as if it flies when it runs.",
+        "nationalPokedexNumbers":  [
+                                       59
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/6.png",
+                       "large":  "https://images.pokemontcg.io/basep/6_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-7",
+        "name":  "Jigglypuff",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "12",
+        "hp":  "50",
+        "types":  [
+                      "Colorless"
+                  ],
+        "evolvesTo":  [
+                          "Wigglytuff"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "First Aid",
+                            "cost":  [
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Remove 1 damage counter from Jigglypuff."
+                        },
+                        {
+                            "name":  "Double-edge",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "40",
+                            "text":  "Jigglypuff does 20 damage to itself."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "resistances":  [
+                            {
+                                "type":  "Psychic",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "7",
+        "artist":  "Keiji Kinebuchi",
+        "rarity":  "Promo",
+        "flavorText":  "When its huge eyes light up, it sings a mysteriously soothing melody that lulls its enemies to sleep.",
+        "nationalPokedexNumbers":  [
+                                       39
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/7.png",
+                       "large":  "https://images.pokemontcg.io/basep/7_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-8",
+        "name":  "Mew",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "23",
+        "hp":  "50",
+        "types":  [
+                      "Psychic"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Psywave",
+                            "cost":  [
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "10Ã—",
+                            "text":  "Does 10 damage times the number of Energy cards attached to the Defending PokÃ©mon."
+                        },
+                        {
+                            "name":  "Devolution Beam",
+                            "cost":  [
+                                         "Psychic",
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "",
+                            "text":  "Choose an evolved PokÃ©mon (your own or your opponent\u0027s). Return the highest Stage Evolution card on that PokÃ©mon to its player\u0027s hand. That PokÃ©mon is no longer Asleep, Confused, Paralyzed, or Poisoned, or anything else that might be the result of an attack (just as if you had evolved it)."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Psychic",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "8",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "So rare that it is still said to be a mirage by many experts. Only a few people have seen it worldwide.",
+        "nationalPokedexNumbers":  [
+                                       151
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/8.png",
+                       "large":  "https://images.pokemontcg.io/basep/8_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-9",
+        "name":  "Mew",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "51",
+        "hp":  "50",
+        "types":  [
+                      "Psychic"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Psywave",
+                            "cost":  [
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "10Ã—",
+                            "text":  "Does 10 damage times the number of Energy cards attached to the Defending PokÃ©mon."
+                        },
+                        {
+                            "name":  "Devolution Beam",
+                            "cost":  [
+                                         "Psychic",
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "",
+                            "text":  "Choose an evolved PokÃ©mon (your own or your opponent\u0027s). Return the highest Stage Evolution card on that PokÃ©mon to its player\u0027s hand. That PokÃ©mon is no longer Asleep, Confused, Paralyzed, or Poisoned, or anything else that might be the result of an attack (just as if you had evolved it)."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Psychic",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "9",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "So rare that it is still said to be a mirage by many experts. Only a few people have seen it worldwide.",
+        "nationalPokedexNumbers":  [
+                                       151
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/9.png",
+                       "large":  "https://images.pokemontcg.io/basep/9_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-10",
+        "name":  "Meowth",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "13",
+        "hp":  "50",
+        "types":  [
+                      "Colorless"
+                  ],
+        "evolvesTo":  [
+                          "Persian"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Cat Punch",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "",
+                            "text":  "Flip a coin. If heads, this attack does 20 damage. If tails and if your opponent has any Benched PokÃ©mon, he or she chooses 1 of them and this attack does 20 damage to it. (Don\u0027t apply Weakness and Resistance for Benched PokÃ©mon.)"
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "resistances":  [
+                            {
+                                "type":  "Psychic",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "10",
+        "artist":  "Kagemaru Himeno",
+        "rarity":  "Promo",
+        "flavorText":  "Adores circular objects. Wanders the streets on a nightly basis to look for dropped loose change.",
+        "nationalPokedexNumbers":  [
+                                       52
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/10.png",
+                       "large":  "https://images.pokemontcg.io/basep/10_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-11",
+        "name":  "Eevee",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "7",
+        "hp":  "30",
+        "types":  [
+                      "Colorless"
+                  ],
+        "evolvesTo":  [
+                          "Vaporeon",
+                          "Jolteon",
+                          "Flareon",
+                          "Sylveon",
+                          "Espeon",
+                          "Umbreon",
+                          "Leafeon",
+                          "Glaceon"
+                      ],
+        "abilities":  [
+                          {
+                              "name":  "Chain Reaction",
+                              "text":  "This power can only be used when a PokÃ©mon evolves. Search your deck for a card that evolves from Eevee and attach it to Eevee. This counts as evolving Eevee. Shuffle your deck afterward. This power can\u0027t be used if Eevee is Asleep, Confused, or Paralyzed.",
+                              "type":  "PokÃ©mon Power"
+                          }
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Bite",
+                            "cost":  [
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "20",
+                            "text":  ""
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "resistances":  [
+                            {
+                                "type":  "Psychic",
+                                "value":  "-30"
+                            }
+                        ],
+        "number":  "11",
+        "artist":  "Kagemaru Himeno",
+        "rarity":  "Promo",
+        "flavorText":  "Its genetic code is irregular. It may mutate if it is exposed to radiation from elemental stones.",
+        "nationalPokedexNumbers":  [
+                                       133
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/11.png",
+                       "large":  "https://images.pokemontcg.io/basep/11_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-12",
+        "name":  "Mewtwo",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "13",
+        "hp":  "60",
+        "types":  [
+                      "Psychic"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Energy Control",
+                            "cost":  [
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Flip a coin. If heads, choose a basic Energy card attached to 1 of your opponent\u0027s PokÃ©mon and attach it to another of your opponent\u0027s PokÃ©mon of your choice."
+                        },
+                        {
+                            "name":  "Telekinesis",
+                            "cost":  [
+                                         "Psychic",
+                                         "Psychic",
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "",
+                            "text":  "Choose 1 of your opponent\u0027s PokÃ©mon. This attack does 30 damage to that PokÃ©mon. Don\u0027t apply Weakness and Resistance for this attack. (Any other effects that would happen after applying Weakness and Resistance still happen.)"
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Psychic",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless",
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  2,
+        "number":  "12",
+        "artist":  "Christopher Rush",
+        "rarity":  "Promo",
+        "flavorText":  "A scientist created this PokÃ©mon after years of horrific gene-splicing and DNA engineering experiments.",
+        "nationalPokedexNumbers":  [
+                                       150
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/12.png",
+                       "large":  "https://images.pokemontcg.io/basep/12_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-13",
+        "name":  "Venusaur",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Stage 2"
+                     ],
+        "level":  "16",
+        "hp":  "100",
+        "types":  [
+                      "Grass"
+                  ],
+        "evolvesFrom":  "Ivysaur",
+        "abilities":  [
+                          {
+                              "name":  "Solar Power",
+                              "text":  "Once during your turn (before your attack), you may use this power. Your Active PokÃ©mon and the Defending PokÃ©mon are no longer Asleep, Confused, Paralyzed, or Poisoned. This power can\u0027t be used if Venusaur is Asleep, Confused, or Paralyzed.",
+                              "type":  "PokÃ©mon Power"
+                          }
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Mega Drain",
+                            "cost":  [
+                                         "Grass",
+                                         "Grass",
+                                         "Grass",
+                                         "Grass"
+                                     ],
+                            "convertedEnergyCost":  4,
+                            "damage":  "40",
+                            "text":  "Remove a number of damage counters from Venusaur equal to half the damage done to the Defending PokÃ©mon (after applying Weakness and Resistance) (rounded up to the nearest 10). If Venusaur has fewer damage counters than that, remove all of them."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fire",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless",
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  2,
+        "number":  "13",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "This plant blooms when it is absorbing solar energy. It stays on the move to seek sunlight.",
+        "nationalPokedexNumbers":  [
+                                       3
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/13.png",
+                       "large":  "https://images.pokemontcg.io/basep/13_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-14",
+        "name":  "Mewtwo",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "60",
+        "hp":  "70",
+        "types":  [
+                      "Psychic"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Energy Absorption",
+                            "cost":  [
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Choose up to 2 Energy cards from your discard pile and attach them to Mewtwo."
+                        },
+                        {
+                            "name":  "Psyburn",
+                            "cost":  [
+                                         "Psychic",
+                                         "Psychic",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "40",
+                            "text":  ""
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Psychic",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless",
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  2,
+        "number":  "14",
+        "artist":  "Benimaru Itoh",
+        "rarity":  "Promo",
+        "flavorText":  "Years of genetic experiments resulted in the creation of this never-before-seen violent PokÃ©mon.",
+        "nationalPokedexNumbers":  [
+                                       150
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/14.png",
+                       "large":  "https://images.pokemontcg.io/basep/14_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-15",
+        "name":  "Cool Porygon",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "15",
+        "hp":  "50",
+        "types":  [
+                      "Colorless"
+                  ],
+        "evolvesTo":  [
+                          "Porygon2"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Texture Magic",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "",
+                            "text":  "You may change Cool Porygon\u0027s Resistance to a type of your choice other than Colorless. If the Defending PokÃ©mon has a Weakness, you may change it to a type of your choice other than Colorless. (Benching either PokÃ©mon ends the effect on that PokÃ©mon.)"
+                        },
+                        {
+                            "name":  "3-D Attack",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "20Ã—",
+                            "text":  "Flip 3 coins. This attack does 20 damage times the number of heads."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "resistances":  [
+                            {
+                                "type":  "Psychic",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "15",
+        "artist":  "Hiromichi Sugiyama",
+        "rarity":  "Promo",
+        "flavorText":  "A PokÃ©mon that consists entirely of programming code. Capable of moving freely in cyberspace.",
+        "nationalPokedexNumbers":  [
+                                       137
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/15.png",
+                       "large":  "https://images.pokemontcg.io/basep/15_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-16",
+        "name":  "Computer Error",
+        "supertype":  "Trainer",
+        "subtypes":  [
+                         "Rocket\u0027s Secret Machine"
+                     ],
+        "rules":  [
+                      "You may draw up to 5 cards, then your opponent may draw up to 5 cards. Your turn is over now (you don\u0027t get to attack)."
+                  ],
+        "number":  "16",
+        "artist":  "Sumiyoshi Kizuki",
+        "rarity":  "Promo",
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/16.png",
+                       "large":  "https://images.pokemontcg.io/basep/16_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-17",
+        "name":  "Dark Persian",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Stage 1"
+                     ],
+        "level":  "28",
+        "hp":  "60",
+        "types":  [
+                      "Colorless"
+                  ],
+        "evolvesFrom":  "Meowth",
+        "attacks":  [
+                        {
+                            "name":  "Tempt",
+                            "cost":  [
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "If your opponent has any Benched PokÃ©mon, flip a coin. If heads, choose 1 of your opponent\u0027s Benched PokÃ©mon and switch it with the Defending PokÃ©mon."
+                        },
+                        {
+                            "name":  "Poison Claws",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "10",
+                            "text":  "Flip a coin. if heads, the Defending PokÃ©mon is now Poisoned."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "resistances":  [
+                            {
+                                "type":  "Psychic",
+                                "value":  "-30"
+                            }
+                        ],
+        "number":  "17",
+        "artist":  "Ken Sugimori",
+        "rarity":  "Promo",
+        "flavorText":  "Popular with women because of its beautiful fur. The leader of the Rockets keeps one as a pet.",
+        "nationalPokedexNumbers":  [
+                                       53
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/17.png",
+                       "large":  "https://images.pokemontcg.io/basep/17_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-18",
+        "name":  "Team Rocket\u0027s Meowth",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "30",
+        "hp":  "40",
+        "types":  [
+                      "Colorless"
+                  ],
+        "evolvesTo":  [
+                          "Persian"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Miraculous Comeback",
+                            "cost":  [
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Flip a number of coins equal to the number of PokÃ©mon in play. This attack does 10 damage times the number of heads. Then Team Rocket\u0027s Meowth does 10 damage times the number of tails to itself."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "resistances":  [
+                            {
+                                "type":  "Psychic",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "18",
+        "artist":  "Kunihiko Yuyama",
+        "rarity":  "Promo",
+        "flavorText":  "This PokÃ©mon is more active at night. It likes bright, shiny things and cannot resist taking them and adding them to its collection.",
+        "nationalPokedexNumbers":  [
+                                       52
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/18.png",
+                       "large":  "https://images.pokemontcg.io/basep/18_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-19",
+        "name":  "Sabrina\u0027s Abra",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "15",
+        "hp":  "40",
+        "types":  [
+                      "Psychic"
+                  ],
+        "evolvesTo":  [
+                          "Kadabra"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Pound",
+                            "cost":  [
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "10",
+                            "text":  ""
+                        },
+                        {
+                            "name":  "Synchronize",
+                            "cost":  [
+                                         "Psychic",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "40",
+                            "text":  "This attack can\u0027t be used unless Sabrina\u0027s Abra and the Defending PokÃ©mon have the same number of Energy cards attached to them."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Psychic",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "number":  "19",
+        "artist":  "Atsuko Nishida",
+        "rarity":  "Promo",
+        "nationalPokedexNumbers":  [
+                                       63
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/19.png",
+                       "large":  "https://images.pokemontcg.io/basep/19_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-20",
+        "name":  "Psyduck",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "15",
+        "hp":  "50",
+        "types":  [
+                      "Water"
+                  ],
+        "evolvesTo":  [
+                          "Golduck"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Headache",
+                            "cost":  [
+                                         "Psychic"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "",
+                            "text":  "Your opponent can\u0027t play Trainer cards during his or her next turn."
+                        },
+                        {
+                            "name":  "Fury Swipes",
+                            "cost":  [
+                                         "Water"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "10Ã—",
+                            "text":  "Flip 3 coins. This attack does 10 damage times the number of heads."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Lightning",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "20",
+        "artist":  "Kagemaru Himeno",
+        "rarity":  "Promo",
+        "flavorText":  "While lulling its enemies with its vacant look, this wily PokÃ©mon will use psychokinetic powers.",
+        "nationalPokedexNumbers":  [
+                                       54
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/20.png",
+                       "large":  "https://images.pokemontcg.io/basep/20_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-21",
+        "name":  "Moltres",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "33",
+        "hp":  "70",
+        "types":  [
+                      "Fire"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Hyper Flame",
+                            "cost":  [
+                                         "Fire",
+                                         "Fire",
+                                         "Fire"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "60",
+                            "text":  "Flip a coin. If heads, discard 1 Fire Energy card attached to Moltres. If tails, discard all Energy cards attached to Moltres. If you can\u0027t discard Energy cards, this attack does nothing."
+                        }
+                    ],
+        "resistances":  [
+                            {
+                                "type":  "Fighting",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "21",
+        "artist":  "Toshinao Aoki",
+        "rarity":  "Promo",
+        "flavorText":  "The flames on this legendary PokÃ©mon\u0027s wings burn so brightly that they can make night seem like day.",
+        "nationalPokedexNumbers":  [
+                                       146
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/21.png",
+                       "large":  "https://images.pokemontcg.io/basep/21_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-22",
+        "name":  "Articuno",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "34",
+        "hp":  "70",
+        "types":  [
+                      "Water"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Diamond Dust",
+                            "cost":  [
+                                         "Water",
+                                         "Water",
+                                         "Water"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "20",
+                            "text":  "Flip a coin. If heads, the Defending PokÃ©mon is now Paralyzed and this attack does 10 damage to each of your opponent\u0027s Benched PokÃ©mon. (Don\u0027t apply Weakness and Resistance for Benched PokÃ©mon.)"
+                        }
+                    ],
+        "resistances":  [
+                            {
+                                "type":  "Fighting",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "22",
+        "artist":  "Toshinao Aoki",
+        "rarity":  "Promo",
+        "flavorText":  "This legendary PokÃ©mon is said to freeze the water in the air during winter, causing snow.",
+        "nationalPokedexNumbers":  [
+                                       144
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/22.png",
+                       "large":  "https://images.pokemontcg.io/basep/22_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-23",
+        "name":  "Zapdos",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "30",
+        "hp":  "70",
+        "types":  [
+                      "Lightning"
+                  ],
+        "attacks":  [
+                        {
+                            "name":  "Lightning Burn",
+                            "cost":  [
+                                         "Lightning",
+                                         "Lightning",
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "30",
+                            "text":  "Flip a coin. If heads, and if your opponent has any Benched PokÃ©mon, choose 1 of them. This attack does 30 damage to that PokÃ©mon. (Don\u0027t apply Weakness and Resistance for Benched PokÃ©mon.) If tails, Zapdos does 30 damage to itself."
+                        }
+                    ],
+        "resistances":  [
+                            {
+                                "type":  "Fighting",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "23",
+        "artist":  "Toshinao Aoki",
+        "rarity":  "Promo",
+        "flavorText":  "This legendary PokÃ©mon is said to be present wherever there is a lightning storm.",
+        "nationalPokedexNumbers":  [
+                                       145
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/23.png",
+                       "large":  "https://images.pokemontcg.io/basep/23_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-24",
+        "name":  "_____\u0027s Pikachu",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "17",
+        "hp":  "50",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Raichu"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Birthday Surprise",
+                            "cost":  [
+                                         "Lightning",
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "30+",
+                            "text":  "If it\u0027s not your birthday, this attack does 30 damage. If it is your birthday, flip a coin. If heads, this attack does 30 damage plus 50 more damage; if tails, this attack does 30 damage."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "24",
+        "artist":  "Kagemaru Himeno",
+        "rarity":  "Promo",
+        "flavorText":  "Your Birthdate: ______________________________",
+        "nationalPokedexNumbers":  [
+                                       25
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/24.png",
+                       "large":  "https://images.pokemontcg.io/basep/24_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-25",
+        "name":  "Flying Pikachu",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "12",
+        "hp":  "40",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Raichu"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Thundershock",
+                            "cost":  [
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "10",
+                            "text":  "Flip a coin. If heads, the Defending PokÃ©mon is now Paralyzed."
+                        },
+                        {
+                            "name":  "Fly",
+                            "cost":  [
+                                         "Colorless",
+                                         "Colorless",
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  3,
+                            "damage":  "30",
+                            "text":  "Flip a coin. If heads, during your opponent\u0027s next turn, prevent all effects of attacks, including damage, done to Flying Pikachu; if tails, this attack does nothing (not even damage)."
+                        }
+                    ],
+        "resistances":  [
+                            {
+                                "type":  "Fighting",
+                                "value":  "-30"
+                            }
+                        ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "25",
+        "artist":  "Toshinao Aoki",
+        "rarity":  "Promo",
+        "flavorText":  "By learning how to fly, Pikachu overcame its weakness to Fighting PokÃ©mon.",
+        "nationalPokedexNumbers":  [
+                                       25
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/25.png",
+                       "large":  "https://images.pokemontcg.io/basep/25_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-26",
+        "name":  "Pikachu",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "9",
+        "hp":  "40",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Raichu"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Scratch",
+                            "cost":  [
+                                         "Colorless"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "10",
+                            "text":  ""
+                        },
+                        {
+                            "name":  "Thunderbolt",
+                            "cost":  [
+                                         "Lightning",
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "40",
+                            "text":  "Discard all Energy cards attached to Pikachu."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "26",
+        "artist":  "Gakuji Nomoto",
+        "rarity":  "Promo",
+        "flavorText":  "It uses its sensitive tail to sense its environment and has been known to react violently if its tail is grabbed.",
+        "nationalPokedexNumbers":  [
+                                       25
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/26.png",
+                       "large":  "https://images.pokemontcg.io/basep/26_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-27",
+        "name":  "Pikachu",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "5",
+        "hp":  "30",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Raichu"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Thundershock",
+                            "cost":  [
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  1,
+                            "damage":  "10",
+                            "text":  "Flip a coin. If heads, the Defending PokÃ©mon is now Paralyzed."
+                        },
+                        {
+                            "name":  "Agility",
+                            "cost":  [
+                                         "Lightning",
+                                         "Lightning"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "20",
+                            "text":  "Flip a coin. If heads, during your opponent\u0027s next turn, prevent all effects of attacks, including damage, done to Pikachu."
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "number":  "27",
+        "artist":  "Atsuko Nishida",
+        "rarity":  "Promo",
+        "flavorText":  "When several of these PokÃ©mon gather, their electricity can cause lightning storms.",
+        "nationalPokedexNumbers":  [
+                                       25
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/27.png",
+                       "large":  "https://images.pokemontcg.io/basep/27_hires.png"
+                   }
+    },
+    {
+        "id":  "basep-28",
+        "name":  "Surfing Pikachu",
+        "supertype":  "PokÃ©mon",
+        "subtypes":  [
+                         "Basic"
+                     ],
+        "level":  "32",
+        "hp":  "50",
+        "types":  [
+                      "Lightning"
+                  ],
+        "evolvesTo":  [
+                          "Raichu"
+                      ],
+        "attacks":  [
+                        {
+                            "name":  "Surf",
+                            "cost":  [
+                                         "Water",
+                                         "Water"
+                                     ],
+                            "convertedEnergyCost":  2,
+                            "damage":  "30",
+                            "text":  ""
+                        }
+                    ],
+        "weaknesses":  [
+                           {
+                               "type":  "Fighting",
+                               "value":  "Ã—2"
+                           }
+                       ],
+        "retreatCost":  [
+                            "Colorless"
+                        ],
+        "convertedRetreatCost":  1,
+        "number":  "28",
+        "artist":  "Toshinao Aoki",
+        "rarity":  "Promo",
+        "flavorText":  "One summer, a group of Pikachus was found riding the waves at the local beach.",
+        "nationalPokedexNumbers":  [
+                                       25
+                                   ],
+        "legalities":  {
+                           "unlimited":  "Legal",
+                           "expanded":  "Legal"
+                       },
+        "images":  {
+                       "small":  "https://images.pokemontcg.io/basep/28.png",
+                       "large":  "https://images.pokemontcg.io/basep/28_hires.png"
+                   }
+    }
+]

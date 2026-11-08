@@ -1,0 +1,11 @@
+﻿{
+    "id":  "base5",
+    "name":  "Team Rocket",
+    "order":  5,
+    "mycurioExpansion":  "MyCurioPokemon-TR",
+    "spritePrefix":  "TR-",
+    "spriteDigits":  3,
+    "effectsImplemented":  true,
+    "cardsFile":  "cards.json",
+    "overridesFile":  "overrides.json"
+}

@@ -1,0 +1,10 @@
+{
+  "Id": "base_fossil",
+  "Name": "Base–Fossil",
+  "Description": "Formato clásico Base Set, Jungle, Fossil y Wizards Promos.",
+  "Sets": [ "base1", "base2", "base3", "basep" ],
+  "Banned": [],
+  "DeckSize": 60,
+  "MaxCopies": 4,
+  "MinBasicPokemon": 1
+}

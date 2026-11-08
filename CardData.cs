@@ -73,8 +73,11 @@ namespace PokeTCGPlay
         public bool IsPlayable => string.IsNullOrEmpty(UnsupportedReason);
 
         public bool IsBasicPokemon => Supertype == Supertype.Pokemon && Stage == "Basic";
-        /// <summary>Tipo de energía que provee (Double Colorless = 2 Colorless).</summary>
-        public string EnergyProvides => Name.Replace(" Energy", "").Replace("Double ", "");
+        /// <summary>Tipo de energía que provee (Double Colorless = 2 Colorless; Rainbow = Rainbow; Full Heal / Potion = Colorless).</summary>
+        public string EnergyProvides =>
+            Name == "Rainbow Energy" ? "Rainbow"
+            : (Name == "Full Heal Energy" || Name == "Potion Energy" || Name == "Double Colorless Energy" || Name == "Recycle Energy" || Name == "Warp Energy") ? "Colorless"
+            : Name.Replace(" Energy", "").Replace("Double ", "");
         public int EnergyAmount => Name.StartsWith("Double") ? 2 : 1;
         public override string ToString() => $"{Name} ({Id})";
     }
@@ -103,8 +106,9 @@ namespace PokeTCGPlay
             { "FO", "MyCurioPokemon-FO" }, { "FOS", "MyCurioPokemon-FO" }, { "BASE3", "MyCurioPokemon-FO" },
             { "B2", "MyCurioPokemon-B2" }, { "BS2", "MyCurioPokemon-B2" }, { "BASE4", "MyCurioPokemon-B2" },
             { "TR", "MyCurioPokemon-TR" }, { "RO", "MyCurioPokemon-TR" }, { "BASE5", "MyCurioPokemon-TR" },
-            { "G1", "MyCurioPokemon-G1" }, { "GYH", "MyCurioPokemon-G1" }, { "GYM1", "MyCurioPokemon-G1" },
-            { "G2", "MyCurioPokemon-G2" }, { "GYC", "MyCurioPokemon-G2" }, { "GYM2", "MyCurioPokemon-G2" },
+            { "G1", "MyCurioPokemon-GYM1" }, { "GYH", "MyCurioPokemon-GYM1" }, { "GYM1", "MyCurioPokemon-GYM1" },
+            { "G2", "MyCurioPokemon-GYM2" }, { "GYC", "MyCurioPokemon-GYM2" }, { "GYM2", "MyCurioPokemon-GYM2" },
+            { "PR", "MyCurioPokemon-JU" }, { "WP", "MyCurioPokemon-JU" }, { "WPO", "MyCurioPokemon-JU" }, { "BASEP", "MyCurioPokemon-JU" },
             { "MEG", "MyCurioPokemon-ME01" }, { "ME01", "MyCurioPokemon-ME01" }, { "ME1", "MyCurioPokemon-ME01" },
             { "PFL", "MyCurioPokemon-ME02" }, { "ME02", "MyCurioPokemon-ME02" }, { "ME2", "MyCurioPokemon-ME02" },
             { "ASC", "MyCurioPokemon-ME025" }, { "ME025", "MyCurioPokemon-ME025" }, { "ME2.5", "MyCurioPokemon-ME025" },
@@ -119,12 +123,13 @@ namespace PokeTCGPlay
         public static readonly Dictionary<string, string> PtcgoCodeNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { "BS", "Base Set" }, { "BS1", "Base Set" }, { "BASE1", "Base Set" },
-            { "JU", "Jungle" }, { "JNG", "Jungle" },
-            { "FO", "Fossil" }, { "FOS", "Fossil" },
-            { "B2", "Base Set 2" }, { "BS2", "Base Set 2" },
-            { "TR", "Team Rocket" }, { "RO", "Team Rocket" },
-            { "G1", "Gym Heroes" }, { "GYH", "Gym Heroes" },
-            { "G2", "Gym Challenge" }, { "GYC", "Gym Challenge" },
+            { "JU", "Jungle" }, { "JNG", "Jungle" }, { "BASE2", "Jungle" },
+            { "FO", "Fossil" }, { "FOS", "Fossil" }, { "BASE3", "Fossil" },
+            { "B2", "Base Set 2" }, { "BS2", "Base Set 2" }, { "BASE4", "Base Set 2" },
+            { "TR", "Team Rocket" }, { "RO", "Team Rocket" }, { "BASE5", "Team Rocket" },
+            { "G1", "Gym Heroes" }, { "GYH", "Gym Heroes" }, { "GYM1", "Gym Heroes" },
+            { "G2", "Gym Challenge" }, { "GYC", "Gym Challenge" }, { "GYM2", "Gym Challenge" },
+            { "PR", "Wizards Black Star Promos" }, { "WP", "Wizards Black Star Promos" }, { "WPO", "Wizards Black Star Promos" }, { "BASEP", "Wizards Black Star Promos" },
             { "MEG", "Mega Evolution (MyCurio ME01)" },
             { "PFL", "Phantasmal Flames (MyCurio ME02)" },
             { "ASC", "Ascended Heroes (MyCurio ME025)" },
@@ -174,8 +179,20 @@ namespace PokeTCGPlay
 
         public static Entry FindEntryBySetAndNumber(string ptcgoCode, int number)
         {
-            var exp = ResolvePtcgoExpansion(ptcgoCode);
-            if (exp == null || number <= 0) return null;
+            if (number <= 0) return null;
+            string code = (ptcgoCode ?? "").Trim();
+            if (code.Equals("PR", StringComparison.OrdinalIgnoreCase) ||
+                code.Equals("WP", StringComparison.OrdinalIgnoreCase) ||
+                code.Equals("WPO", StringComparison.OrdinalIgnoreCase) ||
+                code.Equals("BASEP", StringComparison.OrdinalIgnoreCase))
+            {
+                string wpoKey = $"WPO-{number:D3}";
+                foreach (var ex in Expansions.Values)
+                    if (ex.BySprite.TryGetValue(wpoKey, out var wpoEntry))
+                        return wpoEntry;
+            }
+            var exp = ResolvePtcgoExpansion(code);
+            if (exp == null) return null;
             string prefix = exp.SpritePrefix ?? "";
             string sp3 = $"{prefix}{number:D3}";
             if (exp.BySprite.TryGetValue(sp3, out var e3)) return e3;
@@ -364,13 +381,29 @@ namespace PokeTCGPlay
                 if (d == null) continue;
                 if (ById.ContainsKey(d.Id)) { Plugin.Log?.LogWarning($"[{set.Id}] Id duplicado {d.Id}, se ignora."); continue; }
 
-                if (mc != null && !string.IsNullOrEmpty(d.Sprite) && mc.BySprite.TryGetValue(d.Sprite, out var me))
+                MyCurioIndex.Entry me = null;
+                MyCurioIndex.Expansion resolvedExp = mc;
+                if (mc == null || string.IsNullOrEmpty(d.Sprite) || !mc.BySprite.TryGetValue(d.Sprite, out me))
+                {
+                    if (!string.IsNullOrEmpty(d.Sprite))
+                    {
+                        foreach (var exp in MyCurioIndex.Expansions.Values)
+                        {
+                            if (exp.BySprite.TryGetValue(d.Sprite, out me))
+                            {
+                                resolvedExp = exp;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (resolvedExp != null && me != null)
                 {
                     d.HasMyCurioArt = true;
-                    d.MyCurioExpansion = mc.Key;
+                    d.MyCurioExpansion = resolvedExp.Key;
                     d.MyCurioBorder = me.Border;
                     d.MyCurioFoil = me.Foil;
-                    if (mc.BundlePath != null) SpriteBundle[d.Sprite] = mc.BundlePath;
+                    if (resolvedExp.BundlePath != null) SpriteBundle[d.Sprite] = resolvedExp.BundlePath;
                 }
 
                 if (string.IsNullOrEmpty(d.UnsupportedReason))
@@ -550,6 +583,58 @@ namespace PokeTCGPlay
             for (int i = 0; i < energyA; i++) deck.Add(eA);
             while (deck.Count < size) deck.Add(eB);
             return deck;
+        }
+
+        /// <summary>
+        /// Obtiene el mazo que usará el NPC según la preferencia configurada:
+        /// - Mazo temático específico (si NpcDeckMode coincide con un Id o Nombre de ThemeDeckRegistry)
+        /// - "ThemeOnly": elige al azar uno de los 25 mazos temáticos oficiales de Base Era
+        /// - "RandomOnly": genera un mazo aleatorio del formato
+        /// - "ThemeOrRandom" (por defecto): elige entre los mazos temáticos oficiales o uno aleatorio
+        /// </summary>
+        public static List<CardDef> GenerateNpcDeck(Random rng, FormatDef format, out string deckLabel)
+        {
+            rng = rng ?? new Random();
+            string mode = Plugin.NpcDeckMode?.Value ?? "ThemeOrRandom";
+
+            if (ThemeDeckRegistry.Decks.Count > 0 && !string.Equals(mode, "RandomOnly", StringComparison.OrdinalIgnoreCase))
+            {
+                // 1) Si el usuario seleccionó un mazo temático específico para el NPC
+                var specific = ThemeDeckRegistry.Decks.FirstOrDefault(d =>
+                    string.Equals(d.Id, mode, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(d.Name, mode, StringComparison.OrdinalIgnoreCase));
+                if (specific != null)
+                {
+                    var cards = specific.Resolve();
+                    if (cards.Count == 60)
+                    {
+                        deckLabel = $"{specific.Name} ({specific.SetName})";
+                        return cards;
+                    }
+                }
+
+                // 2) Mazos temáticos compatibles con el formato actual (o todos los de Base Era si es ThemeOnly / ThemeOrRandom)
+                var validThemes = ThemeDeckRegistry.Decks
+                    .Select(d => new { Deck = d, Cards = d.Resolve() })
+                    .Where(x => x.Cards.Count == 60)
+                    .ToList();
+
+                var formatThemes = format != null
+                    ? validThemes.Where(x => x.Cards.All(c => format.Allows(c))).ToList()
+                    : validThemes;
+                var pool = formatThemes.Count > 0 ? formatThemes : validThemes;
+
+                bool pickTheme = string.Equals(mode, "ThemeOnly", StringComparison.OrdinalIgnoreCase) || rng.NextDouble() < 0.75;
+                if (pickTheme && pool.Count > 0)
+                {
+                    var chosen = pool[rng.Next(pool.Count)];
+                    deckLabel = $"{chosen.Deck.Name} ({chosen.Deck.SetName})";
+                    return chosen.Cards;
+                }
+            }
+
+            deckLabel = $"Mazo Aleatorio ({format?.Name ?? "Base Era"})";
+            return GenerateRandomNpcDeck(rng, format);
         }
     }
 }

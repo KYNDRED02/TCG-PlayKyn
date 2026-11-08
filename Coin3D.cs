@@ -206,11 +206,14 @@ namespace PokeTCGPlay
             playedBounce1Sound = false;
             playedBounce2Sound = false;
             triggeredSettleFx = false;
-            settlePopupLabel = headsResult ? "¡CARA! (Pikachu)" : "¡CRUZ! (Pokéball)";
+            settlePopupLabel = headsResult
+                ? Loc.T("¡CARA! (Pikachu)", "HEADS! (Pikachu)")
+                : Loc.T("¡CRUZ! (Pokéball)", "TAILS! (Pokéball)");
 
             rootGo.transform.localScale = Vector3.one * 1.12f;
             rootGo.SetActive(true);
             shadowGo.SetActive(true);
+            TcgAudio.PlayCoinLaunch();
         }
 
         /// <summary>
@@ -231,11 +234,14 @@ namespace PokeTCGPlay
             playedBounce1Sound = false;
             playedBounce2Sound = false;
             triggeredSettleFx = false;
-            settlePopupLabel = headsResult ? "¡CARA!" : "¡CRUZ!";
+            settlePopupLabel = headsResult
+                ? Loc.T("¡CARA!", "HEADS!")
+                : Loc.T("¡CRUZ!", "TAILS!");
 
             rootGo.transform.localScale = Vector3.one * 1.05f;
             rootGo.SetActive(true);
             shadowGo.SetActive(true);
+            TcgAudio.PlayCoinLaunch();
         }
 
         /// <summary>
@@ -262,7 +268,7 @@ namespace PokeTCGPlay
 
             if (state == CoinState.Hidden) return;
 
-            float dt = Time.deltaTime;
+            float dt = Time.deltaTime * Loc.AnimSpeed;
             float coinHalfThick = CoinThickness * 0.5f;
 
             if (state == CoinState.ChoosePreview)
@@ -294,16 +300,16 @@ namespace PokeTCGPlay
                 // Curva vertical con lanzamiento parabólico + 2 rebotes físicos sobre el neopreno
                 float heightAboveMat = EvaluateBounceHeight(u, tossPeakHeight);
 
-                // Sonidos sutiles al tocar la mesa en el 1er y 2do impacto
+                // Sonidos metálicos al tocar la mesa en el 1er y 2do impacto
                 if (u >= 0.56f && !playedBounce1Sound)
                 {
                     playedBounce1Sound = true;
-                    GameUI.PlayClickSound(0);
+                    TcgAudio.PlayCoinBounce(1);
                 }
                 if (u >= 0.74f && !playedBounce2Sound)
                 {
                     playedBounce2Sound = true;
-                    GameUI.PlayClickSound(0);
+                    TcgAudio.PlayCoinBounce(2);
                 }
 
                 // Rotación 3D: volteretas completas en el aire + vibración de canto (rim wobble) al asentarse
@@ -343,6 +349,7 @@ namespace PokeTCGPlay
                 if (u >= 0.84f && !triggeredSettleFx)
                 {
                     triggeredSettleFx = true;
+                    TcgAudio.PlayCoinSettle(currentResultHeads);
                     TriggerImpactRing(tossLandLocal, currentResultHeads);
                     if (!string.IsNullOrEmpty(settlePopupLabel) && playmatRoot != null)
                     {

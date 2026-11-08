@@ -1,0 +1,11 @@
+﻿{
+    "id":  "basep",
+    "name":  "Wizards Black Star Promos",
+    "order":  8,
+    "mycurioExpansion":  "MyCurioPokemon-JU",
+    "spritePrefix":  "WPO-",
+    "spriteDigits":  3,
+    "effectsImplemented":  true,
+    "cardsFile":  "cards.json",
+    "overridesFile":  "overrides.json"
+}

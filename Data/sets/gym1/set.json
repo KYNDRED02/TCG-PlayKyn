@@ -1,0 +1,11 @@
+﻿{
+    "id":  "gym1",
+    "name":  "Gym Heroes",
+    "order":  6,
+    "mycurioExpansion":  "MyCurioPokemon-GYM1",
+    "spritePrefix":  "GYM1-",
+    "spriteDigits":  3,
+    "effectsImplemented":  true,
+    "cardsFile":  "cards.json",
+    "overridesFile":  "overrides.json"
+}

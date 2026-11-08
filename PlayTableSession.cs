@@ -5,6 +5,17 @@ using UnityEngine;
 
 namespace PokeTCGPlay
 {
+    public class MatchRewardSummary
+    {
+        public bool Applied;
+        public bool PlayerWon;
+        public int ExpGained;
+        public float OldRating;
+        public float NewRating;
+        public int ReviewStars;
+        public float TableFeeRetainedByNpc;
+    }
+
     /// <summary>
     /// Gestiona el estado del jugador cuando se sienta en una mesa del juego (InteractablePlayTable),
     /// espera a que un NPC se siente enfrente, coloca la cámara en vista cenital (top-down) mirando a la mesa física
@@ -17,15 +28,23 @@ namespace PokeTCGPlay
         public static Customer CurrentOpponent { get; private set; }
         public static bool IsWaitingForNpc => CurrentTable != null && CurrentOpponent == null;
         public static bool IsPlayingAtTable => CurrentTable != null && CurrentOpponent != null;
+        public static float CapturedTableFee { get; private set; }
+        public static MatchRewardSummary LastReward { get; private set; }
 
         static float waitTimer;
         static Vector3 savedStandPos;
         static Transform topDownCamLoc;
         static Transform topDownLookTarget;
+        static Vector3 baseTopDownCamPos;
+        static Vector3 baseTopDownLookPos;
+        static bool hasBaseTopDownPose;
 
         static readonly FieldInfo fHasStartPlayerPlayCard = AccessTools.Field(typeof(InteractablePlayTable), "m_HasStartPlayerPlayCard");
         static readonly FieldInfo fIsPlayerOccupied = AccessTools.Field(typeof(InteractablePlayTable), "m_IsPlayerOccupied");
+        static readonly FieldInfo fIsPlayTableGameMode = AccessTools.Field(typeof(InteractionPlayerController), "m_IsPlayTableGameMode");
+        static readonly MethodInfo mSetCurrentGameState = AccessTools.Method(typeof(InteractionPlayerController), "SetCurrentGameState");
         static readonly MethodInfo mThinkWantToPlayTable = AccessTools.Method(typeof(Customer), "ThinkWantToPlayTable");
+        static readonly MethodInfo mAddReviewData = AccessTools.Method(typeof(Customer), "AddReviewData");
 
         public static void SitAtTable(InteractablePlayTable table)
         {
@@ -97,6 +116,8 @@ namespace PokeTCGPlay
             Transform oppSitLoc = table.GetSitLoc(1 - seat);
             ipc.StopCameraLerp();
             ipc.EnterUIMode();
+            ipc.OnEnterPlayTableGameMode(null);
+            ApplySeatedShopHudFilter(true);
             if (ipc.m_PlayerCollider != null) ipc.m_PlayerCollider.isTrigger = true;
             if (ipc.m_WalkerCtrl != null) ipc.m_WalkerCtrl.SetStopMovement(true);
             InteractionPlayerController.SetPlayerPos(sitLoc.position + new Vector3(0f, 0.15f, 0f));
@@ -167,6 +188,10 @@ namespace PokeTCGPlay
                 topDownLookTarget.position = tableSurface - toCenter * 0.04f - Vector3.up * 0.02f;
             }
 
+            baseTopDownCamPos = topDownCamLoc.position;
+            baseTopDownLookPos = topDownLookTarget.position;
+            hasBaseTopDownPose = true;
+
             ipc.SetCameraWorldPositionTarget(topDownCamLoc);
             ipc.StartAimLookAt(topDownLookTarget, 7.5f, 0f);
             ipc.m_IsPlayingTopDownGameMode = true;
@@ -178,6 +203,10 @@ namespace PokeTCGPlay
         {
             if (CurrentTable == null || npc == null) return;
             CurrentOpponent = npc;
+            LastReward = null;
+
+            int oppSeat = 1 - PlayerSeat;
+            CapturedTableFee = ReadOpponentTableFee(CurrentTable, npc, oppSeat);
 
             CurrentTable.m_HasStartPlay = true;
             fHasStartPlayerPlayCard?.SetValue(CurrentTable, true);
@@ -196,6 +225,201 @@ namespace PokeTCGPlay
             EnterTopDownTableCamera(CurrentTable, PlayerSeat);
 
             GameUI.Instance?.StartTableMatch(npc);
+        }
+
+        static float ReadOpponentTableFee(InteractablePlayTable table, Customer npc, int oppSeat)
+        {
+            float fee = 0f;
+            try
+            {
+                if (table != null && table.m_PlayTableFee != null && oppSeat >= 0 && oppSeat < table.m_PlayTableFee.Count)
+                    fee = Mathf.Max(fee, table.m_PlayTableFee[oppSeat]);
+                if (npc != null)
+                    fee = Mathf.Max(fee, npc.GetCurrentPlayTableFee());
+            }
+            catch { }
+            return fee;
+        }
+
+        /// <summary>
+        /// F8: Mantiene bloqueado el movimiento y la cámara del jugador mientras permanece sentado en la mesa,
+        /// y asegura que en el HUD nativo únicamente se vean Hora/Día, Nivel de tienda, EXP y Dinero.
+        /// </summary>
+        public static void EnforcePlayerCameraAndMovementLock()
+        {
+            if (CurrentTable == null) return;
+            try
+            {
+                var ipc = CSingleton<InteractionPlayerController>.Instance;
+                if (ipc != null)
+                {
+                    if (ipc.m_WalkerCtrl != null) ipc.m_WalkerCtrl.SetStopMovement(true);
+                    if (ipc.m_PlayerCollider != null) ipc.m_PlayerCollider.isTrigger = true;
+                    if (CurrentOpponent != null)
+                        ipc.m_IsPlayingTopDownGameMode = true;
+                }
+                ApplySeatedShopHudFilter(true);
+                if (hasBaseTopDownPose && topDownCamLoc != null && topDownLookTarget != null)
+                {
+                    Vector3 shake = PolishEffects3D.GetCameraShakeOffset();
+                    topDownCamLoc.position = baseTopDownCamPos + shake;
+                    topDownLookTarget.position = baseTopDownLookPos + shake * 0.75f;
+                }
+                InputManager.SetCursorLockMode(CursorLockMode.None);
+                Cursor.visible = true;
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Oculta o restaura los indicadores del HUD nativo al sentarse/levantarse de la mesa:
+        /// Al sentarse solo quedan visibles Hora/Día, Nivel de tienda, EXP y Dinero (se ocultan Teléfono, Álbum,
+        /// Decorar, avisos de interacción a la izquierda, punto central y el aviso de siguiente día).
+        /// </summary>
+        public static void ApplySeatedShopHudFilter(bool seated)
+        {
+            try
+            {
+                if (!CSingleton<InteractionPlayerController>.InstanceExist()) return;
+                var ipc = CSingleton<InteractionPlayerController>.Instance;
+                var gui = CSingleton<GameUIScreen>.InstanceExist()
+                    ? CSingleton<GameUIScreen>.Instance
+                    : UnityEngine.Object.FindFirstObjectByType<GameUIScreen>();
+
+                if (seated)
+                {
+                    try { CenterDot.SetVisibility(false); } catch { }
+                    try { GameUIScreen.HideToolTip(); } catch { }
+                    try { GameUIScreen.HideEnterGoNextDayIndicatorVisible(); } catch { }
+
+                    if (gui != null)
+                    {
+                        if (gui.m_CanvasGrp != null) gui.m_CanvasGrp.alpha = 1f;
+                        if (gui.m_PhoneTooltipUI != null && gui.m_PhoneTooltipUI.gameObject.activeSelf)
+                            gui.m_PhoneTooltipUI.gameObject.SetActive(false);
+                        if (gui.m_AlbumTooltipUI != null && gui.m_AlbumTooltipUI.gameObject.activeSelf)
+                            gui.m_AlbumTooltipUI.gameObject.SetActive(false);
+                        if (gui.m_DecoInventoryTooltipUI != null && gui.m_DecoInventoryTooltipUI.gameObject.activeSelf)
+                            gui.m_DecoInventoryTooltipUI.gameObject.SetActive(false);
+                        if (gui.m_GoNextDayTooltipUI != null && gui.m_GoNextDayTooltipUI.gameObject.activeSelf)
+                            gui.m_GoNextDayTooltipUI.gameObject.SetActive(false);
+                        if (gui.m_PressEnterGoNextDayIndicator != null && gui.m_PressEnterGoNextDayIndicator.activeSelf)
+                            gui.m_PressEnterGoNextDayIndicator.SetActive(false);
+                        if (gui.m_PressEnterGoNextDayIndicatorText != null && gui.m_PressEnterGoNextDayIndicatorText.activeSelf)
+                            gui.m_PressEnterGoNextDayIndicatorText.SetActive(false);
+                        if (gui.m_DeodorantBarGrp != null && gui.m_DeodorantBarGrp.activeSelf)
+                            gui.m_DeodorantBarGrp.SetActive(false);
+                    }
+
+                    if (ipc != null && ipc.m_InputTooltipListDisplay != null)
+                    {
+                        var itld = ipc.m_InputTooltipListDisplay;
+                        itld.ClearTooltip();
+                        itld.SetTooltipGroupVisibility(false);
+                        if (itld.m_PhoneTooltipUI != null && itld.m_PhoneTooltipUI.gameObject.activeSelf)
+                            itld.m_PhoneTooltipUI.gameObject.SetActive(false);
+                        if (itld.m_AlbumTooltipUI != null && itld.m_AlbumTooltipUI.gameObject.activeSelf)
+                            itld.m_AlbumTooltipUI.gameObject.SetActive(false);
+                        if (itld.m_DecoInventoryTooltipUI != null && itld.m_DecoInventoryTooltipUI.gameObject.activeSelf)
+                            itld.m_DecoInventoryTooltipUI.gameObject.SetActive(false);
+                    }
+                }
+                else
+                {
+                    try { CenterDot.SetVisibility(true); } catch { }
+                    try { GameUIScreen.SetGameUIVisible(true); } catch { }
+                    try { GameUIScreen.ResetToolTipVisibility(); } catch { }
+                    try { GameUIScreen.ResetEnterGoNextDayIndicatorVisible(); } catch { }
+
+                    if (gui != null)
+                    {
+                        if (gui.m_CanvasGrp != null) gui.m_CanvasGrp.alpha = 1f;
+                        if (gui.m_PhoneTooltipUI != null) gui.m_PhoneTooltipUI.gameObject.SetActive(true);
+                        if (gui.m_AlbumTooltipUI != null) gui.m_AlbumTooltipUI.gameObject.SetActive(true);
+                        if (gui.m_DecoInventoryTooltipUI != null) gui.m_DecoInventoryTooltipUI.gameObject.SetActive(true);
+                    }
+
+                    if (ipc != null && ipc.m_InputTooltipListDisplay != null)
+                    {
+                        var itld = ipc.m_InputTooltipListDisplay;
+                        itld.SetTooltipGroupVisibility(true);
+                        itld.SetCurrentGameState(EGameState.DefaultState);
+                        itld.UpdatePhoneAndAlbumTooltip();
+                    }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// F8: Aplica las recompensas confirmadas de fin de partida:
+        /// - Si gana el jugador: sube la calificación de la tienda (reseña 5★) y otorga experiencia (XP). No da dinero.
+        /// - Si gana el NPC: el NPC se queda con la tarifa de la mesa (no se paga a la tienda).
+        /// </summary>
+        public static MatchRewardSummary ApplyMatchOutcomeRewards(Game game)
+        {
+            if (game == null || game.Phase != Phase.GameOver) return LastReward;
+            if (game.RewardsApplied && LastReward != null) return LastReward;
+
+            game.RewardsApplied = true;
+            bool playerWon = game.Winner == game.Players[0];
+            float oldRating = 0f;
+            try { oldRating = CustomerReviewManager.GetAverageRating(); } catch { }
+
+            var summary = new MatchRewardSummary
+            {
+                Applied = true,
+                PlayerWon = playerWon,
+                OldRating = oldRating,
+                NewRating = oldRating,
+                TableFeeRetainedByNpc = CapturedTableFee
+            };
+
+            try
+            {
+                // Anular el cobro automático de monedas por tiempo de mesa del juego base
+                if (CurrentTable != null)
+                {
+                    CurrentTable.m_CurrentPlayTime = 0f;
+                    if (CurrentTable.m_PlayTableFee != null)
+                    {
+                        for (int i = 0; i < CurrentTable.m_PlayTableFee.Count; i++)
+                            CurrentTable.m_PlayTableFee[i] = 0f;
+                    }
+                }
+
+                // Contabilizar cliente atendido en mesa para estadísticas y logros de la tienda
+                CPlayerData.m_GameReportDataCollect.customerPlayed++;
+                CPlayerData.m_GameReportDataCollectPermanent.customerPlayed++;
+                AchievementManager.OnCustomerFinishPlay(CPlayerData.m_GameReportDataCollectPermanent.customerPlayed);
+
+                if (playerWon)
+                {
+                    int shopLevel = Mathf.Max(1, CPlayerData.m_ShopLevel);
+                    int prizesTaken = Mathf.Clamp(6 - game.Players[0].Prizes.Count, 1, 6);
+                    int turnsBonus = Mathf.Clamp(game.Turn, 1, 25) * 4;
+                    int xp = 45 + shopLevel * 8 + prizesTaken * 15 + turnsBonus;
+
+                    CEventManager.QueueEvent(new CEventPlayer_AddShopExp(xp, false));
+                    summary.ExpGained = xp;
+
+                    // Subir la calificación de la tienda con una reseña de 5 estrellas del cliente
+                    if (CurrentOpponent != null && mAddReviewData != null)
+                    {
+                        mAddReviewData.Invoke(CurrentOpponent, new object[] { ECustomerReviewType.PlaytablePrice, EItemType.None, 2, 100, false });
+                    }
+                    CustomerReviewManager.AddCustomerReview(ECustomerReviewType.PlaytablePrice, EItemType.None, 2, 100);
+                    summary.ReviewStars = 5;
+                    summary.NewRating = CustomerReviewManager.GetAverageRating();
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning("ApplyMatchOutcomeRewards: " + e.Message);
+            }
+
+            LastReward = summary;
+            return summary;
         }
 
         public static void UpdateWaiting()
@@ -255,27 +479,40 @@ namespace PokeTCGPlay
             CurrentTable = null;
             PlayerSeat = -1;
             CurrentOpponent = null;
+            hasBaseTopDownPose = false;
+            PolishEffects3D.ClearAll();
 
             TableView.Instance?.DetachFromTable();
 
             if (table != null && seat >= 0)
             {
-                if (opp != null)
+                try
                 {
-                    table.ExitPlayerCardGame(playerWon, !playerWon && !finishedMatch);
+                    if (opp != null)
+                    {
+                        // F8: Asegurar que el juego base no pague monedas al levantarse (la recompensa ya se aplicó en ApplyMatchOutcomeRewards)
+                        table.m_CurrentPlayTime = 0f;
+                        if (table.m_PlayTableFee != null)
+                        {
+                            for (int i = 0; i < table.m_PlayTableFee.Count; i++)
+                                table.m_PlayTableFee[i] = 0f;
+                        }
+                        table.ExitPlayerCardGame(playerWon, !playerWon && !finishedMatch);
+                    }
+                    else
+                    {
+                        table.m_IsSeatOccupied[seat] = false;
+                        table.m_IsSeatBooked[seat] = false;
+                        table.m_IsQueueOccupied[seat] = false;
+                        table.m_IsPlayerSeat[seat] = false;
+                        fIsPlayerOccupied?.SetValue(table, false);
+                        fHasStartPlayerPlayCard?.SetValue(table, false);
+                        if (table.m_TableGameItemSetList != null && seat < table.m_TableGameItemSetList.Count && table.m_TableGameItemSetList[seat] != null)
+                            table.m_TableGameItemSetList[seat].gameObject.SetActive(false);
+                        table.m_CurrentPlayerCount = (table.m_IsSeatOccupied[0] ? 1 : 0) + (table.m_IsSeatOccupied[1] ? 1 : 0);
+                    }
                 }
-                else
-                {
-                    table.m_IsSeatOccupied[seat] = false;
-                    table.m_IsSeatBooked[seat] = false;
-                    table.m_IsQueueOccupied[seat] = false;
-                    table.m_IsPlayerSeat[seat] = false;
-                    fIsPlayerOccupied?.SetValue(table, false);
-                    fHasStartPlayerPlayCard?.SetValue(table, false);
-                    if (table.m_TableGameItemSetList != null && seat < table.m_TableGameItemSetList.Count && table.m_TableGameItemSetList[seat] != null)
-                        table.m_TableGameItemSetList[seat].gameObject.SetActive(false);
-                    table.m_CurrentPlayerCount = (table.m_IsSeatOccupied[0] ? 1 : 0) + (table.m_IsSeatOccupied[1] ? 1 : 0);
-                }
+                catch { }
             }
 
             var ipc = CSingleton<InteractionPlayerController>.Instance;
@@ -289,11 +526,16 @@ namespace PokeTCGPlay
                 Transform standTransform = table != null ? table.GetStandLoc(Math.Max(0, seat), true) : null;
                 Vector3 standPos = standTransform != null ? standTransform.position : savedStandPos;
                 InteractionPlayerController.SetPlayerPos(standPos);
+                try { ipc.OnExitPlayTableGameMode(); } catch { }
+                fIsPlayTableGameMode?.SetValue(ipc, false);
+                ipc.m_IsPlayingTopDownGameMode = false;
                 if (ipc.m_PlayerRigidbody != null) ipc.m_PlayerRigidbody.isKinematic = false;
                 if (ipc.m_PlayerCollider != null) ipc.m_PlayerCollider.isTrigger = false;
                 if (ipc.m_WalkerCtrl != null) ipc.m_WalkerCtrl.SetStopMovement(false);
-                ipc.ExitUIMode();
+                try { mSetCurrentGameState?.Invoke(ipc, new object[] { EGameState.DefaultState }); } catch { }
+                try { ipc.ExitUIMode(); } catch { }
             }
+            ApplySeatedShopHudFilter(false);
         }
     }
 
@@ -306,6 +548,22 @@ namespace PokeTCGPlay
             PlayTableSession.SitAtTable(__instance);
             return false;
         }
+
+        [HarmonyPatch(typeof(InteractionPlayerController), "OnEnterPhoneScreenMode")]
+        [HarmonyPrefix]
+        public static bool BlockPhoneWhileSeated_Prefix() => PlayTableSession.CurrentTable == null;
+
+        [HarmonyPatch(typeof(InteractionPlayerController), "EnterViewCardAlbumMode")]
+        [HarmonyPrefix]
+        public static bool BlockAlbumWhileSeated_Prefix() => PlayTableSession.CurrentTable == null;
+
+        [HarmonyPatch(typeof(InteractionPlayerController), "ShowDecoInventoryScreen")]
+        [HarmonyPrefix]
+        public static bool BlockDecoWhileSeated_Prefix() => PlayTableSession.CurrentTable == null;
+
+        [HarmonyPatch(typeof(InteractionPlayerController), "ShowGoNextDayScreen")]
+        [HarmonyPrefix]
+        public static bool BlockNextDayWhileSeated_Prefix() => PlayTableSession.CurrentTable == null;
 
         [HarmonyPatch(typeof(InteractablePlayTable), nameof(InteractablePlayTable.CustomerHasReached))]
         [HarmonyFinalizer]

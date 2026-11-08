@@ -1,0 +1,11 @@
+﻿{
+    "id":  "base2",
+    "name":  "Jungle",
+    "order":  2,
+    "mycurioExpansion":  "MyCurioPokemon-JU",
+    "spritePrefix":  "JU-",
+    "spriteDigits":  3,
+    "effectsImplemented":  true,
+    "cardsFile":  "cards.json",
+    "overridesFile":  "overrides.json"
+}

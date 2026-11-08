@@ -51,14 +51,15 @@ namespace PokeTCGPlay
         public int RemainingHp => Card.Hp - Damage;
         public string Label => $"{Card.Name} {RemainingHp}/{Card.Hp}" + (Status != Status.None ? $" [{Status}]" : "") + (Poisoned ? " [Poison]" : "");
 
-        public int EnergyCount(string type) => Energy.Where(e => e.EnergyProvides == type).Sum(e => e.EnergyAmount);
+        public int EnergyCount(string type) =>
+            Energy.Where(e => e.EnergyProvides == type || e.EnergyProvides == "Rainbow").Sum(e => e.EnergyAmount);
         public int EnergyTotal => Energy.Sum(e => e.EnergyAmount);
 
         public void ClearConditions() { Status = Status.None; StatusTurns = 0; Poisoned = false; }
 
         public IEnumerable<CardDef> AllCards() => Stack.Concat(Energy).Concat(Attached);
 
-        /// <summary>Comprueba si la energía unida paga el coste (Colorless lo paga cualquiera).</summary>
+        /// <summary>Comprueba si la energía unida paga el coste (Colorless lo paga cualquiera; Rainbow paga cualquier color).</summary>
         public bool CanPay(List<string> cost)
         {
             var pool = new Dictionary<string, int>();
@@ -67,8 +68,18 @@ namespace PokeTCGPlay
             foreach (var c in cost)
             {
                 if (c == "Colorless") { colorless++; continue; }
-                if (!pool.TryGetValue(c, out int v) || v == 0) return false;
-                pool[c] = v - 1;
+                if (pool.TryGetValue(c, out int v) && v > 0)
+                {
+                    pool[c] = v - 1;
+                }
+                else if (pool.TryGetValue("Rainbow", out int rb) && rb > 0)
+                {
+                    pool["Rainbow"] = rb - 1;
+                }
+                else
+                {
+                    return false;
+                }
             }
             return pool.Values.Sum() >= colorless;
         }
@@ -85,6 +96,7 @@ namespace PokeTCGPlay
         public PokemonInPlay Active;
         public List<PokemonInPlay> Bench = new List<PokemonInPlay>();
         public bool EnergyPlayedThisTurn;
+        public int BlaineFireAttachedThisTurn;
         public bool SetupDone;
 
         public IEnumerable<PokemonInPlay> InPlay => (Active != null ? new[] { Active } : new PokemonInPlay[0]).Concat(Bench);
@@ -98,6 +110,11 @@ namespace PokeTCGPlay
         public Phase Phase = Phase.CoinToss;
         public PlayerState Winner;
         public string WinReason;
+        public int GiovanniAllowEvolveTurn = -1;
+        public int MistyBonusTurn = -1;
+        public int KogaPoisonTurn = -1;
+        public int BlaineExtraFireTurn = -1;
+        public string ActiveStadium = "";
         public PlayerState PromotionPending;
         public readonly List<string> Log = new List<string>();
         public readonly Random Rng = new Random();
@@ -105,6 +122,12 @@ namespace PokeTCGPlay
         public bool PendingAiTurn;
         public bool PendingAiSetup;
         public bool IsBusyResolving { get; private set; }
+        public int PlayerMulligans { get; private set; }
+        public int NpcMulligans { get; private set; }
+        public string MulliganSummary { get; private set; } = "";
+        public int PlayerKOs { get; private set; }
+        public int NpcKOs { get; private set; }
+        public bool RewardsApplied;
         bool openingDealt;
         List<AnimEvent> deferredTrainerEvents;
 
@@ -128,7 +151,7 @@ namespace PokeTCGPlay
             OnAnim?.Invoke(ev);
         }
 
-        void Emit(AnimKind kind, PlayerState p, CardDef card = null, int benchIdx = -1, bool heads = false, string label = null)
+        public void Emit(AnimKind kind, PlayerState p, CardDef card = null, int benchIdx = -1, bool heads = false, string label = null)
         {
             DispatchAnimEvent(new AnimEvent
             {
@@ -241,12 +264,7 @@ namespace PokeTCGPlay
             Players[1] = new PlayerState { Name = "Cliente", IsAI = true, Deck = new List<CardDef>(deckB) };
             foreach (var p in Players)
             {
-                int safety = 0;
-                while (safety++ < 50)
-                {
-                    Shuffle(p.Deck);
-                    if (p.Deck.Take(7).Any(c => c.IsBasicPokemon)) break;
-                }
+                Shuffle(p.Deck);
             }
             Phase = Phase.CoinToss;
             Say("Elige Cara (Pikachu) o Cruz (Pokéball) para lanzar la moneda inicial.");
@@ -261,6 +279,37 @@ namespace PokeTCGPlay
             return coinHeads;
         }
 
+        int DealOpeningHandWithMulligan(PlayerState p)
+        {
+            int mulligans = 0;
+            int safety = 0;
+            while (safety++ < 50)
+            {
+                var drawn = p.Deck.Take(7).ToList();
+                p.Deck.RemoveRange(0, Math.Min(7, p.Deck.Count));
+                if (drawn.Any(c => c.IsBasicPokemon) || safety >= 50)
+                {
+                    foreach (var c in drawn)
+                    {
+                        p.Hand.Add(c);
+                        if (!p.IsAI)
+                            Emit(AnimKind.Draw, p, c);
+                    }
+                    if (p.IsAI && p.Hand.Count > 0)
+                        Emit(AnimKind.Draw, p, p.Hand[p.Hand.Count - 1]);
+                    Say($"{p.Name} roba su mano inicial de {drawn.Count} cartas.");
+                    break;
+                }
+
+                mulligans++;
+                string revealed = string.Join(", ", drawn.Select(c => c.Name));
+                Say($"¡Mulligan de {p.Name} (#{mulligans})! Mano sin Pokémon Básicos ({revealed}). Baraja de nuevo y roba 7 cartas.");
+                p.Deck.AddRange(drawn);
+                Shuffle(p.Deck);
+            }
+            return mulligans;
+        }
+
         /// <summary>Se invoca cuando la moneda inicial ya cayó sobre la mesa y se mostró su resultado.</summary>
         public void OnStartCoinLanded(bool coinHeads)
         {
@@ -270,20 +319,37 @@ namespace PokeTCGPlay
             if (!openingDealt)
             {
                 openingDealt = true;
-                // Robar las 7 cartas iniciales del jugador con animación hacia pantalla, revelación y bajada a la mano
-                Draw(Players[0], 7, silent: false);
+                PlayerMulligans = DealOpeningHandWithMulligan(Players[0]);
+                NpcMulligans = DealOpeningHandWithMulligan(Players[1]);
+
+                // Colocar las 6 cartas de Premio de cada jugador
                 Players[0].Prizes.AddRange(Players[0].Deck.Take(6));
                 Players[0].Deck.RemoveRange(0, Math.Min(6, Players[0].Deck.Count));
-
-                // Mano inicial y premios del NPC
-                Draw(Players[1], 7, silent: true);
-                if (Players[1].Hand.Count > 0)
-                    Emit(AnimKind.Draw, Players[1], Players[1].Hand[Players[1].Hand.Count - 1]);
                 Players[1].Prizes.AddRange(Players[1].Deck.Take(6));
                 Players[1].Deck.RemoveRange(0, Math.Min(6, Players[1].Deck.Count));
+
+                // Regla de Mulligan: si un jugador hizo más mulligans que el otro, el rival roba hasta 2 cartas extra
+                var summaryParts = new List<string>();
+                if (PlayerMulligans > 0) summaryParts.Add($"Jugador hizo {PlayerMulligans} Mulligan(s)");
+                if (NpcMulligans > 0) summaryParts.Add($"Cliente hizo {NpcMulligans} Mulligan(s)");
+
+                if (PlayerMulligans != NpcMulligans)
+                {
+                    int netBonus = Math.Min(2, Math.Abs(PlayerMulligans - NpcMulligans));
+                    PlayerState beneficiary = NpcMulligans > PlayerMulligans ? Players[0] : Players[1];
+                    PlayerState other = OpponentOf(beneficiary);
+                    Draw(beneficiary, netBonus, silent: beneficiary.IsAI);
+                    if (beneficiary.IsAI && beneficiary.Hand.Count > 0)
+                        Emit(AnimKind.Draw, beneficiary, beneficiary.Hand[beneficiary.Hand.Count - 1]);
+                    string bonusMsg = $"{beneficiary.Name} roba {netBonus} carta(s) extra por Mulligan de {other.Name}";
+                    Say($"  Regla de Mulligan: {bonusMsg}.");
+                    summaryParts.Add(bonusMsg);
+                }
+
+                MulliganSummary = summaryParts.Count > 0 ? string.Join(" • ", summaryParts) : "";
             }
 
-            // Si el NPC ganó la tirada, esperará a que termine el robo inicial para bajar su Pokémon Básico
+            // Si el NPC ganó la tirada, esperará a que termine el robo inicial para bajar su Pokémon Básico boca abajo
             if (CurrentIndex == 1 && !Players[1].SetupDone)
             {
                 PendingAiSetup = true;
@@ -300,7 +366,15 @@ namespace PokeTCGPlay
             }
         }
 
-        public void Shuffle(List<CardDef> l) { for (int i = l.Count - 1; i > 0; i--) { int j = Rng.Next(i + 1); (l[i], l[j]) = (l[j], l[i]); } }
+        public void Shuffle(List<CardDef> l)
+        {
+            for (int i = l.Count - 1; i > 0; i--)
+            {
+                int j = Rng.Next(i + 1);
+                (l[i], l[j]) = (l[j], l[i]);
+            }
+            TcgAudio.PlayShuffle();
+        }
 
         public bool Draw(PlayerState p, int n = 1, bool silent = false)
         {
@@ -353,6 +427,7 @@ namespace PokeTCGPlay
             }
             if (Players.All(x => x.SetupDone) && Phase == Phase.Setup)
             {
+                Say("¡Ambos jugadores revelan sus Pokémon iniciales! Comienza la partida.");
                 Phase = Phase.Main;
                 Turn = 1;
                 StartTurn();
@@ -365,8 +440,17 @@ namespace PokeTCGPlay
         {
             var p = Current;
             p.EnergyPlayedThisTurn = false;
+            p.BlaineFireAttachedThisTurn = 0;
             Say($"--- Turno {Turn}: {p.Name} ---");
-            if (!Draw(p)) { EndGame(OpponentOf(p), $"{p.Name} no puede robar carta."); return; }
+            if (!Draw(p))
+            {
+                EndGame(
+                    OpponentOf(p),
+                    p.IsAI
+                        ? Loc.T("Tu oponente se quedó sin mazo", "Your opponent ran out of cards in their deck")
+                        : Loc.T("Te quedaste sin mazo", "You ran out of cards in your deck"));
+                return;
+            }
             if (p.IsAI) PendingAiTurn = true;
         }
 
@@ -509,12 +593,19 @@ namespace PokeTCGPlay
             var err = MainCheck(p); if (err != null) return err;
             var c = p.Hand[handIdx];
             if (c.Supertype != Supertype.Pokemon || c.Stage == "Basic") return "No es una evolución.";
-            if (target.IsDoll) return "No se puede evolucionar un Clefairy Doll.";
+            if (target.IsDoll && target.Card.Name != "Mysterious Fossil") return "No se puede evolucionar un Clefairy Doll.";
             if (!breeder && c.EvolvesFrom != target.Card.Name) return $"{c.Name} evoluciona de {c.EvolvesFrom}.";
-            if (Turn <= 2 || target.TurnPlaced == Turn || target.TurnEvolved == Turn)
+            bool giovanniBypass = GiovanniAllowEvolveTurn == Turn && target.Card.Name.IndexOf("Giovanni", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (!giovanniBypass && (Turn <= 2 || target.TurnPlaced == Turn || target.TurnEvolved == Turn))
                 return "No puede evolucionar en el primer turno ni el turno en que se jugó/evolucionó.";
             int bIdx = target == p.Active ? -1 : p.Bench.IndexOf(target);
+            target.IsDoll = false;
             target.Stack.Add(c); target.TurnEvolved = Turn; target.ClearConditions();
+            if (ActiveStadium == "Viridian City Gym" && c.Name.IndexOf("Giovanni", StringComparison.OrdinalIgnoreCase) >= 0 && target.Damage > 0)
+            {
+                target.Damage = Math.Max(0, target.Damage - 20);
+                Say($"  Viridian City Gym cura 20 PS a {c.Name}.");
+            }
             p.Hand.RemoveAt(handIdx);
             Say($"{p.Name} evoluciona a {c.Name}.");
             Emit(AnimKind.Evolve, p, c, bIdx);
@@ -526,12 +617,35 @@ namespace PokeTCGPlay
             var err = MainCheck(p); if (err != null) return err;
             var c = p.Hand[handIdx];
             if (c.Supertype != Supertype.Energy) return "No es Energía.";
-            if (p.EnergyPlayedThisTurn) return "Ya uniste una Energía este turno.";
-            if (target.IsDoll) return "No se puede unir Energía a Clefairy Doll.";
+            bool blaineExtra = BlaineExtraFireTurn == Turn && c.EnergyProvides == "Fire"
+                && target.Card.Name.IndexOf("Blaine", StringComparison.OrdinalIgnoreCase) >= 0
+                && p.BlaineFireAttachedThisTurn < 2;
+            if (p.EnergyPlayedThisTurn && !blaineExtra) return "Ya uniste una Energía este turno.";
+            if (target.IsDoll) return $"No se puede unir Energía a {target.Card.Name}.";
             int bIdx = target == p.Active ? -1 : p.Bench.IndexOf(target);
-            target.Energy.Add(c); p.Hand.RemoveAt(handIdx); p.EnergyPlayedThisTurn = true;
+            target.Energy.Add(c);
+            p.Hand.RemoveAt(handIdx);
+            p.EnergyPlayedThisTurn = true;
+            if (c.EnergyProvides == "Fire" && target.Card.Name.IndexOf("Blaine", StringComparison.OrdinalIgnoreCase) >= 0)
+                p.BlaineFireAttachedThisTurn++;
             Say($"{p.Name} une {c.Name} debajo de {target.Card.Name}.");
+            if (c.Name == "Full Heal Energy")
+            {
+                target.ClearConditions();
+                Say($"  Full Heal Energy cura los estados de {target.Card.Name}.");
+            }
+            else if (c.Name == "Potion Energy" && target.Damage > 0)
+            {
+                target.Damage = Math.Max(0, target.Damage - 10);
+                Say($"  Potion Energy cura 10 PS a {target.Card.Name}.");
+            }
+            else if (c.Name == "Rainbow Energy")
+            {
+                target.Damage += 10;
+                Say($"  Rainbow Energy hace 10 de daño a {target.Card.Name}.");
+            }
             Emit(AnimKind.AttachEnergy, p, c, bIdx);
+            CheckKnockOuts();
             return null;
         }
 
@@ -541,9 +655,12 @@ namespace PokeTCGPlay
             var a = p.Active;
             if (a == null) return "Sin Pokémon Activo.";
             if (benchIdx < 0 || benchIdx >= p.Bench.Count) return "Pokémon de Banca inválido.";
-            if (a.IsDoll) return "Clefairy Doll no puede retirarse.";
+            if (a.IsDoll) return $"{a.Card.Name} no puede retirarse.";
             if (a.Status == Status.Asleep || a.Status == Status.Paralyzed) return "Dormido o Paralizado: no puede retirarse.";
-            if (a.EnergyTotal < a.Card.RetreatCost) return $"Necesita {a.Card.RetreatCost} Energía para retirarse.";
+            int retreatCost = a.Card.RetreatCost;
+            if (ActiveStadium == "Cerulean City Gym" && a.Card.Name.IndexOf("Misty", StringComparison.OrdinalIgnoreCase) >= 0)
+                retreatCost = Math.Max(0, retreatCost - 1);
+            if (a.EnergyTotal < retreatCost) return $"Necesita {retreatCost} Energía para retirarse.";
             if (retreatedThisTurn == Turn) return "Ya te retiraste este turno.";
 
             if (a.Status == Status.Confused)
@@ -575,6 +692,8 @@ namespace PokeTCGPlay
         {
             if (p.Active != a || benchIdx < 0 || benchIdx >= p.Bench.Count) return;
             int toPay = a.Card.RetreatCost;
+            if (ActiveStadium == "Cerulean City Gym" && a.Card.Name.IndexOf("Misty", StringComparison.OrdinalIgnoreCase) >= 0)
+                toPay = Math.Max(0, toPay - 1);
             while (toPay > 0 && a.Energy.Count > 0)
             {
                 var e = a.Energy.OrderBy(x => x.EnergyAmount).First();
@@ -610,7 +729,7 @@ namespace PokeTCGPlay
             }
 
             if (res != null) { p.Hand.Insert(handIdx, c); return res; }
-            if (!(c.Name == "PlusPower" || c.Name == "Defender" || c.Name == "Clefairy Doll")) p.Discard.Add(c);
+            if (!(c.Name == "PlusPower" || c.Name == "Defender" || c.Name == "Clefairy Doll" || c.Name == "Mysterious Fossil")) p.Discard.Add(c);
             // Primero vuela la carta de Entrenador y después sus efectos derivados (ej. robos de Bill / Oak)
             Emit(AnimKind.PlayTrainer, p, c, -1);
             foreach (var ev in captured)
@@ -624,7 +743,7 @@ namespace PokeTCGPlay
             var err = MainCheck(p); if (err != null) return err;
             var a = p.Active; var atk = a?.Card.Attacks.ElementAtOrDefault(atkIdx);
             if (atk == null) return "Ataque inválido.";
-            if (a.IsDoll) return "Clefairy Doll no puede atacar.";
+            if (a.IsDoll) return $"{a.Card.Name} no puede atacar.";
             if (!a.CanPay(atk.Cost)) return "Energía insuficiente.";
             if (a.Status == Status.Asleep || a.Status == Status.Paralyzed) return $"{a.Card.Name} no puede atacar ({a.Status}).";
 
@@ -672,20 +791,33 @@ namespace PokeTCGPlay
             return null;
         }
 
-        /// <summary>Daño al Activo defensor aplicando PlusPower, Debilidad x2, Resistencia y Defender.</summary>
+        /// <summary>Daño al Activo defensor aplicando PlusPower, Debilidad x2, Resistencia, Defender y efectos de Líderes de Gimnasio.</summary>
         public void DealDamage(PokemonInPlay attacker, PokemonInPlay defender, int baseDmg, bool applyWR = true)
         {
             if (baseDmg <= 0) return;
             int dmg = baseDmg + (attacker?.PlusPower ?? 0) * 10;
+            if (MistyBonusTurn == Turn && attacker != null && attacker.Card.Name.IndexOf("Misty", StringComparison.OrdinalIgnoreCase) >= 0)
+                dmg += 20;
             if (applyWR && attacker != null)
             {
-                if (defender.Card.WeaknessType == attacker.Card.Type) dmg *= 2;
-                if (defender.Card.ResistanceType == attacker.Card.Type) dmg -= defender.Card.ResistanceValue;
+                bool ignoreWaterWeakness = ActiveStadium == "Cinnabar City Gym"
+                    && attacker.Card.Type == "Water"
+                    && defender.Card.Name.IndexOf("Blaine", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!ignoreWaterWeakness && defender.Card.WeaknessType == attacker.Card.Type) dmg *= 2;
+
+                bool ignoreResistance = ActiveStadium == "Pewter City Gym"
+                    && attacker.Card.Name.IndexOf("Brock", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!ignoreResistance && defender.Card.ResistanceType == attacker.Card.Type) dmg -= defender.Card.ResistanceValue;
             }
             if (defender.DefenderUntilTurn >= Turn) dmg -= 20;
             dmg = Math.Max(0, dmg);
             defender.Damage += dmg;
             Say($"  {defender.Card.Name} recibe {dmg} de daño.");
+            if (dmg > 0 && KogaPoisonTurn == Turn && attacker != null && attacker.Card.Name.IndexOf("Koga", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                defender.Poisoned = true;
+                Say($"  ¡El efecto de Koga envenena a {defender.Card.Name}!");
+            }
         }
 
         public void CheckKnockOuts()
@@ -699,13 +831,26 @@ namespace PokeTCGPlay
                         Emit(AnimKind.KnockOut, p, pip.Card, bIdx);
                         p.Discard.AddRange(pip.AllCards());
                         if (p.Active == pip) p.Active = null; else p.Bench.Remove(pip);
-                        if (!pip.IsDoll) TakePrize(OpponentOf(p));
+                        if (!pip.IsDoll)
+                        {
+                            if (p.IsAI) PlayerKOs++;
+                            else NpcKOs++;
+                            TakePrize(OpponentOf(p));
+                        }
                     }
             if (Phase == Phase.GameOver) return;
             foreach (var p in Players)
                 if (p.Active == null)
                 {
-                    if (p.Bench.Count == 0) { EndGame(OpponentOf(p), $"{p.Name} no tiene Pokémon en juego."); return; }
+                    if (p.Bench.Count == 0)
+                    {
+                        EndGame(
+                            OpponentOf(p),
+                            p.IsAI
+                                ? Loc.T("Tu oponente se quedó sin Pokémon", "Your opponent ran out of Pokémon")
+                                : Loc.T("Te quedaste sin Pokémon", "You ran out of Pokémon"));
+                        return;
+                    }
                     if (p.IsAI) { AI.Promote(this, p); continue; }
                     PromotionPending = p; Phase = Phase.ChoosePromotion; return;
                 }
@@ -718,7 +863,14 @@ namespace PokeTCGPlay
             p.Hand.Add(prize); p.Prizes.RemoveAt(0);
             Say($"{p.Name} toma un Premio ({p.Prizes.Count} restantes).");
             Emit(AnimKind.TakePrize, p, prize, p.Prizes.Count);
-            if (p.Prizes.Count == 0) EndGame(p, "tomó todos sus Premios.");
+            if (p.Prizes.Count == 0)
+            {
+                EndGame(
+                    p,
+                    p.IsAI
+                        ? Loc.T("Obtuvo todos los premios", "Your opponent took all Prize cards")
+                        : Loc.T("Obtuviste todos los premios", "You took all Prize cards"));
+            }
         }
 
         public string Promote(PlayerState p, int benchIdx)

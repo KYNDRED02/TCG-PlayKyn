@@ -1,0 +1,10 @@
+{
+  "Id": "base_era",
+  "Name": "Base Era",
+  "Description": "Todas las expansiones clásicas de Base Era (Base Set, Jungle, Fossil, Base Set 2, Team Rocket, Gym Heroes, Gym Challenge y Wizards Promos).",
+  "Sets": [ "base1", "base2", "base3", "base4", "base5", "gym1", "gym2", "basep" ],
+  "Banned": [],
+  "DeckSize": 60,
+  "MaxCopies": 4,
+  "MinBasicPokemon": 1
+}

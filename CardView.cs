@@ -240,6 +240,12 @@ namespace PokeTCGPlay
                 HitCollider.enabled = enabled;
         }
 
+        public void SetFlipRoll(float flipZ, float pitchDegrees = 0f, float yawDegrees = 0f)
+        {
+            if (visualRoot != null)
+                visualRoot.localRotation = Quaternion.Euler(pitchDegrees, yawDegrees, flipZ);
+        }
+
         public void RefreshTextures()
         {
             // Reverso oficial
@@ -250,7 +256,7 @@ namespace PokeTCGPlay
             }
 
             // Frente de la carta (MyCurio via EPL)
-            if (Card != null && !FaceDown && frontMat != null)
+            if (Card != null && frontMat != null)
             {
                 var sp = SpriteCache.Get(Card.Sprite);
                 if (sp != null && sp.texture != null)

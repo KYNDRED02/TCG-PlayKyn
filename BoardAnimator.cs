@@ -295,7 +295,7 @@ namespace PokeTCGPlay
             Vector3 oppActivePos = tv.ActiveAnchor[1 - p] != null ? tv.ActiveAnchor[1 - p].position : tv.PlaymatRoot.position;
             Vector3 hitPos = Vector3.Lerp(activePos, oppActivePos, 0.58f) + Vector3.up * 0.015f;
 
-            // 1) Embestida hacia el Pokémon rival (aplica daño y efectos justo en el impacto)
+            // 1) Embestida hacia el Pokémon rival (aplica VFX elemental, sonido de ataque, sacudida de cámara y daño justo en el impacto)
             queue.Enqueue(new Flight3D
             {
                 Kind = AnimKind.AttackLunge,
@@ -310,8 +310,14 @@ namespace PokeTCGPlay
                 EndFlipZ = 0f,
                 ArcHeight = 0.045f,
                 Duration = 0.25f,
-                Caption = $"¡{card?.Name} usa {attackName}!",
-                OnComplete = onImpact
+                Caption = $"¡{card?.Name} {Loc.T("usa", "uses")} {attackName}!",
+                OnComplete = () =>
+                {
+                    TcgAudio.PlayAttackImpact(card?.Type, 35);
+                    PolishEffects3D.SpawnElementalAttackVfx(oppActivePos, card?.Type, 35);
+                    PolishEffects3D.TriggerCameraShake(0.011f, 0.20f);
+                    InvokeSafe(onImpact);
+                }
             });
 
             // 2) Regreso al puesto Activo (al posarse de vuelta se verifican KOs, premios y fin de turno)
@@ -386,44 +392,50 @@ namespace PokeTCGPlay
                     break;
 
                 case AnimKind.ToActive:
-                    queue.Enqueue(new Flight3D
                     {
-                        Kind = AnimKind.ToActive,
-                        PlayerIndex = p,
-                        TargetBenchIndex = -1,
-                        Card = ev.Card,
-                        StartWorldPos = ev.BenchIndex >= 0 ? benchPos : handPos,
-                        EndWorldPos = activePos + Vector3.up * 0.002f,
-                        BaseRotation = playerRot,
-                        StartScale = ev.BenchIndex >= 0 ? 0.94f : 1f,
-                        EndScale = 1.08f,
-                        StartFlipZ = 0f,
-                        EndFlipZ = 0f,
-                        ArcHeight = 0.075f,
-                        Duration = 0.42f,
-                        Caption = $"{ev.Card?.Name} entra al Campo de Batalla"
-                    });
-                    break;
+                        bool faceDownSetup = game != null && game.Phase == Phase.Setup && p == 1;
+                        queue.Enqueue(new Flight3D
+                        {
+                            Kind = AnimKind.ToActive,
+                            PlayerIndex = p,
+                            TargetBenchIndex = -1,
+                            Card = ev.Card,
+                            StartWorldPos = ev.BenchIndex >= 0 ? benchPos : handPos,
+                            EndWorldPos = activePos + Vector3.up * 0.002f,
+                            BaseRotation = playerRot,
+                            StartScale = ev.BenchIndex >= 0 ? 0.94f : 1f,
+                            EndScale = 1.08f,
+                            StartFlipZ = faceDownSetup ? 180f : 0f,
+                            EndFlipZ = faceDownSetup ? 180f : 0f,
+                            ArcHeight = 0.075f,
+                            Duration = 0.42f,
+                            Caption = faceDownSetup ? "Cliente coloca su Pokémon Activo boca abajo" : $"{ev.Card?.Name} entra al Campo de Batalla"
+                        });
+                        break;
+                    }
 
                 case AnimKind.ToBench:
-                    queue.Enqueue(new Flight3D
                     {
-                        Kind = AnimKind.ToBench,
-                        PlayerIndex = p,
-                        TargetBenchIndex = bIdx,
-                        Card = ev.Card,
-                        StartWorldPos = handPos,
-                        EndWorldPos = benchPos + Vector3.up * 0.002f,
-                        BaseRotation = playerRot,
-                        StartScale = 1f,
-                        EndScale = 0.94f,
-                        StartFlipZ = 0f,
-                        EndFlipZ = 0f,
-                        ArcHeight = 0.070f,
-                        Duration = 0.38f,
-                        Caption = $"{ev.Card?.Name} baja a la Banca"
-                    });
-                    break;
+                        bool faceDownSetup = game != null && game.Phase == Phase.Setup && p == 1;
+                        queue.Enqueue(new Flight3D
+                        {
+                            Kind = AnimKind.ToBench,
+                            PlayerIndex = p,
+                            TargetBenchIndex = bIdx,
+                            Card = ev.Card,
+                            StartWorldPos = handPos,
+                            EndWorldPos = benchPos + Vector3.up * 0.002f,
+                            BaseRotation = playerRot,
+                            StartScale = 1f,
+                            EndScale = 0.94f,
+                            StartFlipZ = faceDownSetup ? 180f : 0f,
+                            EndFlipZ = faceDownSetup ? 180f : 0f,
+                            ArcHeight = 0.070f,
+                            Duration = 0.38f,
+                            Caption = faceDownSetup ? "Cliente coloca un Pokémon en Banca boca abajo" : $"{ev.Card?.Name} baja a la Banca"
+                        });
+                        break;
+                    }
 
                 case AnimKind.Evolve:
                     {
@@ -554,12 +566,13 @@ namespace PokeTCGPlay
                 case AnimKind.AttackLunge:
                     {
                         Vector3 hitPos = Vector3.Lerp(activePos, oppActivePos, 0.58f) + Vector3.up * 0.015f;
+                        CardDef atkCard = ev.Card;
                         // Embestida hacia el Pokémon rival
                         queue.Enqueue(new Flight3D
                         {
                             Kind = AnimKind.AttackLunge,
                             PlayerIndex = p,
-                            Card = ev.Card,
+                            Card = atkCard,
                             StartWorldPos = activePos,
                             EndWorldPos = hitPos,
                             BaseRotation = playerRot,
@@ -569,14 +582,20 @@ namespace PokeTCGPlay
                             EndFlipZ = 0f,
                             ArcHeight = 0.045f,
                             Duration = 0.24f,
-                            Caption = $"¡{ev.Card?.Name} usa {ev.Label}!"
+                            Caption = $"¡{atkCard?.Name} {Loc.T("usa", "uses")} {ev.Label}!",
+                            OnComplete = () =>
+                            {
+                                TcgAudio.PlayAttackImpact(atkCard?.Type, 35);
+                                PolishEffects3D.SpawnElementalAttackVfx(oppActivePos, atkCard?.Type, 35);
+                                PolishEffects3D.TriggerCameraShake(0.011f, 0.20f);
+                            }
                         });
                         // Regreso al puesto Activo
                         queue.Enqueue(new Flight3D
                         {
                             Kind = AnimKind.AttackLunge,
                             PlayerIndex = p,
-                            Card = ev.Card,
+                            Card = atkCard,
                             StartWorldPos = hitPos,
                             EndWorldPos = activePos,
                             BaseRotation = playerRot,
@@ -586,7 +605,7 @@ namespace PokeTCGPlay
                             EndFlipZ = 0f,
                             ArcHeight = 0.025f,
                             Duration = 0.22f,
-                            Caption = $"¡{ev.Card?.Name} usa {ev.Label}!"
+                            Caption = $"¡{atkCard?.Name} {Loc.T("usa", "uses")} {ev.Label}!"
                         });
                         break;
                     }
@@ -609,7 +628,7 @@ namespace PokeTCGPlay
                             YawSpin = 180f,
                             ArcHeight = 0.095f,
                             Duration = 0.50f,
-                            Caption = $"¡{ev.Card?.Name} Fuera de Combate!"
+                            Caption = $"¡{ev.Card?.Name} {Loc.T("Fuera de Combate", "Knocked Out")}!"
                         });
                         break;
                     }
@@ -636,7 +655,9 @@ namespace PokeTCGPlay
                             RevealAtScreen = (p == 0),
                             HandSlotIndex = Mathf.Max(0, handCount - 1),
                             HandTotalCount = Mathf.Max(1, handCount),
-                            Caption = p == 0 ? $"Tomas 1 Premio: {ev.Card?.Name}" : "Cliente toma 1 Premio"
+                            Caption = p == 0
+                                ? $"{Loc.T("Tomas 1 Premio", "You take 1 Prize")}: {ev.Card?.Name}"
+                                : Loc.T("Cliente toma 1 Premio", "Opponent takes 1 Prize")
                         });
                         break;
                     }
@@ -651,7 +672,7 @@ namespace PokeTCGPlay
                                 if (q.Kind == AnimKind.CoinFlip) { hasCoinQueued = true; break; }
                             }
                         }
-                        string reason = string.IsNullOrEmpty(ev.Label) ? "Moneda" : ev.Label;
+                        string reason = string.IsNullOrEmpty(ev.Label) ? Loc.T("Moneda", "Coin") : ev.Label;
                         queue.Enqueue(new Flight3D
                         {
                             Kind = AnimKind.CoinFlip,
@@ -659,7 +680,7 @@ namespace PokeTCGPlay
                             CoinHeads = ev.CoinHeads,
                             CoinReason = reason,
                             Duration = hasCoinQueued ? 1.12f : 1.38f,
-                            Caption = $"{reason} — Lanzando moneda..."
+                            Caption = $"{reason} — {Loc.T("Lanzando moneda...", "Flipping coin...")}"
                         });
                         break;
                     }
@@ -686,14 +707,29 @@ namespace PokeTCGPlay
                     if (flyingCard != null && flyingCard.gameObject.activeSelf)
                         flyingCard.gameObject.SetActive(false);
                     TableView.Instance?.LaunchGameCoinFlip3D(Current.PlayerIndex, Current.CoinHeads, Current.Duration * 0.86f, Current.CoinReason);
-                    GameUI.PlayClickSound(0);
                 }
                 else
                 {
                     EnsureFlyingCard();
                     prevWorldPos = Current.StartWorldPos;
                     flyingCard.gameObject.SetActive(true);
-                    GameUI.PlayClickSound(0);
+
+                    switch (Current.Kind)
+                    {
+                        case AnimKind.Draw:
+                        case AnimKind.TakePrize:
+                            TcgAudio.PlayCardDraw();
+                            break;
+                        case AnimKind.AttachEnergy:
+                            TcgAudio.PlayAttachEnergy();
+                            break;
+                        case AnimKind.KnockOut:
+                            PolishEffects3D.SpawnKnockOutVfx(Current.StartWorldPos);
+                            break;
+                        default:
+                            GameUI.PlayClickSound(0);
+                            break;
+                    }
                 }
             }
 
@@ -706,7 +742,20 @@ namespace PokeTCGPlay
             var finished = Current;
             Current = null;
             if (finished != null)
+            {
+                if (finished.Kind == AnimKind.Evolve)
+                {
+                    PolishEffects3D.SpawnEvolveVfx(finished.EndWorldPos, finished.Card?.Type);
+                }
+                else if (finished.Kind == AnimKind.ToActive ||
+                         finished.Kind == AnimKind.ToBench ||
+                         finished.Kind == AnimKind.RetreatSwap ||
+                         finished.Kind == AnimKind.PlayTrainer)
+                {
+                    TcgAudio.PlayCardPlace();
+                }
                 InvokeSafe(finished.OnComplete);
+            }
             StartNextInQueue();
         }
 
@@ -724,7 +773,7 @@ namespace PokeTCGPlay
                 return;
             }
 
-            Current.Elapsed += Time.deltaTime;
+            Current.Elapsed += Time.deltaTime * Loc.AnimSpeed;
             float rawT = Mathf.Clamp01(Current.Elapsed / Mathf.Max(0.05f, Current.Duration));
 
             // F7: Lanzamiento de Moneda 3D en cola (sin revelar el resultado ni aplicar el ataque hasta que la moneda termine)
@@ -732,7 +781,10 @@ namespace PokeTCGPlay
             {
                 if (rawT >= 0.72f)
                 {
-                    Current.Caption = $"{Current.CoinReason}: ¡{(Current.CoinHeads ? "CARA (Pikachu)" : "CRUZ (Pokéball)")}!";
+                    string faceTxt = Current.CoinHeads
+                        ? Loc.T("CARA (Pikachu)", "HEADS (Pikachu)")
+                        : Loc.T("CRUZ (Pokéball)", "TAILS (Pokéball)");
+                    Current.Caption = $"{Current.CoinReason}: ¡{faceTxt}!";
                 }
                 if (rawT >= 1f)
                 {

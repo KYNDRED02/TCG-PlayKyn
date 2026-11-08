@@ -1,0 +1,2571 @@
+﻿[
+    {
+        "Id":  "d-base1-1",
+        "Name":  "2-Player Starter Set",
+        "SetId":  "base1",
+        "SetName":  "Base Set",
+        "Format":  "base1",
+        "Types":  [
+                      "Fire",
+                      "Fighting",
+                      "Colorless"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-47",
+                          "Name":  "Diglett",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-52",
+                          "Name":  "Machop",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-34",
+                          "Name":  "Machoke",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-8",
+                          "Name":  "Machamp",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-60",
+                          "Name":  "Ponyta",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-46",
+                          "Name":  "Charmander",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-24",
+                          "Name":  "Charmeleon",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-28",
+                          "Name":  "Growlithe",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-61",
+                          "Name":  "Rattata",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-26",
+                          "Name":  "Dratini",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-91",
+                          "Name":  "Bill",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-92",
+                          "Name":  "Energy Removal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-81",
+                          "Name":  "Energy Retrieval",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-93",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-87",
+                          "Name":  "PokÃ©dex",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-95",
+                          "Name":  "Switch",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-97",
+                          "Name":  "Fighting Energy",
+                          "Count":  14
+                      },
+                      {
+                          "Id":  "base1-98",
+                          "Name":  "Fire Energy",
+                          "Count":  13
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base1-2",
+        "Name":  "Overgrowth",
+        "SetId":  "base1",
+        "SetName":  "Base Set",
+        "Format":  "base1",
+        "Types":  [
+                      "Water",
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-44",
+                          "Name":  "Bulbasaur",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-30",
+                          "Name":  "Ivysaur",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-69",
+                          "Name":  "Weedle",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-33",
+                          "Name":  "Kakuna",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-17",
+                          "Name":  "Beedrill",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-65",
+                          "Name":  "Staryu",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-64",
+                          "Name":  "Starmie",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-35",
+                          "Name":  "Magikarp",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-6",
+                          "Name":  "Gyarados",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-91",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-93",
+                          "Name":  "Gust of Wind",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-90",
+                          "Name":  "Super Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-95",
+                          "Name":  "Switch",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-99",
+                          "Name":  "Grass Energy",
+                          "Count":  16
+                      },
+                      {
+                          "Id":  "base1-102",
+                          "Name":  "Water Energy",
+                          "Count":  12
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base1-3",
+        "Name":  "Zap!",
+        "SetId":  "base1",
+        "SetName":  "Base Set",
+        "Format":  "base1",
+        "Types":  [
+                      "Lightning",
+                      "Psychic"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-58",
+                          "Name":  "Pikachu",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-53",
+                          "Name":  "Magnemite",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-43",
+                          "Name":  "Abra",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-32",
+                          "Name":  "Kadabra",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-50",
+                          "Name":  "Gastly",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-29",
+                          "Name":  "Haunter",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-49",
+                          "Name":  "Drowzee",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-31",
+                          "Name":  "Jynx",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-10",
+                          "Name":  "Mewtwo",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-91",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-71",
+                          "Name":  "Computer Search",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-80",
+                          "Name":  "Defender",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-93",
+                          "Name":  "Gust of Wind",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-88",
+                          "Name":  "Professor Oak",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-90",
+                          "Name":  "Super Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-95",
+                          "Name":  "Switch",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-100",
+                          "Name":  "Lightning Energy",
+                          "Count":  12
+                      },
+                      {
+                          "Id":  "base1-101",
+                          "Name":  "Psychic Energy",
+                          "Count":  16
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base1-4",
+        "Name":  "Brushfire",
+        "SetId":  "base1",
+        "SetName":  "Base Set",
+        "Format":  "base1",
+        "Types":  [
+                      "Fire",
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-46",
+                          "Name":  "Charmander",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-24",
+                          "Name":  "Charmeleon",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-68",
+                          "Name":  "Vulpix",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-12",
+                          "Name":  "Ninetales",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-28",
+                          "Name":  "Growlithe",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-23",
+                          "Name":  "Arcanine",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-69",
+                          "Name":  "Weedle",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-55",
+                          "Name":  "Nidoranâ™‚",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-66",
+                          "Name":  "Tangela",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-92",
+                          "Name":  "Energy Removal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-81",
+                          "Name":  "Energy Retrieval",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-93",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-75",
+                          "Name":  "Lass",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-84",
+                          "Name":  "PlusPower",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-95",
+                          "Name":  "Switch",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-98",
+                          "Name":  "Fire Energy",
+                          "Count":  18
+                      },
+                      {
+                          "Id":  "base1-99",
+                          "Name":  "Grass Energy",
+                          "Count":  10
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base1-5",
+        "Name":  "Blackout",
+        "SetId":  "base1",
+        "SetName":  "Base Set",
+        "Format":  "base1",
+        "Types":  [
+                      "Water",
+                      "Fighting"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-62",
+                          "Name":  "Sandshrew",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-52",
+                          "Name":  "Machop",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-34",
+                          "Name":  "Machoke",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-56",
+                          "Name":  "Onix",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-7",
+                          "Name":  "Hitmonchan",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-63",
+                          "Name":  "Squirtle",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-42",
+                          "Name":  "Wartortle",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-65",
+                          "Name":  "Staryu",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-27",
+                          "Name":  "Farfetch\u0027d",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-92",
+                          "Name":  "Energy Removal",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-93",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-84",
+                          "Name":  "PlusPower",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-88",
+                          "Name":  "Professor Oak",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-79",
+                          "Name":  "Super Energy Removal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-97",
+                          "Name":  "Fighting Energy",
+                          "Count":  16
+                      },
+                      {
+                          "Id":  "base1-102",
+                          "Name":  "Water Energy",
+                          "Count":  12
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base2-1",
+        "Name":  "Water Blast",
+        "SetId":  "base2",
+        "SetName":  "Jungle",
+        "Format":  "base_era",
+        "Types":  [
+                      "Water",
+                      "Fighting"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-59",
+                          "Name":  "Poliwag",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-38",
+                          "Name":  "Poliwhirl",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-41",
+                          "Name":  "Seel",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base2-12",
+                          "Name":  "Vaporeon",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-52",
+                          "Name":  "Machop",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base2-61",
+                          "Name":  "Rhyhorn",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base2-45",
+                          "Name":  "Rhydon",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base2-56",
+                          "Name":  "Meowth",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base2-42",
+                          "Name":  "Persian",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base2-51",
+                          "Name":  "Eevee",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-93",
+                          "Name":  "Gust of Wind",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-88",
+                          "Name":  "Professor Oak",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-90",
+                          "Name":  "Super Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-95",
+                          "Name":  "Switch",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-102",
+                          "Name":  "Water Energy",
+                          "Count":  14
+                      },
+                      {
+                          "Id":  "base1-97",
+                          "Name":  "Fighting Energy",
+                          "Count":  14
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base2-2",
+        "Name":  "Power Reserve",
+        "SetId":  "base2",
+        "SetName":  "Jungle",
+        "Format":  "base_era",
+        "Types":  [
+                      "Psychic",
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base2-57",
+                          "Name":  "Nidoranâ™€",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base2-40",
+                          "Name":  "Nidorina",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base2-58",
+                          "Name":  "Oddish",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base2-37",
+                          "Name":  "Gloom",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base2-49",
+                          "Name":  "Bellsprout",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base2-48",
+                          "Name":  "Weepinbell",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-43",
+                          "Name":  "Abra",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-32",
+                          "Name":  "Kadabra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-31",
+                          "Name":  "Jynx",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base2-5",
+                          "Name":  "Kangaskhan",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-91",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-93",
+                          "Name":  "Gust of Wind",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-87",
+                          "Name":  "PokÃ©dex",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-95",
+                          "Name":  "Switch",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-99",
+                          "Name":  "Grass Energy",
+                          "Count":  17
+                      },
+                      {
+                          "Id":  "base1-101",
+                          "Name":  "Psychic Energy",
+                          "Count":  11
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base3-1",
+        "Name":  "LockDown",
+        "SetId":  "base3",
+        "SetName":  "Fossil",
+        "Format":  "base_era",
+        "Types":  [
+                      "Fire",
+                      "Water"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-68",
+                          "Name":  "Vulpix",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base1-60",
+                          "Name":  "Ponyta",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base3-39",
+                          "Name":  "Magmar",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base3-51",
+                          "Name":  "Krabby",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base3-38",
+                          "Name":  "Kingler",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base3-49",
+                          "Name":  "Horsea",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base3-42",
+                          "Name":  "Seadra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base3-10",
+                          "Name":  "Lapras",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-91",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base3-59",
+                          "Name":  "Energy Search",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-82",
+                          "Name":  "Full Heal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base3-60",
+                          "Name":  "Gambler",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-90",
+                          "Name":  "Super Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-95",
+                          "Name":  "Switch",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-98",
+                          "Name":  "Fire Energy",
+                          "Count":  14
+                      },
+                      {
+                          "Id":  "base1-102",
+                          "Name":  "Water Energy",
+                          "Count":  14
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base3-2",
+        "Name":  "BodyGuard",
+        "SetId":  "base3",
+        "SetName":  "Fossil",
+        "Format":  "base_era",
+        "Types":  [
+                      "Grass",
+                      "Fighting"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-44",
+                          "Name":  "Bulbasaur",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base3-57",
+                          "Name":  "Zubat",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base3-34",
+                          "Name":  "Golbat",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base3-48",
+                          "Name":  "Grimer",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base3-13",
+                          "Name":  "Muk",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-51",
+                          "Name":  "Koffing",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base3-47",
+                          "Name":  "Geodude",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base3-37",
+                          "Name":  "Graveler",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-56",
+                          "Name":  "Onix",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-85",
+                          "Name":  "PokÃ©mon Center",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base1-88",
+                          "Name":  "Professor Oak",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-90",
+                          "Name":  "Super Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-99",
+                          "Name":  "Grass Energy",
+                          "Count":  16
+                      },
+                      {
+                          "Id":  "base1-97",
+                          "Name":  "Fighting Energy",
+                          "Count":  12
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base4-1",
+        "Name":  "2-Player CD-ROM Starter Set",
+        "SetId":  "base4",
+        "SetName":  "Base Set 2",
+        "Format":  "base_era",
+        "Types":  [
+                      "Fighting",
+                      "Water",
+                      "Colorless"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base4-71",
+                          "Name":  "Diglett",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-78",
+                          "Name":  "Machop",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-49",
+                          "Name":  "Machoke",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-8",
+                          "Name":  "Machamp",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-61",
+                          "Name":  "Seel",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-76",
+                          "Name":  "Goldeen",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-60",
+                          "Name":  "Seaking",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-95",
+                          "Name":  "Staryu",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-80",
+                          "Name":  "Meowth",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-72",
+                          "Name":  "Doduo",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-38",
+                          "Name":  "Dratini",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-118",
+                          "Name":  "Bill",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-119",
+                          "Name":  "Energy Removal",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-121",
+                          "Name":  "PokÃ© Ball",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-115",
+                          "Name":  "PokÃ©dex",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-125",
+                          "Name":  "Fighting Energy",
+                          "Count":  14
+                      },
+                      {
+                          "Id":  "base4-130",
+                          "Name":  "Water Energy",
+                          "Count":  13
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base4-2",
+        "Name":  "Grass Chopper",
+        "SetId":  "base4",
+        "SetName":  "Base Set 2",
+        "Format":  "base_era",
+        "Types":  [
+                      "Fighting",
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base4-91",
+                          "Name":  "Sandshrew",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-78",
+                          "Name":  "Machop",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-49",
+                          "Name":  "Machoke",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-83",
+                          "Name":  "Nidoranâ™‚",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-82",
+                          "Name":  "Nidoranâ™€",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-53",
+                          "Name":  "Nidorina",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-66",
+                          "Name":  "Bellsprout",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-64",
+                          "Name":  "Weepinbell",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-6",
+                          "Name":  "Clefairy",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-119",
+                          "Name":  "Energy Removal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-113",
+                          "Name":  "PlusPower",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-108",
+                          "Name":  "Super Energy Removal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-117",
+                          "Name":  "Super Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-125",
+                          "Name":  "Fighting Energy",
+                          "Count":  14
+                      },
+                      {
+                          "Id":  "base4-127",
+                          "Name":  "Grass Energy",
+                          "Count":  14
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base4-3",
+        "Name":  "Hot Water",
+        "SetId":  "base4",
+        "SetName":  "Base Set 2",
+        "Format":  "base_era",
+        "Types":  [
+                      "Fire",
+                      "Water"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base4-69",
+                          "Name":  "Charmander",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-35",
+                          "Name":  "Charmeleon",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-51",
+                          "Name":  "Magmar",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-88",
+                          "Name":  "Poliwag",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-57",
+                          "Name":  "Poliwhirl",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-15",
+                          "Name":  "Poliwrath",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-76",
+                          "Name":  "Goldeen",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-72",
+                          "Name":  "Doduo",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-37",
+                          "Name":  "Dodrio",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-119",
+                          "Name":  "Energy Removal",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-110",
+                          "Name":  "Energy Retrieval",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-121",
+                          "Name":  "PokÃ© Ball",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-106",
+                          "Name":  "PokÃ©mon Trader",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-126",
+                          "Name":  "Fire Energy",
+                          "Count":  13
+                      },
+                      {
+                          "Id":  "base4-130",
+                          "Name":  "Water Energy",
+                          "Count":  15
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base4-4",
+        "Name":  "Lightning Bug",
+        "SetId":  "base4",
+        "SetName":  "Base Set 2",
+        "Format":  "base_era",
+        "Types":  [
+                      "Lightning",
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base4-68",
+                          "Name":  "Caterpie",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-81",
+                          "Name":  "Metapod",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-100",
+                          "Name":  "Weedle",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-47",
+                          "Name":  "Kakuna",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-21",
+                          "Name":  "Beedrill",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-87",
+                          "Name":  "Pikachu",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-79",
+                          "Name":  "Magnemite",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-3",
+                          "Name":  "Chansey",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-118",
+                          "Name":  "Bill",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-109",
+                          "Name":  "Defender",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-110",
+                          "Name":  "Energy Retrieval",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-113",
+                          "Name":  "PlusPower",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-115",
+                          "Name":  "PokÃ©dex",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-127",
+                          "Name":  "Grass Energy",
+                          "Count":  16
+                      },
+                      {
+                          "Id":  "base4-128",
+                          "Name":  "Lightning Energy",
+                          "Count":  12
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base4-5",
+        "Name":  "Psych Out",
+        "SetId":  "base4",
+        "SetName":  "Base Set 2",
+        "Format":  "base_era",
+        "Types":  [
+                      "Psychic",
+                      "Water"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base4-65",
+                          "Name":  "Abra",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-46",
+                          "Name":  "Kadabra",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-73",
+                          "Name":  "Drowzee",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-45",
+                          "Name":  "Jynx",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-93",
+                          "Name":  "Squirtle",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base4-63",
+                          "Name":  "Wartortle",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-61",
+                          "Name":  "Seel",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-95",
+                          "Name":  "Staryu",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-94",
+                          "Name":  "Starmie",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-77",
+                          "Name":  "Jigglypuff",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-19",
+                          "Name":  "Wigglytuff",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-101",
+                          "Name":  "Computer Search",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-109",
+                          "Name":  "Defender",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-117",
+                          "Name":  "Super Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-129",
+                          "Name":  "Psychic Energy",
+                          "Count":  13
+                      },
+                      {
+                          "Id":  "base4-130",
+                          "Name":  "Water Energy",
+                          "Count":  15
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base4-6",
+        "Name":  "Thunderstorm",
+        "SetId":  "base4",
+        "SetName":  "Base Set 2",
+        "Format":  "base_era",
+        "Types":  [
+                      "Water",
+                      "Lightning"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base1-20",
+                          "Name":  "Electabuzz",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-84",
+                          "Name":  "Lt. Surge\u0027s Voltorb",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-53",
+                          "Name":  "Magnemite",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base2-60",
+                          "Name":  "Pikachu",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base3-29",
+                          "Name":  "Raichu",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base3-15",
+                          "Name":  "Zapdos",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-87",
+                          "Name":  "Misty\u0027s Poliwag",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base3-53",
+                          "Name":  "Psyduck",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base5-65",
+                          "Name":  "Psyduck",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base3-35",
+                          "Name":  "Golduck",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-48",
+                          "Name":  "Doduo",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-27",
+                          "Name":  "Farfetch\u0027d",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base2-62",
+                          "Name":  "Spearow",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base2-36",
+                          "Name":  "Fearow",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-91",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base1-80",
+                          "Name":  "Defender",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-81",
+                          "Name":  "Energy Retrieval",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base3-59",
+                          "Name":  "Energy Search",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-114",
+                          "Name":  "Misty\u0027s Wrath",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base2-64",
+                          "Name":  "PokÃ© Ball",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-94",
+                          "Name":  "Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-90",
+                          "Name":  "Super Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base1-88",
+                          "Name":  "Professor Oak",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-128",
+                          "Name":  "Lightning Energy",
+                          "Count":  16
+                      },
+                      {
+                          "Id":  "base4-130",
+                          "Name":  "Water Energy",
+                          "Count":  8
+                      },
+                      {
+                          "Id":  "base1-96",
+                          "Name":  "Double Colorless Energy",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base5-81",
+                          "Name":  "Full Heal Energy",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-82",
+                          "Name":  "Potion Energy",
+                          "Count":  1
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base5-1",
+        "Name":  "Devastation",
+        "SetId":  "base5",
+        "SetName":  "Team Rocket",
+        "Format":  "base_era",
+        "Types":  [
+                      "Grass",
+                      "Water"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base4-100",
+                          "Name":  "Weedle",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base5-63",
+                          "Name":  "Oddish",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base5-36",
+                          "Name":  "Dark Gloom",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-58",
+                          "Name":  "Koffing",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base5-14",
+                          "Name":  "Dark Weezing",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-96",
+                          "Name":  "Tangela",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-93",
+                          "Name":  "Squirtle",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-63",
+                          "Name":  "Wartortle",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-46",
+                          "Name":  "Dark Wartortle",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-50",
+                          "Name":  "Magikarp",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-45",
+                          "Name":  "Dark Vaporeon",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base5-55",
+                          "Name":  "Eevee",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-111",
+                          "Name":  "Full Heal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-76",
+                          "Name":  "Imposter Oak\u0027s Revenge",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-117",
+                          "Name":  "Super Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-127",
+                          "Name":  "Grass Energy",
+                          "Count":  18
+                      },
+                      {
+                          "Id":  "base4-130",
+                          "Name":  "Water Energy",
+                          "Count":  10
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-base5-2",
+        "Name":  "Trouble",
+        "SetId":  "base5",
+        "SetName":  "Team Rocket",
+        "Format":  "base_era",
+        "Types":  [
+                      "Psychic",
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "base4-65",
+                          "Name":  "Abra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base5-49",
+                          "Name":  "Abra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-46",
+                          "Name":  "Kadabra",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-39",
+                          "Name":  "Dark Kadabra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-75",
+                          "Name":  "Gastly",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-43",
+                          "Name":  "Haunter",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-54",
+                          "Name":  "Drowzee",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-45",
+                          "Name":  "Jynx",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-100",
+                          "Name":  "Weedle",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base5-56",
+                          "Name":  "Ekans",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "base5-2",
+                          "Name":  "Dark Arbok",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-62",
+                          "Name":  "Meowth",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-40",
+                          "Name":  "Farfetch\u0027d",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-118",
+                          "Name":  "Bill",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base5-73",
+                          "Name":  "The Boss\u0027s Way",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-129",
+                          "Name":  "Psychic Energy",
+                          "Count":  18
+                      },
+                      {
+                          "Id":  "base4-127",
+                          "Name":  "Grass Energy",
+                          "Count":  10
+                      },
+                      {
+                          "Id":  "base5-81",
+                          "Name":  "Full Heal Energy",
+                          "Count":  1
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym1-1",
+        "Name":  "Brock",
+        "SetId":  "gym1",
+        "SetName":  "Gym Heroes",
+        "Format":  "base_era",
+        "Types":  [
+                      "Fighting"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym1-66",
+                          "Name":  "Brock\u0027s Geodude",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-40",
+                          "Name":  "Brock\u0027s Graveler",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-67",
+                          "Name":  "Brock\u0027s Mankey",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-69",
+                          "Name":  "Brock\u0027s Onix",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-70",
+                          "Name":  "Brock\u0027s Rhyhorn",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-2",
+                          "Name":  "Brock\u0027s Rhydon",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-71",
+                          "Name":  "Brock\u0027s Sandshrew",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-72",
+                          "Name":  "Brock\u0027s Sandshrew",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-41",
+                          "Name":  "Brock\u0027s Lickitung",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-118",
+                          "Name":  "Bill",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-98",
+                          "Name":  "Brock",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-106",
+                          "Name":  "Brock\u0027s Training Method",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-110",
+                          "Name":  "Energy Retrieval",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-111",
+                          "Name":  "Full Heal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-115",
+                          "Name":  "Pewter City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-127",
+                          "Name":  "Fighting Energy",
+                          "Count":  28
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym1-2",
+        "Name":  "Misty",
+        "SetId":  "gym1",
+        "SetName":  "Gym Heroes",
+        "Format":  "base_era",
+        "Types":  [
+                      "Water"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym1-85",
+                          "Name":  "Misty\u0027s Goldeen",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-86",
+                          "Name":  "Misty\u0027s Horsea",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-87",
+                          "Name":  "Misty\u0027s Poliwag",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-53",
+                          "Name":  "Misty\u0027s Poliwhirl",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-54",
+                          "Name":  "Misty\u0027s Psyduck",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-90",
+                          "Name":  "Misty\u0027s Staryu",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-56",
+                          "Name":  "Misty\u0027s Starmie",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-57",
+                          "Name":  "Misty\u0027s Tentacool",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-10",
+                          "Name":  "Misty\u0027s Tentacruel",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-108",
+                          "Name":  "Cerulean City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-119",
+                          "Name":  "Energy Removal",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-102",
+                          "Name":  "Misty",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-121",
+                          "Name":  "PokÃ© Ball",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-132",
+                          "Name":  "Water Energy",
+                          "Count":  28
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym1-3",
+        "Name":  "Lt. Surge",
+        "SetId":  "gym1",
+        "SetName":  "Gym Heroes",
+        "Format":  "base_era",
+        "Types":  [
+                      "Lightning"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym1-80",
+                          "Name":  "Lt. Surge\u0027s Magnemite",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-8",
+                          "Name":  "Lt. Surge\u0027s Magneton",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-81",
+                          "Name":  "Lt. Surge\u0027s Pikachu",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-84",
+                          "Name":  "Lt. Surge\u0027s Voltorb",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-52",
+                          "Name":  "Lt. Surge\u0027s Spearow",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-83",
+                          "Name":  "Lt. Surge\u0027s Spearow",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-82",
+                          "Name":  "Lt. Surge\u0027s Rattata",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-51",
+                          "Name":  "Lt. Surge\u0027s Raticate",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-119",
+                          "Name":  "Energy Removal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-101",
+                          "Name":  "Lt. Surge",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-113",
+                          "Name":  "PlusPower",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-118",
+                          "Name":  "Secret Mission",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-120",
+                          "Name":  "Vermilion City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-130",
+                          "Name":  "Lightning Energy",
+                          "Count":  28
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym1-4",
+        "Name":  "Erika",
+        "SetId":  "gym1",
+        "SetName":  "Gym Heroes",
+        "Format":  "base_era",
+        "Types":  [
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym1-76",
+                          "Name":  "Erika\u0027s Bellsprout",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-49",
+                          "Name":  "Erika\u0027s Weepinbell",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym1-77",
+                          "Name":  "Erika\u0027s Exeggcute",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-44",
+                          "Name":  "Erika\u0027s Exeggutor",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-78",
+                          "Name":  "Erika\u0027s Oddish",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-46",
+                          "Name":  "Erika\u0027s Gloom",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-45",
+                          "Name":  "Erika\u0027s Gloom",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-5",
+                          "Name":  "Erika\u0027s Vileplume",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-79",
+                          "Name":  "Erika\u0027s Tangela",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym1-42",
+                          "Name":  "Erika\u0027s Dratini",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-107",
+                          "Name":  "Celadon City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-110",
+                          "Name":  "Erika\u0027s Perfume",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-100",
+                          "Name":  "Erika",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-121",
+                          "Name":  "PokÃ© Ball",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym1-129",
+                          "Name":  "Grass Energy",
+                          "Count":  22
+                      },
+                      {
+                          "Id":  "gym1-131",
+                          "Name":  "Psychic Energy",
+                          "Count":  6
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym2-1",
+        "Name":  "Sabrina",
+        "SetId":  "gym2",
+        "SetName":  "Gym Challenge",
+        "Format":  "base_era",
+        "Types":  [
+                      "Psychic"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym2-93",
+                          "Name":  "Sabrina\u0027s Abra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-94",
+                          "Name":  "Sabrina\u0027s Abra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-58",
+                          "Name":  "Sabrina\u0027s Kadabra",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-16",
+                          "Name":  "Sabrina\u0027s Alakazam",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-95",
+                          "Name":  "Sabrina\u0027s Drowzee",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-96",
+                          "Name":  "Sabrina\u0027s Gastly",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym2-55",
+                          "Name":  "Sabrina\u0027s Haunter",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-57",
+                          "Name":  "Sabrina\u0027s Jynx",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-98",
+                          "Name":  "Sabrina\u0027s Porygon",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-118",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-110",
+                          "Name":  "Sabrina",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-125",
+                          "Name":  "Sabrina\u0027s Gaze",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-121",
+                          "Name":  "Sabrina\u0027s Psychic Control",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-122",
+                          "Name":  "Saffron City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-123",
+                          "Name":  "Switch",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-131",
+                          "Name":  "Psychic Energy",
+                          "Count":  28
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym2-2",
+        "Name":  "Koga",
+        "SetId":  "gym2",
+        "SetName":  "Gym Challenge",
+        "Format":  "base_era",
+        "Types":  [
+                      "Grass"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym2-82",
+                          "Name":  "Koga\u0027s Weedle",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym2-47",
+                          "Name":  "Koga\u0027s Kakuna",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-9",
+                          "Name":  "Koga\u0027s Beedrill",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-77",
+                          "Name":  "Koga\u0027s Ekans",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-78",
+                          "Name":  "Koga\u0027s Grimer",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-79",
+                          "Name":  "Koga\u0027s Koffing",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-48",
+                          "Name":  "Koga\u0027s Koffing",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-50",
+                          "Name":  "Koga\u0027s Weezing",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-80",
+                          "Name":  "Koga\u0027s Pidgey",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "base4-119",
+                          "Name":  "Energy Removal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-114",
+                          "Name":  "Fuchsia City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-111",
+                          "Name":  "Full Heal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-120",
+                          "Name":  "Gust of Wind",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-106",
+                          "Name":  "Koga",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-113",
+                          "Name":  "PlusPower",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-129",
+                          "Name":  "Grass Energy",
+                          "Count":  28
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym2-3",
+        "Name":  "Blaine",
+        "SetId":  "gym2",
+        "SetName":  "Gym Challenge",
+        "Format":  "base_era",
+        "Types":  [
+                      "Fire"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym1-62",
+                          "Name":  "Blaine\u0027s Growlithe",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-62",
+                          "Name":  "Blaine\u0027s Growlithe",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-1",
+                          "Name":  "Blaine\u0027s Arcanine",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-60",
+                          "Name":  "Blaine\u0027s Charmander",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-31",
+                          "Name":  "Blaine\u0027s Charmeleon",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-61",
+                          "Name":  "Blaine\u0027s Doduo",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-32",
+                          "Name":  "Blaine\u0027s Dodrio",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-64",
+                          "Name":  "Blaine\u0027s Ponyta",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym2-33",
+                          "Name":  "Blaine\u0027s Rapidash",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-66",
+                          "Name":  "Blaine\u0027s Vulpix",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-118",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-100",
+                          "Name":  "Blaine",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym1-121",
+                          "Name":  "Blaine\u0027s Gamble",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-113",
+                          "Name":  "Cinnabar City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-117",
+                          "Name":  "Max Revive",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-124",
+                          "Name":  "Fervor",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-117",
+                          "Name":  "Super Potion",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-128",
+                          "Name":  "Fire Energy",
+                          "Count":  28
+                      }
+                  ]
+    },
+    {
+        "Id":  "d-gym2-4",
+        "Name":  "Giovanni",
+        "SetId":  "gym2",
+        "SetName":  "Gym Challenge",
+        "Format":  "base_era",
+        "Types":  [
+                      "Fighting"
+                  ],
+        "Cards":  [
+                      {
+                          "Id":  "gym2-75",
+                          "Name":  "Giovanni\u0027s Nidoranâ™€",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-44",
+                          "Name":  "Giovanni\u0027s Nidorina",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-76",
+                          "Name":  "Giovanni\u0027s Nidoranâ™‚",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym2-45",
+                          "Name":  "Giovanni\u0027s Nidorino",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-72",
+                          "Name":  "Giovanni\u0027s Machop",
+                          "Count":  4
+                      },
+                      {
+                          "Id":  "gym2-42",
+                          "Name":  "Giovanni\u0027s Machoke",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-74",
+                          "Name":  "Giovanni\u0027s Meowth",
+                          "Count":  3
+                      },
+                      {
+                          "Id":  "gym2-43",
+                          "Name":  "Giovanni\u0027s Meowth",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-8",
+                          "Name":  "Giovanni\u0027s Persian",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-118",
+                          "Name":  "Bill",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-119",
+                          "Name":  "Energy Removal",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "base4-111",
+                          "Name":  "Full Heal",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-104",
+                          "Name":  "Giovanni",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "base4-122",
+                          "Name":  "Potion",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-123",
+                          "Name":  "Viridian City Gym",
+                          "Count":  1
+                      },
+                      {
+                          "Id":  "gym2-126",
+                          "Name":  "Warp Point",
+                          "Count":  2
+                      },
+                      {
+                          "Id":  "gym2-129",
+                          "Name":  "Grass Energy",
+                          "Count":  20
+                      },
+                      {
+                          "Id":  "gym2-127",
+                          "Name":  "Fighting Energy",
+                          "Count":  8
+                      }
+                  ]
+    }
+]

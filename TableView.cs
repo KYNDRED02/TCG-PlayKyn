@@ -756,10 +756,14 @@ namespace PokeTCGPlay
             Coin = new Coin3D(PlaymatRoot, CoinArenaAnchor.localPosition);
         }
 
+        float setupRevealFlipZ = 180f;
+
         public void ResetStatusTracking()
         {
             statusCounters?.ResetTracking();
             Coin?.Reset();
+            PolishEffects3D.ClearAll();
+            setupRevealFlipZ = 180f;
         }
 
         public void LaunchStartCoinToss3D(bool headsResult, float duration)
@@ -819,6 +823,13 @@ namespace PokeTCGPlay
 
             bool usePhysicalNativeMesh = nativeDeckSpec != null && nativeDeckSpec.IsValid && physicalBlockPool != null;
             var anim = BoardAnimator.Instance;
+
+            // F8: En Fase de Preparación (Setup) los Pokémon colocados por el NPC permanecen boca abajo (180°),
+            // y al iniciar la partida (Phase.Main) se voltean simultáneamente boca arriba (180° -> 0°).
+            if (game.Phase == Phase.CoinToss || game.Phase == Phase.Setup)
+                setupRevealFlipZ = 180f;
+            else
+                setupRevealFlipZ = Mathf.MoveTowards(setupRevealFlipZ, 0f, Time.deltaTime * 420f);
 
             for (int p = 0; p < 2; p++)
             {
@@ -912,6 +923,9 @@ namespace PokeTCGPlay
             bool inCoinChoice = game.Phase == Phase.CoinToss && !startCoinSpinning;
             Vector3 centerLocal = CoinAnchor != null ? CoinAnchor.localPosition : Vector3.zero;
             Coin?.SyncFrame(true, inCoinChoice, centerLocal, MatThickness + 0.0008f);
+
+            // 10) F10: Efectos visuales 3D por tipo elemental y sacudida de cámara
+            PolishEffects3D.SyncFrame(PlaymatRoot);
         }
 
         public Vector3 GetAttachedEnergyWorldPos(int ownerIdx, int benchSlotIdx, int energySlotIdx)
@@ -1010,20 +1024,26 @@ namespace PokeTCGPlay
                 ? statusCounters.GetHitShakeLocalOffset(pip)
                 : Vector3.zero;
 
-            float topCardY = baseY + Math.Max(0, visibleStackCount - 1) * (CardView.CardThickness + 0.0002f) + 0.0003f;
+            float revealHopY = setupRevealFlipZ > 0.5f && setupRevealFlipZ < 179.5f
+                ? Mathf.Sin((setupRevealFlipZ / 180f) * Mathf.PI) * 0.022f
+                : 0f;
+            float topCardY = baseY + Math.Max(0, visibleStackCount - 1) * (CardView.CardThickness + 0.0002f) + 0.0003f + revealHopY;
             Vector3 topOff = new Vector3(hitShake.x, topCardY, hitShake.z);
-            var topCv = cardPool.Spawn(anchor, topOff, visibleTopCard, false, scale, highlight, statusYaw, energyLiftPitch);
+            bool isFaceDownSetup = setupRevealFlipZ > 90f;
+            var topCv = cardPool.Spawn(anchor, topOff, visibleTopCard, isFaceDownSetup, scale, highlight, statusYaw, energyLiftPitch);
             if (topCv != null)
             {
+                topCv.SetFlipRoll(setupRevealFlipZ, energyLiftPitch, statusYaw);
                 topCv.OwnerIndex = ownerIdx;
                 topCv.BoundPip = pip;
-                topCv.SetRaycastEnabled(true);
-                if (statusCounters != null)
+                topCv.SetRaycastEnabled(!isFaceDownSetup);
+                if (statusCounters != null && !isFaceDownSetup)
                     topCv.SetStatusTintOverlay(statusCounters.GetAnimatedCardTintOverlay(pip));
             }
 
             // 4) F6: Fichas 3D de Contadores de Daño (10, 50, 100) y Marcadores 3D (Veneno, Defender, PlusPower) sobre la carta
-            statusCounters?.SyncPokemonCounters(anchor, pip, topCardY + CardView.CardThickness * 0.5f, scale, currentTurn);
+            if (!isFaceDownSetup)
+                statusCounters?.SyncPokemonCounters(anchor, pip, topCardY + CardView.CardThickness * 0.5f, scale, currentTurn);
         }
 
         /// <summary>

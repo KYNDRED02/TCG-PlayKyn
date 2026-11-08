@@ -25,23 +25,35 @@ namespace PokeTCGPlay
         internal static ConfigEntry<bool> FreeBasicEnergy;
         internal static ConfigEntry<string> DefaultFormat;
         internal static ConfigEntry<string> ActiveDeck;
+        internal static ConfigEntry<string> NpcDeckMode;
+        internal static ConfigEntry<float> AnimSpeedMultiplier;
+        internal static ConfigEntry<string> LanguageConfig;
+        internal static ConfigEntry<float> SfxVolumeConfig;
+        internal static ConfigEntry<bool> EnableCameraShake;
 
         void Awake()
         {
             Log = Logger;
             DataDir = Path.Combine(Path.GetDirectoryName(Info.Location), "Data");
             ToggleKey = Config.Bind("General", "DebugToggleKey", new KeyboardShortcut(KeyCode.F10), "Tecla opcional de depuración (F10 para evitar conflicto con F8 de Pallet Delivery).");
+            LanguageConfig = Config.Bind("General", "Language", "ES", "Idioma de la interfaz: ES (Español) o EN (English).");
+            AnimSpeedMultiplier = Config.Bind("Pulido", "AnimationSpeed", 1.0f, "Multiplicador de velocidad de animaciones 3D (0.75, 1.0, 1.5, 2.0).");
+            SfxVolumeConfig = Config.Bind("Pulido", "SfxVolume", 0.85f, "Volumen de efectos de sonido de Pokémon TCG (0.0 a 1.0).");
+            EnableCameraShake = Config.Bind("Pulido", "EnableCameraShake", true, "Activa la sacudida de cámara en Fuera de Combate (KO) e impactos fuertes.");
             RequireOwnedCards = Config.Bind("Coleccion", "RequireOwnedCards", true, "Solo permite usar en los mazos las cartas que tienes en tu álbum (obtenidas en sobres).");
             FreeBasicEnergy = Config.Bind("Coleccion", "FreeBasicEnergy", true, "Las Energías Básicas no necesitan estar en tu colección.");
-            DefaultFormat = Config.Bind("Mazos", "DefaultFormat", "base1", "Formato por defecto (id de Data/formats/*.json).");
+            DefaultFormat = Config.Bind("Mazos", "DefaultFormat", "base_era", "Formato por defecto (id de Data/formats/*.json).");
             ActiveDeck = Config.Bind("Mazos", "ActiveDeck", "", "Nombre del mazo que usas al jugar.");
+            NpcDeckMode = Config.Bind("Mazos", "NpcDeckMode", "ThemeOrRandom", "Mazos que usan los NPCs: ThemeOrRandom (Oficiales + Aleatorios), ThemeOnly (Solo Mazos Oficiales Base Era), RandomOnly (Solo Aleatorios) o el ID/Nombre de un mazo oficial específico.");
+            TcgAudio.EnsureInitialized();
             try
             {
                 string pluginsDir = Path.GetDirectoryName(Path.GetDirectoryName(Info.Location));
                 CardDatabase.Load(DataDir, pluginsDir);
                 FormatRegistry.Load(DataDir);
+                ThemeDeckRegistry.Load(DataDir);
                 DeckStore.MigrateLegacy(DataDir);
-                Log.LogInfo($"Cargadas {CardDatabase.All.Count} cartas de {CardDatabase.Sets.Count} expansiones; formatos: {string.Join(", ", FormatRegistry.Formats.Select(f => f.Name))}; mazos: {DeckStore.List().Count}");
+                Log.LogInfo($"Cargadas {CardDatabase.All.Count} cartas de {CardDatabase.Sets.Count} expansiones; formatos: {string.Join(", ", FormatRegistry.Formats.Select(f => f.Name))}; mazos oficiales: {ThemeDeckRegistry.Decks.Count}; mazos guardados: {DeckStore.List().Count}");
             }
             catch (Exception e) { Log.LogError("Error cargando datos: " + e); }
 
@@ -306,7 +318,11 @@ namespace PokeTCGPlay
                 if (Epl.IsAvailable && Epl.Api?.Assets?.CardExpansions != null)
                 {
                     bool backDone = false;
-                    foreach (var exKey in CardDatabase.Sets.Select(s => s.MyCurioExpansion).Where(x => !string.IsNullOrEmpty(x)).Distinct())
+                    var allExKeys = CardDatabase.Sets.Select(s => s.MyCurioExpansion)
+                        .Concat(CardDatabase.All.Select(c => c.MyCurioExpansion))
+                        .Where(x => !string.IsNullOrEmpty(x))
+                        .Distinct(StringComparer.OrdinalIgnoreCase);
+                    foreach (var exKey in allExKeys)
                     {
                         if (!Collection.TryParseExpansion(exKey, out var expType)) continue;
                         if (!backDone)

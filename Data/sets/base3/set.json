@@ -1,0 +1,11 @@
+﻿{
+    "id":  "base3",
+    "name":  "Fossil",
+    "order":  3,
+    "mycurioExpansion":  "MyCurioPokemon-FO",
+    "spritePrefix":  "FO-",
+    "spriteDigits":  3,
+    "effectsImplemented":  true,
+    "cardsFile":  "cards.json",
+    "overridesFile":  "overrides.json"
+}

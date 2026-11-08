@@ -52,6 +52,15 @@ namespace PokeTCGPlay
                     catch (Exception e) { Plugin.Log?.LogWarning($"Formato inválido {Path.GetFileName(f)}: {e.Message}"); }
                 }
             if (Formats.Count == 0) Formats.Add(new FormatDef());
+            string[] order = { "base_era", "base_fossil", "base1", "unlimited" };
+            Formats.Sort((a, b) =>
+            {
+                int ia = Array.FindIndex(order, x => string.Equals(x, a.Id, StringComparison.OrdinalIgnoreCase));
+                int ib = Array.FindIndex(order, x => string.Equals(x, b.Id, StringComparison.OrdinalIgnoreCase));
+                if (ia < 0) ia = 99;
+                if (ib < 0) ib = 99;
+                return ia != ib ? ia.CompareTo(ib) : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+            });
         }
     }
 
@@ -230,7 +239,7 @@ namespace PokeTCGPlay
 
     // ───────────────────────────── Mazos ─────────────────────────────
 
-    public class DeckEntry { public string Id; public int Count; }
+    public class DeckEntry { public string Id; public string Name; public int Count; }
 
     /// <summary>Mazo guardado en BepInEx/config/PokeTCGPlay/decks/&lt;nombre&gt;.deck.json.</summary>
     public class DeckDef
@@ -326,13 +335,89 @@ namespace PokeTCGPlay
                 var warn = new List<string>();
                 var cards = DeckLoader.ParseText(File.ReadAllLines(legacy), warn);
                 if (cards.Count == 0) return;
-                var d = new DeckDef { Name = "Mazo inicial", Format = "base1" };
+                var d = new DeckDef { Name = "Mazo inicial", Format = "base_era" };
                 d.SetCards(cards);
                 Save(d);
                 SetActive(d.Name);
                 Plugin.Log?.LogInfo($"Mazo antiguo migrado a {Dir} ({cards.Count} cartas).");
             }
             catch (Exception e) { Plugin.Log?.LogWarning("Migración de mazo: " + e.Message); }
+        }
+    }
+
+    // ───────────────────────────── Mazos Temáticos Oficiales (Base Era) ─────────────────────────────
+
+    public class ThemeDeckDef
+    {
+        public string Id;
+        public string Name;
+        public string SetId;
+        public string SetName;
+        public string Format = "base_era";
+        public List<string> Types = new List<string>();
+        public List<DeckEntry> Cards = new List<DeckEntry>();
+
+        public List<CardDef> Resolve(List<string> missing = null)
+        {
+            var list = new List<CardDef>();
+            foreach (var e in Cards)
+            {
+                if (!CardDatabase.ById.TryGetValue(e.Id ?? "", out var c))
+                {
+                    missing?.Add(e.Id);
+                    continue;
+                }
+                for (int i = 0; i < e.Count; i++) list.Add(c);
+            }
+            return list;
+        }
+
+        public int CountOwnedInCollection(out int totalNeeded)
+        {
+            totalNeeded = 0;
+            int ownedSum = 0;
+            foreach (var e in Cards)
+            {
+                totalNeeded += e.Count;
+                if (!CardDatabase.ById.TryGetValue(e.Id ?? "", out var c)) continue;
+                int owned = Collection.Owned(c);
+                ownedSum += Math.Min(e.Count, owned == int.MaxValue ? e.Count : owned);
+            }
+            return ownedSum;
+        }
+
+        public DeckDef ToDeckDef(string customName = null)
+        {
+            return new DeckDef
+            {
+                Name = string.IsNullOrWhiteSpace(customName) ? $"{Name} ({SetName})" : customName.Trim(),
+                Format = string.IsNullOrWhiteSpace(Format) ? "base_era" : Format,
+                Cards = Cards.Select(c => new DeckEntry { Id = c.Id, Count = c.Count }).ToList()
+            };
+        }
+    }
+
+    public static class ThemeDeckRegistry
+    {
+        public static readonly List<ThemeDeckDef> Decks = new List<ThemeDeckDef>();
+
+        public static void Load(string dataDir)
+        {
+            Decks.Clear();
+            string dir = Path.Combine(dataDir, "theme_decks");
+            if (!Directory.Exists(dir)) return;
+            foreach (var f in Directory.GetFiles(dir, "*.json"))
+            {
+                try
+                {
+                    var list = JsonConvert.DeserializeObject<List<ThemeDeckDef>>(File.ReadAllText(f, Encoding.UTF8));
+                    if (list != null) Decks.AddRange(list);
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log?.LogWarning($"Error cargando mazos temáticos {Path.GetFileName(f)}: {e.Message}");
+                }
+            }
         }
     }
 
@@ -469,17 +554,114 @@ namespace PokeTCGPlay
             return n;
         }
 
+        public static string SetIdToPtcgoCode(string setId)
+        {
+            switch ((setId ?? "").Trim().ToLowerInvariant())
+            {
+                case "base1": return "BS";
+                case "base2": return "JU";
+                case "base3": return "FO";
+                case "base4": return "B2";
+                case "base5": return "TR";
+                case "gym1": return "G1";
+                case "gym2": return "G2";
+                case "basep": return "PR";
+                default: return string.IsNullOrWhiteSpace(setId) ? "BS" : setId.Trim().ToUpperInvariant();
+            }
+        }
+
+        public static string PtcgoCodeToSetId(string ptcgoCode)
+        {
+            switch ((ptcgoCode ?? "").Trim().ToUpperInvariant())
+            {
+                case "BS": case "BS1": case "BASE": case "BASE1": return "base1";
+                case "JU": case "JNG": case "BASE2": return "base2";
+                case "FO": case "FOS": case "BASE3": return "base3";
+                case "B2": case "BS2": case "BASE4": return "base4";
+                case "TR": case "RO": case "BASE5": return "base5";
+                case "G1": case "GYH": case "GYM1": return "gym1";
+                case "G2": case "GYC": case "GYM2": return "gym2";
+                case "PR": case "WP": case "WPO": case "BASEP": return "basep";
+                default: return (ptcgoCode ?? "").Trim().ToLowerInvariant();
+            }
+        }
+
+        public static string ExportToText(string deckName, IEnumerable<CardDef> deck)
+        {
+            var cards = (deck ?? Enumerable.Empty<CardDef>()).Where(c => c != null).ToList();
+            var sb = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(deckName))
+                sb.AppendLine($"# {deckName.Trim()}");
+
+            var pokes = cards.Where(c => c.Supertype == Supertype.Pokemon).GroupBy(c => c.Id).OrderBy(g => g.First().SetId).ThenBy(g => g.First().Number).ToList();
+            var trainers = cards.Where(c => c.Supertype == Supertype.Trainer).GroupBy(c => c.Id).OrderBy(g => g.First().Name).ToList();
+            var energies = cards.Where(c => c.Supertype == Supertype.Energy).GroupBy(c => c.Id).OrderBy(g => g.First().Name).ToList();
+
+            sb.AppendLine($"Pokémon: {pokes.Sum(g => g.Count())}");
+            foreach (var g in pokes)
+            {
+                var c = g.First();
+                string num = !string.IsNullOrEmpty(c.NumberText) ? c.NumberText : c.Number.ToString();
+                sb.AppendLine($"{g.Count()} {c.Name} {SetIdToPtcgoCode(c.SetId)} {num}");
+            }
+            sb.AppendLine();
+
+            sb.AppendLine($"Trainer: {trainers.Sum(g => g.Count())}");
+            foreach (var g in trainers)
+            {
+                var c = g.First();
+                string num = !string.IsNullOrEmpty(c.NumberText) ? c.NumberText : c.Number.ToString();
+                sb.AppendLine($"{g.Count()} {c.Name} {SetIdToPtcgoCode(c.SetId)} {num}");
+            }
+            sb.AppendLine();
+
+            sb.AppendLine($"Energy: {energies.Sum(g => g.Count())}");
+            foreach (var g in energies)
+            {
+                var c = g.First();
+                string num = !string.IsNullOrEmpty(c.NumberText) ? c.NumberText : c.Number.ToString();
+                sb.AppendLine($"{g.Count()} {c.Name} {SetIdToPtcgoCode(c.SetId)} {num}");
+            }
+            sb.AppendLine();
+            sb.AppendLine($"Total Cards: {cards.Count}");
+            return sb.ToString();
+        }
+
+        public static string ExportToFile(string deckName, IEnumerable<CardDef> deck)
+        {
+            EnsureFolderExists();
+            string safe = string.IsNullOrWhiteSpace(deckName) ? "Mazo_Exportado" : deckName.Trim();
+            foreach (var ch in Path.GetInvalidFileNameChars()) safe = safe.Replace(ch, '_');
+            string outPath = Path.Combine(ImportDir, safe + ".txt");
+            string content = ExportToText(deckName, deck);
+            File.WriteAllText(outPath, content, Encoding.UTF8);
+            try { UnityEngine.GUIUtility.systemCopyBuffer = content; } catch { }
+            return outPath;
+        }
+
         public static PtcgoImportReport ImportFromFile(string filePath)
+        {
+            if (!File.Exists(filePath))
+                return new PtcgoImportReport { FileName = Path.GetFileName(filePath), SuggestedDeckName = Path.GetFileNameWithoutExtension(filePath) };
+            string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
+            return ImportFromLines(Path.GetFileName(filePath), Path.GetFileNameWithoutExtension(filePath), lines);
+        }
+
+        public static PtcgoImportReport ImportFromText(string suggestedName, string rawText)
+        {
+            string[] lines = (rawText ?? "").Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            return ImportFromLines("Portapapeles", string.IsNullOrWhiteSpace(suggestedName) ? "Mazo Portapapeles" : suggestedName, lines);
+        }
+
+        static PtcgoImportReport ImportFromLines(string sourceLabel, string suggestedName, IEnumerable<string> lines)
         {
             Collection.Invalidate();
             var report = new PtcgoImportReport
             {
-                FileName = Path.GetFileName(filePath),
-                SuggestedDeckName = Path.GetFileNameWithoutExtension(filePath)
+                FileName = sourceLabel,
+                SuggestedDeckName = suggestedName
             };
-            if (!File.Exists(filePath)) return report;
 
-            string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
             foreach (string rawLine in lines)
             {
                 string line = (rawLine ?? "").Trim();
@@ -525,8 +707,9 @@ namespace PokeTCGPlay
                 CardDef matchedDef = null;
                 if (!string.IsNullOrEmpty(setCode) && colNum > 0)
                 {
-                    string tryId = $"{setCode.ToLowerInvariant()}-{colNum}";
-                    CardDatabase.ById.TryGetValue(tryId, out matchedDef);
+                    string mappedSetId = PtcgoCodeToSetId(setCode);
+                    if (!CardDatabase.ById.TryGetValue($"{mappedSetId}-{colNum}", out matchedDef))
+                        CardDatabase.ById.TryGetValue($"{setCode.ToLowerInvariant()}-{colNum}", out matchedDef);
                     if (matchedDef == null && exactMcEntry != null)
                         matchedDef = CardDatabase.All.FirstOrDefault(c => string.Equals(c.Sprite, exactMcEntry.Sprite, StringComparison.OrdinalIgnoreCase));
                 }
