@@ -1,3 +1,4 @@
+// PokeTCGPlay: BepInEx 5 plugin entry point, Harmony hooks, assets and config bindings
 using System;
 using System.Collections.Generic;
 using System.IO;
