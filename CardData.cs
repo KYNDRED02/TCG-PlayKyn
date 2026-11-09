@@ -317,14 +317,71 @@ namespace PokeTCGPlay
             Plugin.Log?.LogInfo($"Expansiones MyCurio detectadas: {string.Join(", ", MyCurioIndex.Expansions.Values.Select(e => e.Name))}");
 
             string setsDir = Path.Combine(dataDir, "sets");
-            if (!Directory.Exists(setsDir)) return;
-            foreach (var dir in Directory.GetDirectories(setsDir))
+            if (Directory.Exists(setsDir))
             {
-                string setJson = Path.Combine(dir, "set.json");
-                if (!File.Exists(setJson)) continue;
-                try { LoadSet(dir, setJson); }
-                catch (Exception e) { Plugin.Log?.LogError($"Error cargando expansión {Path.GetFileName(dir)}: {e.Message}"); }
+                foreach (var dir in Directory.GetDirectories(setsDir))
+                {
+                    string setJson = Path.Combine(dir, "set.json");
+                    if (!File.Exists(setJson)) continue;
+                    try { LoadSet(dir, setJson); }
+                    catch (Exception e) { Plugin.Log?.LogError($"Error cargando expansión {Path.GetFileName(dir)}: {e.Message}"); }
+                }
             }
+
+            // Auto-registro de expansiones más nuevas de MyCurio (ej. ME01..ME05, ME30TH, MEP...) para verlas en el crafteador
+            foreach (var mcExp in MyCurioIndex.Expansions.Values)
+            {
+                if (Sets.Any(s => string.Equals(s.MyCurioExpansion, mcExp.Key, StringComparison.OrdinalIgnoreCase) ||
+                                  string.Equals(s.Id, mcExp.Key.Replace("MyCurioPokemon-", "").Replace("mycurio-pokemon-", ""), StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                string rawKey = mcExp.Key.Replace("MyCurioPokemon-", "").Replace("mycurio-pokemon-", "");
+                string setId = rawKey.ToLowerInvariant();
+                var newSet = new SetDef
+                {
+                    Id = setId,
+                    Name = mcExp.Name,
+                    MyCurioExpansion = mcExp.Key,
+                    SpritePrefix = mcExp.SpritePrefix ?? "",
+                    EffectsImplemented = false,
+                    Order = 1000 + Sets.Count
+                };
+
+                foreach (var entry in mcExp.AllEntries)
+                {
+                    string cardId = $"{setId}-{entry.Sprite}";
+                    if (ById.ContainsKey(cardId)) continue;
+
+                    var d = new CardDef
+                    {
+                        Id = cardId,
+                        SetId = setId,
+                        Name = entry.Name ?? entry.Sprite,
+                        Sprite = entry.Sprite,
+                        Supertype = Supertype.Pokemon,
+                        Stage = "Basic",
+                        Hp = 70,
+                        Rarity = entry.Rarity ?? "",
+                        HasMyCurioArt = true,
+                        MyCurioExpansion = mcExp.Key,
+                        MyCurioBorder = entry.Border,
+                        MyCurioFoil = entry.Foil,
+                        UnsupportedReason = "Not implemented expansion mechanics yet"
+                    };
+
+                    if (mcExp.BundlePath != null) SpriteBundle[d.Sprite] = mcExp.BundlePath;
+                    newSet.Cards.Add(d);
+                    All.Add(d);
+                    ById[d.Id] = d;
+                }
+
+                if (newSet.Cards.Count > 0)
+                {
+                    Sets.Add(newSet);
+                    Plugin.Log?.LogInfo($"[MyCurio] Auto-registrada expansión moderna '{newSet.Name}' ({newSet.Cards.Count} cartas).");
+                }
+            }
+
             Sets.Sort((a, b) => a.Order != b.Order ? a.Order.CompareTo(b.Order) : string.Compare(a.Id, b.Id, StringComparison.OrdinalIgnoreCase));
 
             // ByName: preferir cartas jugables y de expansiones más antiguas (las reimpresiones comparten reglas)

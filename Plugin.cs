@@ -9,6 +9,7 @@ using BepInEx.Logging;
 using EnhancedPrefabLoader.API;
 using EnhancedPrefabLoader.API.Models;
 using HarmonyLib;
+using Newtonsoft.Json;
 using UnityEngine;
 
 namespace PokeTCGPlay
@@ -35,16 +36,17 @@ namespace PokeTCGPlay
         {
             Log = Logger;
             DataDir = Path.Combine(Path.GetDirectoryName(Info.Location), "Data");
-            ToggleKey = Config.Bind("General", "DebugToggleKey", new KeyboardShortcut(KeyCode.F10), "Tecla opcional de depuración (F10 para evitar conflicto con F8 de Pallet Delivery).");
-            LanguageConfig = Config.Bind("General", "Language", "ES", "Idioma de la interfaz: ES (Español) o EN (English).");
-            AnimSpeedMultiplier = Config.Bind("Pulido", "AnimationSpeed", 1.0f, "Multiplicador de velocidad de animaciones 3D (0.75, 1.0, 1.5, 2.0).");
-            SfxVolumeConfig = Config.Bind("Pulido", "SfxVolume", 0.85f, "Volumen de efectos de sonido de Pokémon TCG (0.0 a 1.0).");
-            EnableCameraShake = Config.Bind("Pulido", "EnableCameraShake", true, "Activa la sacudida de cámara en Fuera de Combate (KO) e impactos fuertes.");
-            RequireOwnedCards = Config.Bind("Coleccion", "RequireOwnedCards", true, "Solo permite usar en los mazos las cartas que tienes en tu álbum (obtenidas en sobres).");
-            FreeBasicEnergy = Config.Bind("Coleccion", "FreeBasicEnergy", true, "Las Energías Básicas no necesitan estar en tu colección.");
-            DefaultFormat = Config.Bind("Mazos", "DefaultFormat", "base_era", "Formato por defecto (id de Data/formats/*.json).");
-            ActiveDeck = Config.Bind("Mazos", "ActiveDeck", "", "Nombre del mazo que usas al jugar.");
-            NpcDeckMode = Config.Bind("Mazos", "NpcDeckMode", "ThemeOrRandom", "Mazos que usan los NPCs: ThemeOrRandom (Oficiales + Aleatorios), ThemeOnly (Solo Mazos Oficiales Base Era), RandomOnly (Solo Aleatorios) o el ID/Nombre de un mazo oficial específico.");
+            ToggleKey = Config.Bind("General", "DebugToggleKey", new KeyboardShortcut(KeyCode.F10), "Optional debug key (F10).");
+            LanguageConfig = Config.Bind("General", "Language", "EN", "Interface language: EN (English) or ES (Español).");
+            AnimSpeedMultiplier = Config.Bind("Pulido", "AnimationSpeed", 1.0f, "3D animation speed multiplier (0.75, 1.0, 1.5, 2.0).");
+            SfxVolumeConfig = Config.Bind("Pulido", "SfxVolume", 0.85f, "Pokémon TCG sound effects volume (0.0 to 1.0).");
+            EnableCameraShake = Config.Bind("Pulido", "EnableCameraShake", true, "Enable camera shake on Knock Out (KO) and heavy hits.");
+            RequireOwnedCards = Config.Bind("Coleccion", "RequireOwnedCards", true, "Only allow cards owned in your binder/shelves to be used in decks.");
+            FreeBasicEnergy = Config.Bind("Coleccion", "FreeBasicEnergy", true, "Basic Energy cards do not require copies in your binder.");
+            DefaultFormat = Config.Bind("Mazos", "DefaultFormat", "base_era", "Default format (id from Data/formats/*.json).");
+            ActiveDeck = Config.Bind("Mazos", "ActiveDeck", "", "Name of the active deck used when playing at a table.");
+            NpcDeckMode = Config.Bind("Mazos", "NpcDeckMode", "ThemeOrRandom", "NPC customer deck mode: ThemeOrRandom, ThemeOnly, RandomOnly, or a specific official theme deck ID.");
+            if (LanguageConfig != null) LanguageConfig.Value = "EN";
             TcgAudio.EnsureInitialized();
             try
             {
@@ -80,6 +82,8 @@ namespace PokeTCGPlay
     public static class SpriteCache
     {
         static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>(StringComparer.OrdinalIgnoreCase);
+        static readonly Dictionary<string, Texture2D> typeIconCache = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
+        static readonly Dictionary<string, Texture2D> grayscaleCache = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
         static readonly HashSet<string> pending = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         static readonly HashSet<string> refIncremented = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         static string bundlePath;
@@ -90,6 +94,72 @@ namespace PokeTCGPlay
         public static Texture2D PlaymatTex { get; private set; }
         public static Texture2D CoinHeadsTex { get; private set; }
         public static Texture2D CoinTailsTex { get; private set; }
+        public static Texture2D GearIconTex { get; private set; }
+        public static Texture2D FilterSlidersIconTex { get; private set; }
+        public static Texture2D SearchLensIconTex { get; private set; }
+        public static Texture2D ExpansionsAtlasTex { get; private set; }
+        public static readonly List<ExpansionSymbolInfo> ExpansionCatalog = new List<ExpansionSymbolInfo>();
+
+        public class ExpansionSymbolInfo
+        {
+            [JsonProperty("index")] public int Index;
+            [JsonProperty("name")] public string Name = "";
+            [JsonProperty("date")] public string Date = "";
+            [JsonProperty("setId")] public string SetId = "";
+            [JsonProperty("myCurioKey")] public string MyCurioKey = "";
+            [JsonProperty("col")] public int Col;
+            [JsonProperty("row")] public int Row;
+            [JsonIgnore] public Rect UvRect;
+
+            public string ResolveSetId()
+            {
+                if (!string.IsNullOrEmpty(SetId) && CardDatabase.GetSet(SetId) != null)
+                    return SetId;
+                var match = CardDatabase.Sets.FirstOrDefault(s =>
+                    string.Equals(s.Name, Name, StringComparison.OrdinalIgnoreCase) ||
+                    (string.Equals(Name, "Base", StringComparison.OrdinalIgnoreCase) && string.Equals(s.Id, "base1", StringComparison.OrdinalIgnoreCase)));
+                return match != null ? match.Id : SetId;
+            }
+
+            public bool IsInstalled()
+            {
+                string sid = ResolveSetId();
+                if (!string.IsNullOrEmpty(sid))
+                {
+                    var sDef = CardDatabase.GetSet(sid);
+                    if (sDef != null)
+                    {
+                        if (MyCurioIndex.Expansions.Count == 0 || string.IsNullOrEmpty(sDef.MyCurioExpansion) || MyCurioIndex.Expansions.ContainsKey(sDef.MyCurioExpansion))
+                            return true;
+                    }
+                }
+                if (!string.IsNullOrEmpty(MyCurioKey) && MyCurioIndex.Expansions.ContainsKey(MyCurioKey))
+                    return true;
+                if (!string.IsNullOrEmpty(Name) && MyCurioIndex.Expansions.Values.Any(e =>
+                    !string.IsNullOrEmpty(e.Name) &&
+                    (string.Equals(e.Name, Name, StringComparison.OrdinalIgnoreCase) ||
+                     e.Name.IndexOf(Name, StringComparison.OrdinalIgnoreCase) >= 0)))
+                {
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        class ExpansionCatalogDto
+        {
+            [JsonProperty("cols")] public int Cols = 14;
+            [JsonProperty("rows")] public int Rows = 13;
+            [JsonProperty("cellSize")] public int CellSize = 96;
+            [JsonProperty("expansions")] public List<ExpansionSymbolInfo> Expansions = null;
+            [JsonProperty("items")] public List<ExpansionSymbolInfo> Items = null;
+        }
+
+        public static readonly string[] AllTypeIconNames =
+        {
+            "Fire", "Water", "Grass", "Lightning", "Psychic",
+            "Fighting", "Darkness", "Metal", "Dragon", "Fairy", "Colorless"
+        };
 
         static readonly MethodInfo getAsyncSpriteMethod =
             typeof(StreamingAsset<Sprite>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
@@ -111,6 +181,207 @@ namespace PokeTCGPlay
             PlaymatTex = LoadPng(Path.Combine(Plugin.DataDir, "images", "playmat.png"));
             CoinHeadsTex = LoadPng(Path.Combine(Plugin.DataDir, "images", "coin_heads.png"));
             CoinTailsTex = LoadPng(Path.Combine(Plugin.DataDir, "images", "coin_tails.png"));
+            GearIconTex = MakeGearIconTex(64);
+            FilterSlidersIconTex = MakeFilterSlidersIconTex(64);
+            SearchLensIconTex = MakeSearchLensIconTex(64);
+            foreach (var tn in AllTypeIconNames)
+            {
+                var tex = LoadPng(Path.Combine(Plugin.DataDir, "icons", $"type_{tn}.png"));
+                if (tex != null) typeIconCache[tn] = tex;
+            }
+            ExpansionsAtlasTex = LoadPng(Path.Combine(Plugin.DataDir, "icons", "expansions_atlas.png"));
+            LoadExpansionCatalog();
+        }
+
+        static void LoadExpansionCatalog()
+        {
+            ExpansionCatalog.Clear();
+            try
+            {
+                string jsonPath = Path.Combine(Plugin.DataDir, "icons", "expansions_catalog.json");
+                if (!File.Exists(jsonPath)) return;
+                var dto = JsonConvert.DeserializeObject<ExpansionCatalogDto>(File.ReadAllText(jsonPath));
+                if (dto == null) return;
+                var list = dto.Expansions ?? dto.Items;
+                if (list == null) return;
+                int cols = Mathf.Max(1, dto.Cols);
+                int rows = Mathf.Max(1, dto.Rows);
+                float uvW = 1f / cols;
+                float uvH = 1f / rows;
+                foreach (var item in list)
+                {
+                    if (item == null) continue;
+                    item.UvRect = new Rect(item.Col * uvW, 1f - (item.Row + 1) * uvH, uvW, uvH);
+                    ExpansionCatalog.Add(item);
+                }
+            }
+            catch (Exception e)
+            {
+                Plugin.Log?.LogWarning("LoadExpansionCatalog: " + e.Message);
+            }
+        }
+
+        public static Texture2D GetTypeIcon(string typeName)
+        {
+            LoadCustomTextures();
+            if (string.IsNullOrWhiteSpace(typeName)) return null;
+            string key = typeName.Trim();
+            if (string.Equals(key, "Electric", StringComparison.OrdinalIgnoreCase)) key = "Lightning";
+            else if (string.Equals(key, "Normal", StringComparison.OrdinalIgnoreCase) || string.Equals(key, "Rainbow", StringComparison.OrdinalIgnoreCase)) key = "Colorless";
+            else if (string.Equals(key, "Dark", StringComparison.OrdinalIgnoreCase)) key = "Darkness";
+            else if (string.Equals(key, "Steel", StringComparison.OrdinalIgnoreCase)) key = "Metal";
+            if (typeIconCache.TryGetValue(key, out var t) && t != null)
+                return t;
+            var loaded = LoadPng(Path.Combine(Plugin.DataDir, "icons", $"type_{key}.png"));
+            if (loaded != null) typeIconCache[key] = loaded;
+            return loaded;
+        }
+
+        public static Texture2D GetGrayscaleTexture(string cacheKey, Sprite sp)
+        {
+            if (sp == null || sp.texture == null) return null;
+            string key = string.IsNullOrEmpty(cacheKey) ? sp.name : cacheKey;
+            if (!string.IsNullOrEmpty(key) && grayscaleCache.TryGetValue(key, out var cached) && cached != null)
+                return cached;
+
+            Texture2D src = sp.texture;
+            Rect sr = sp.textureRect;
+            int w = Mathf.Max(1, Mathf.RoundToInt(sr.width));
+            int h = Mathf.Max(1, Mathf.RoundToInt(sr.height));
+            Texture2D readable = null;
+            bool createdTemp = false;
+            try
+            {
+                readable = src.isReadable ? src : MakeReadableCopy(src);
+                createdTemp = readable != null && !ReferenceEquals(readable, src);
+                if (readable == null) return null;
+
+                int rx = Mathf.Clamp(Mathf.RoundToInt(sr.x), 0, Mathf.Max(0, readable.width - w));
+                int ry = Mathf.Clamp(Mathf.RoundToInt(sr.y), 0, Mathf.Max(0, readable.height - h));
+                Color[] pixels = readable.GetPixels(rx, ry, w, h);
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    Color c = pixels[i];
+                    float lum = (c.r * 0.299f + c.g * 0.587f + c.b * 0.114f) * 0.76f;
+                    pixels[i] = new Color(lum, lum, lum * 1.04f, c.a);
+                }
+
+                var gray = new Texture2D(w, h, TextureFormat.RGBA32, false);
+                gray.filterMode = FilterMode.Bilinear;
+                gray.wrapMode = TextureWrapMode.Clamp;
+                gray.SetPixels(pixels);
+                gray.Apply();
+                if (!string.IsNullOrEmpty(key))
+                    grayscaleCache[key] = gray;
+                return gray;
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (createdTemp && readable != null)
+                    UnityEngine.Object.Destroy(readable);
+            }
+        }
+
+        static Texture2D MakeGearIconTex(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            float cx = (size - 1) * 0.5f;
+            float cy = (size - 1) * 0.5f;
+            float half = size * 0.5f;
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = (x - cx) / half;
+                    float dy = (y - cy) / half;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy);
+                    float ang = Mathf.Atan2(dy, dx);
+                    float toothWave = Mathf.Cos(ang * 8f);
+                    float outerR = 0.62f + Mathf.Clamp01((toothWave - 0.15f) * 3.5f) * 0.17f;
+                    float innerR = 0.27f;
+                    float distOuter = r - outerR;
+                    float distInner = innerR - r;
+                    float dist = Mathf.Max(distOuter, distInner);
+                    float alpha = Mathf.Clamp01(1f - dist * (size * 0.45f));
+                    tex.SetPixel(x, y, new Color(0.95f, 0.97f, 1f, alpha));
+                }
+            }
+            tex.Apply();
+            return tex;
+        }
+
+        static Texture2D MakeFilterSlidersIconTex(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            float[] rowsY = { 0.26f, 0.50f, 0.74f };
+            float[] knobX = { 0.36f, 0.66f, 0.44f };
+            for (int y = 0; y < size; y++)
+            {
+                float ny = y / (float)(size - 1);
+                for (int x = 0; x < size; x++)
+                {
+                    float nx = x / (float)(size - 1);
+                    float a = 0f;
+                    for (int r = 0; r < 3; r++)
+                    {
+                        float ry = rowsY[r];
+                        float kx = knobX[r];
+                        if (nx >= 0.16f && nx <= 0.84f)
+                        {
+                            float dLine = Mathf.Abs(ny - ry);
+                            a = Mathf.Max(a, Mathf.Clamp01(1f - (dLine - 0.028f) * size * 0.7f));
+                        }
+                        float dKnob = Vector2.Distance(new Vector2(nx, ny), new Vector2(kx, ry));
+                        if (dKnob <= 0.11f)
+                        {
+                            float kAlpha = Mathf.Clamp01(1f - (dKnob - 0.085f) * size * 0.6f);
+                            a = Mathf.Max(a, kAlpha);
+                        }
+                    }
+                    tex.SetPixel(x, y, new Color(0.95f, 0.92f, 0.84f, a));
+                }
+            }
+            tex.Apply();
+            return tex;
+        }
+
+        static Texture2D MakeSearchLensIconTex(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            Vector2 center = new Vector2(0.42f, 0.58f);
+            Vector2 h0 = new Vector2(0.56f, 0.44f);
+            Vector2 h1 = new Vector2(0.82f, 0.18f);
+            for (int y = 0; y < size; y++)
+            {
+                float ny = y / (float)(size - 1);
+                for (int x = 0; x < size; x++)
+                {
+                    float nx = x / (float)(size - 1);
+                    Vector2 p = new Vector2(nx, ny);
+                    float dRing = Mathf.Abs(Vector2.Distance(p, center) - 0.22f);
+                    float aRing = Mathf.Clamp01(1f - (dRing - 0.038f) * size * 0.55f);
+
+                    Vector2 pa = p - h0;
+                    Vector2 ba = h1 - h0;
+                    float hProj = Mathf.Clamp01(Vector2.Dot(pa, ba) / Vector2.Dot(ba, ba));
+                    float dHandle = (pa - ba * hProj).magnitude;
+                    float aHandle = Mathf.Clamp01(1f - (dHandle - 0.042f) * size * 0.55f);
+
+                    tex.SetPixel(x, y, new Color(0.92f, 0.90f, 0.84f, Mathf.Max(aRing, aHandle)));
+                }
+            }
+            tex.Apply();
+            return tex;
         }
 
         static Texture2D LoadPng(string path)

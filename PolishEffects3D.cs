@@ -12,17 +12,17 @@ namespace PokeTCGPlay
     {
         public static string CurrentLang
         {
-            get => Plugin.LanguageConfig != null ? (Plugin.LanguageConfig.Value ?? "ES") : "ES";
+            get => "EN";
             set
             {
                 if (Plugin.LanguageConfig != null)
-                    Plugin.LanguageConfig.Value = string.Equals(value, "EN", StringComparison.OrdinalIgnoreCase) ? "EN" : "ES";
+                    Plugin.LanguageConfig.Value = "EN";
             }
         }
 
-        public static bool IsEnglish => string.Equals(CurrentLang, "EN", StringComparison.OrdinalIgnoreCase);
+        public static bool IsEnglish => true;
 
-        public static string T(string es, string en) => IsEnglish ? en : es;
+        public static string T(string es, string en) => en;
 
         public static float AnimSpeed
         {
@@ -894,16 +894,16 @@ namespace PokeTCGPlay
             if (!isOpen) return;
             GameUI.EnsureStyles();
 
-            // Si estamos en la mesa de juego, renderizar el modal íntegramente con la fuente nativa del juego (FredokaOne-Regular SDF)
+            // Renderizar con la fuente nativa del juego (FredokaOne-Regular SDF) tanto en partida como en PokeDeck Builder
             var ui = GameUI.Instance;
-            if (ui != null && ui.IsMatchUiActive)
+            if (ui != null && (ui.IsMatchUiActive || (DeckBuilderUI.Instance != null && DeckBuilderUI.Instance.NeedsNativeOverlay)))
             {
                 DrawSettingsModalNative(ui, ref isOpen);
                 return;
             }
 
             float mw = 620f;
-            float mh = 420f;
+            float mh = 376f;
             Rect mRect = new Rect((Screen.width - mw) * 0.5f, (Screen.height - mh) * 0.5f, mw, mh);
 
             GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "");
@@ -961,36 +961,16 @@ namespace PokeTCGPlay
 
             GUILayout.Space(8);
 
-            // 3. Volumen de Efectos de Sonido (SFX) y Pruebas
+            // 3. Volumen de Efectos de Sonido (SFX) con Slider
             GUILayout.BeginVertical(GameUI.SubBoxStyle);
             int pct = Mathf.RoundToInt(Loc.SfxVolume * 100f);
             GUILayout.Label($"<b>{Loc.T("Volumen de Sonidos Pokémon TCG:", "Pokémon TCG Sound Effects Volume:")}</b> <color=#9ecbff>{pct}%</color>", GameUI.SubHeaderStyle);
-            GUILayout.Space(4);
-            GUILayout.BeginHorizontal();
-            float[] vols = { 0f, 0.25f, 0.50f, 0.75f, 1.00f };
-            foreach (float v in vols)
+            GUILayout.Space(8);
+            float nextVol = GUILayout.HorizontalSlider(Loc.SfxVolume, 0f, 1f, GUILayout.Height(24));
+            if (Mathf.Abs(nextVol - Loc.SfxVolume) > 0.001f)
             {
-                string lbl = v <= 0.001f ? Loc.T("Silencio", "Mute") : $"{Mathf.RoundToInt(v * 100f)}%";
-                bool active = Mathf.Abs(Loc.SfxVolume - v) < 0.08f;
-                if (GUILayout.Button(lbl, active ? GameUI.BtnGoldStyle : GameUI.BtnStyle, GUILayout.Height(28)))
-                {
-                    Loc.SfxVolume = v;
-                    TcgAudio.PlayCardPlace();
-                }
+                Loc.SfxVolume = nextVol;
             }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(6);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"<color=#aebcd0>{Loc.T("Probar efectos:", "Test SFX:")}</color>", GameUI.SubHeaderStyle, GUILayout.Width(115));
-            if (GUILayout.Button(Loc.T("Barajar", "Shuffle"), GameUI.BtnStyle, GUILayout.Height(26)))
-                TcgAudio.PlayShuffle();
-            if (GUILayout.Button(Loc.T("Moneda", "Coin"), GameUI.BtnStyle, GUILayout.Height(26)))
-                TcgAudio.PlayCoinLaunch();
-            if (GUILayout.Button(Loc.T("Ataque", "Attack"), GameUI.BtnStyle, GUILayout.Height(26)))
-                TcgAudio.PlayAttackImpact("Fire", 50);
-            if (GUILayout.Button("KO", GameUI.BtnStyle, GUILayout.Height(26)))
-                TcgAudio.PlayKnockOut();
-            GUILayout.EndHorizontal();
             GUILayout.EndVertical();
 
             GUILayout.Space(8);
@@ -1018,7 +998,7 @@ namespace PokeTCGPlay
         static void DrawSettingsModalNative(GameUI ui, ref bool isOpen)
         {
             float mw = 640f;
-            float mh = 436f;
+            float mh = 398f;
             Rect mRect = new Rect((Screen.width - mw) * 0.5f, (Screen.height - mh) * 0.5f, mw, mh);
 
             // Fondo oscurecido y ventana principal
@@ -1029,7 +1009,7 @@ namespace PokeTCGPlay
             float iw = mw - 48f;
             float curY = mRect.y + 18f;
 
-            // Cabecera: Título "Opciones" y botón "Cerrar" con la fuente nativa del juego
+            // Cabecera: Título "Settings" y botón "Close" con la fuente nativa del juego
             ui.DrawNativeLabel(new Rect(ix, curY, 340f, 38f), Loc.T("Opciones", "Settings"), 28f, TextAlignmentOptions.MidlineLeft, Color.white);
             if (ui.DrawNativeButton(new Rect(ix + iw - 118f, curY, 118f, 38f), Loc.T("Cerrar", "Close"), 19f, GameUI.sBtnRedN, GameUI.sBtnRedH, GameUI.sBtnRedA))
             {
@@ -1099,50 +1079,25 @@ namespace PokeTCGPlay
             }
             curY += 92f;
 
-            // 3. Volumen de Sonidos y Pruebas
-            Rect sec3 = new Rect(ix, curY, iw, 118f);
+            // 3. Volumen de Sonidos con Slider interactivo (sin fila Test SFX ni botones predeterminados)
+            Rect sec3 = new Rect(ix, curY, iw, 82f);
             ui.DrawNativeBox(sec3, GameUI.sSubPanelSprite, Color.white);
             int pctNat = Mathf.RoundToInt(Loc.SfxVolume * 100f);
             ui.DrawNativeLabel(
                 new Rect(sec3.x + 14f, sec3.y + 8f, sec3.width - 28f, 26f),
-                $"{Loc.T("Volumen de Sonidos Pokémon TCG:", "Pokémon TCG Sound Volume:")} <color=#9ecbff>{pctNat}%</color>",
+                $"{Loc.T("Volumen de Sonidos Pokémon TCG:", "Pokémon TCG Sound Effects Volume:")} <color=#9ecbff>{pctNat}%</color>",
                 18f, TextAlignmentOptions.MidlineLeft, Color.white);
 
-            float[] volsNat = { 0f, 0.25f, 0.50f, 0.75f, 1.00f };
-            float volBtnW = (sec3.width - 28f - 32f) / 5f;
-            for (int i = 0; i < 5; i++)
+            ui.DrawNativeLabel(new Rect(sec3.x + 14f, sec3.y + 38f, 38f, 34f), "0%", 14.5f, TextAlignmentOptions.MidlineLeft, new Color(0.75f, 0.84f, 0.96f, 1f));
+            ui.DrawNativeLabel(new Rect(sec3.xMax - 58f, sec3.y + 38f, 44f, 34f), "100%", 14.5f, TextAlignmentOptions.MidlineRight, new Color(0.75f, 0.84f, 0.96f, 1f));
+
+            Rect sliderRect = new Rect(sec3.x + 48f, sec3.y + 38f, sec3.width - 108f, 34f);
+            float newVol = ui.DrawNativeSlider(sliderRect, "PokeTCG_SfxVolumeSlider", Loc.SfxVolume, 0f, 1f, out bool volChanged);
+            if (volChanged)
             {
-                float v = volsNat[i];
-                string lbl = v <= 0.001f ? Loc.T("Silencio", "Mute") : $"{Mathf.RoundToInt(v * 100f)}%";
-                bool active = Mathf.Abs(Loc.SfxVolume - v) < 0.08f;
-                Rect vr = new Rect(sec3.x + 14f + i * (volBtnW + 8f), sec3.y + 38f, volBtnW, 32f);
-                if (ui.DrawNativeButton(vr, lbl, 16f,
-                    active ? GameUI.sBtnGoldN : GameUI.sBtnBlueN,
-                    active ? GameUI.sBtnGoldH : GameUI.sBtnBlueH,
-                    active ? GameUI.sBtnGoldA : GameUI.sBtnBlueA))
-                {
-                    Loc.SfxVolume = v;
-                    TcgAudio.PlayCardPlace();
-                }
+                Loc.SfxVolume = newVol;
             }
-
-            ui.DrawNativeLabel(
-                new Rect(sec3.x + 14f, sec3.y + 78f, 130f, 30f),
-                $"<color=#aebcd0>{Loc.T("Probar efectos:", "Test SFX:")}</color>",
-                16f, TextAlignmentOptions.MidlineLeft, Color.white);
-
-            float testAreaX = sec3.x + 148f;
-            float testBtnW = (sec3.width - 162f - 24f) / 4f;
-            if (ui.DrawNativeButton(new Rect(testAreaX, sec3.y + 77f, testBtnW, 31f), Loc.T("Barajar", "Shuffle"), 15.5f, GameUI.sBtnBlueN, GameUI.sBtnBlueH, GameUI.sBtnBlueA))
-                TcgAudio.PlayShuffle();
-            if (ui.DrawNativeButton(new Rect(testAreaX + (testBtnW + 8f) * 1, sec3.y + 77f, testBtnW, 31f), Loc.T("Moneda", "Coin"), 15.5f, GameUI.sBtnBlueN, GameUI.sBtnBlueH, GameUI.sBtnBlueA))
-                TcgAudio.PlayCoinLaunch();
-            if (ui.DrawNativeButton(new Rect(testAreaX + (testBtnW + 8f) * 2, sec3.y + 77f, testBtnW, 31f), Loc.T("Ataque", "Attack"), 15.5f, GameUI.sBtnBlueN, GameUI.sBtnBlueH, GameUI.sBtnBlueA))
-                TcgAudio.PlayAttackImpact("Fire", 50);
-            if (ui.DrawNativeButton(new Rect(testAreaX + (testBtnW + 8f) * 3, sec3.y + 77f, testBtnW, 31f), "KO", 15.5f, GameUI.sBtnBlueN, GameUI.sBtnBlueH, GameUI.sBtnBlueA))
-                TcgAudio.PlayKnockOut();
-
-            curY += 128f;
+            curY += 92f;
 
             // 4. Sacudida de Cámara al KO / Golpe
             Rect sec4 = new Rect(ix, curY, iw, 52f);
@@ -1165,6 +1120,11 @@ namespace PokeTCGPlay
                 if (Loc.CameraShakeEnabled)
                     TriggerCameraShake(0.018f, 0.30f);
                 GameUI.PlayClickSound(0);
+            }
+
+            if (Event.current != null && Event.current.type == EventType.MouseDown && mRect.Contains(Event.current.mousePosition))
+            {
+                Event.current.Use();
             }
         }
 

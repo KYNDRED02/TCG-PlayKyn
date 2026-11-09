@@ -1,0 +1,1789 @@
+{
+  "cols": 14,
+  "rows": 13,
+  "cellSize": 96,
+  "expansions": [
+    {
+      "index": 0,
+      "name": "Base",
+      "date": "January 1999",
+      "setId": "base1",
+      "myCurioKey": "MyCurioPokemon-BS",
+      "col": 0,
+      "row": 0
+    },
+    {
+      "index": 1,
+      "name": "Jungle",
+      "date": "June 1999",
+      "setId": "base2",
+      "myCurioKey": "MyCurioPokemon-JU",
+      "col": 1,
+      "row": 0
+    },
+    {
+      "index": 2,
+      "name": "Wizards Black Star Promos",
+      "date": "July 1999",
+      "setId": "basep",
+      "myCurioKey": "MyCurioPokemon-JU",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 3,
+      "name": "Fossil",
+      "date": "October 1999",
+      "setId": "base3",
+      "myCurioKey": "MyCurioPokemon-FO",
+      "col": 3,
+      "row": 0
+    },
+    {
+      "index": 4,
+      "name": "Base Set 2",
+      "date": "February 2000",
+      "setId": "base4",
+      "myCurioKey": "MyCurioPokemon-B2",
+      "col": 4,
+      "row": 0
+    },
+    {
+      "index": 5,
+      "name": "Team Rocket",
+      "date": "April 2000",
+      "setId": "base5",
+      "myCurioKey": "MyCurioPokemon-TR",
+      "col": 5,
+      "row": 0
+    },
+    {
+      "index": 6,
+      "name": "Gym Heroes",
+      "date": "August 2000",
+      "setId": "gym1",
+      "myCurioKey": "MyCurioPokemon-GYM1",
+      "col": 6,
+      "row": 0
+    },
+    {
+      "index": 7,
+      "name": "Gym Challenge",
+      "date": "October 2000",
+      "setId": "gym2",
+      "myCurioKey": "MyCurioPokemon-GYM2",
+      "col": 7,
+      "row": 0
+    },
+    {
+      "index": 8,
+      "name": "Neo Genesis",
+      "date": "December 2000",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 0
+    },
+    {
+      "index": 9,
+      "name": "Neo Discovery",
+      "date": "June 2001",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 0
+    },
+    {
+      "index": 10,
+      "name": "Southern Islands",
+      "date": "July 2001",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 0
+    },
+    {
+      "index": 11,
+      "name": "Neo Revelation",
+      "date": "September 2001",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 0
+    },
+    {
+      "index": 12,
+      "name": "Neo Destiny",
+      "date": "February 2002",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 0
+    },
+    {
+      "index": 13,
+      "name": "Legendary Collection",
+      "date": "May 2002",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 0
+    },
+    {
+      "index": 14,
+      "name": "Expedition Base Set",
+      "date": "September 2002",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 1
+    },
+    {
+      "index": 15,
+      "name": "Best of Game",
+      "date": "December 2002",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 1
+    },
+    {
+      "index": 16,
+      "name": "Aquapolis",
+      "date": "January 2003",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 1
+    },
+    {
+      "index": 17,
+      "name": "Skyridge",
+      "date": "May 2003",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 1
+    },
+    {
+      "index": 18,
+      "name": "Ruby & Sapphire",
+      "date": "July 2003",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 1
+    },
+    {
+      "index": 19,
+      "name": "Sandstorm",
+      "date": "September 2003",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 1
+    },
+    {
+      "index": 20,
+      "name": "Nintendo Black Star Promos",
+      "date": "October 2003",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 21,
+      "name": "Dragon",
+      "date": "November 2003",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 1
+    },
+    {
+      "index": 22,
+      "name": "Team Magma vs Team Aqua",
+      "date": "March 2004",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 1
+    },
+    {
+      "index": 23,
+      "name": "EX Trainer Kit Latios",
+      "date": "June 2004",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 1
+    },
+    {
+      "index": 24,
+      "name": "EX Trainer Kit Latias",
+      "date": "June 2004",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 1
+    },
+    {
+      "index": 25,
+      "name": "Hidden Legends",
+      "date": "June 2004",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 1
+    },
+    {
+      "index": 26,
+      "name": "POP Series 1",
+      "date": "September 2004",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 1
+    },
+    {
+      "index": 27,
+      "name": "FireRed & LeafGreen",
+      "date": "September 2004",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 1
+    },
+    {
+      "index": 28,
+      "name": "Team Rocket Returns",
+      "date": "November 2004",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 1
+    },
+    {
+      "index": 29,
+      "name": "Deoxys",
+      "date": "February 2005",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 2
+    },
+    {
+      "index": 30,
+      "name": "Emerald",
+      "date": "May 2005",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 2
+    },
+    {
+      "index": 31,
+      "name": "POP Series 2",
+      "date": "August 2005",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 2
+    },
+    {
+      "index": 32,
+      "name": "Unseen Forces",
+      "date": "August 2005",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 2
+    },
+    {
+      "index": 33,
+      "name": "Delta Species",
+      "date": "October 2005",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 2
+    },
+    {
+      "index": 34,
+      "name": "Legend Maker",
+      "date": "February 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 2
+    },
+    {
+      "index": 35,
+      "name": "EX Trainer Kit 2 Minun",
+      "date": "March 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 2
+    },
+    {
+      "index": 36,
+      "name": "EX Trainer Kit 2 Plusle",
+      "date": "March 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 2
+    },
+    {
+      "index": 37,
+      "name": "POP Series 3",
+      "date": "April 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 2
+    },
+    {
+      "index": 38,
+      "name": "Holon Phantoms",
+      "date": "May 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 2
+    },
+    {
+      "index": 39,
+      "name": "POP Series 4",
+      "date": "August 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 2
+    },
+    {
+      "index": 40,
+      "name": "Crystal Guardians",
+      "date": "August 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 2
+    },
+    {
+      "index": 41,
+      "name": "Dragon Frontiers",
+      "date": "November 2006",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 2
+    },
+    {
+      "index": 42,
+      "name": "Power Keepers",
+      "date": "February 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 2
+    },
+    {
+      "index": 43,
+      "name": "POP Series 5",
+      "date": "March 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 3
+    },
+    {
+      "index": 44,
+      "name": "DP Black Star Promos",
+      "date": "May 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 45,
+      "name": "Diamond & Pearl",
+      "date": "May 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 3
+    },
+    {
+      "index": 46,
+      "name": "Mysterious Treasures",
+      "date": "August 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 3
+    },
+    {
+      "index": 47,
+      "name": "POP Series 6",
+      "date": "September 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 3
+    },
+    {
+      "index": 48,
+      "name": "Diamond & Pearl Trainer Kit Lucario",
+      "date": "September 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 3
+    },
+    {
+      "index": 49,
+      "name": "Diamond & Pearl Trainer Kit Manaphy",
+      "date": "September 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 3
+    },
+    {
+      "index": 50,
+      "name": "Secret Wonders",
+      "date": "November 2007",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 3
+    },
+    {
+      "index": 51,
+      "name": "Great Encounters",
+      "date": "February 2008",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 3
+    },
+    {
+      "index": 52,
+      "name": "POP Series 7",
+      "date": "March 2008",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 3
+    },
+    {
+      "index": 53,
+      "name": "Majestic Dawn",
+      "date": "May 2008",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 3
+    },
+    {
+      "index": 54,
+      "name": "Legends Awakened",
+      "date": "August 2008",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 3
+    },
+    {
+      "index": 55,
+      "name": "POP Series 8",
+      "date": "September 2008",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 3
+    },
+    {
+      "index": 56,
+      "name": "Stormfront",
+      "date": "November 2008",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 3
+    },
+    {
+      "index": 57,
+      "name": "Platinum",
+      "date": "February 2009",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 3
+    },
+    {
+      "index": 58,
+      "name": "POP Series 9",
+      "date": "March 2009",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 4
+    },
+    {
+      "index": 59,
+      "name": "Rising Rivals",
+      "date": "May 2009",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 4
+    },
+    {
+      "index": 60,
+      "name": "Supreme Victors",
+      "date": "August 2009",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 4
+    },
+    {
+      "index": 61,
+      "name": "Arceus",
+      "date": "November 2009",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 4
+    },
+    {
+      "index": 62,
+      "name": "Pokémon Rumble",
+      "date": "December 2009",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 4
+    },
+    {
+      "index": 63,
+      "name": "HGSS Black Star Promos",
+      "date": "February 2010",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 64,
+      "name": "HeartGold & SoulSilver",
+      "date": "February 2010",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 4
+    },
+    {
+      "index": 65,
+      "name": "HS Trainer Kit Raichu",
+      "date": "May 2010",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 4
+    },
+    {
+      "index": 66,
+      "name": "HS Trainer Kit Gyarados",
+      "date": "May 2010",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 4
+    },
+    {
+      "index": 67,
+      "name": "HS-Unleashed",
+      "date": "May 2010",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 4
+    },
+    {
+      "index": 68,
+      "name": "HS-Undaunted",
+      "date": "August 2010",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 4
+    },
+    {
+      "index": 69,
+      "name": "HS-Triumphant",
+      "date": "November 2010",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 4
+    },
+    {
+      "index": 70,
+      "name": "Call of Legends",
+      "date": "February 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 4
+    },
+    {
+      "index": 71,
+      "name": "BW Black Star Promos",
+      "date": "March 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 72,
+      "name": "Black & White",
+      "date": "April 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 4
+    },
+    {
+      "index": 73,
+      "name": "McDonald's Collection 2011",
+      "date": "June 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 4
+    },
+    {
+      "index": 74,
+      "name": "Emerging Powers",
+      "date": "August 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 5
+    },
+    {
+      "index": 75,
+      "name": "Black & White Trainer Kit Zoroark",
+      "date": "September 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 5
+    },
+    {
+      "index": 76,
+      "name": "Black & White Trainer Kit Excadrill",
+      "date": "September 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 5
+    },
+    {
+      "index": 77,
+      "name": "Noble Victories",
+      "date": "November 2011",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 5
+    },
+    {
+      "index": 78,
+      "name": "Next Destinies",
+      "date": "February 2012",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 5
+    },
+    {
+      "index": 79,
+      "name": "Dark Explorers",
+      "date": "May 2012",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 5
+    },
+    {
+      "index": 80,
+      "name": "McDonald's Collection 2012",
+      "date": "June 2012",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 5
+    },
+    {
+      "index": 81,
+      "name": "Dragons Exalted",
+      "date": "August 2012",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 5
+    },
+    {
+      "index": 82,
+      "name": "Dragon Vault",
+      "date": "October 2012",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 5
+    },
+    {
+      "index": 83,
+      "name": "Boundaries Crossed",
+      "date": "November 2012",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 5
+    },
+    {
+      "index": 84,
+      "name": "Plasma Storm",
+      "date": "February 2013",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 5
+    },
+    {
+      "index": 85,
+      "name": "Plasma Freeze",
+      "date": "May 2013",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 5
+    },
+    {
+      "index": 86,
+      "name": "Plasma Blast",
+      "date": "August 2013",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 5
+    },
+    {
+      "index": 87,
+      "name": "XY Black Star Promos",
+      "date": "October 2013",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 88,
+      "name": "Legendary Treasures",
+      "date": "November 2013",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 5
+    },
+    {
+      "index": 89,
+      "name": "Kalos Starter Set",
+      "date": "November 2013",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 6
+    },
+    {
+      "index": 90,
+      "name": "XY",
+      "date": "February 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 6
+    },
+    {
+      "index": 91,
+      "name": "XY Trainer Kit Noivern",
+      "date": "March 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 6
+    },
+    {
+      "index": 92,
+      "name": "XY Trainer Kit Sylveon",
+      "date": "March 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 6
+    },
+    {
+      "index": 93,
+      "name": "Flashfire",
+      "date": "May 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 6
+    },
+    {
+      "index": 94,
+      "name": "McDonald's Collection 2014",
+      "date": "May 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 6
+    },
+    {
+      "index": 95,
+      "name": "Furious Fists",
+      "date": "August 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 6
+    },
+    {
+      "index": 96,
+      "name": "Phantom Forces",
+      "date": "November 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 6
+    },
+    {
+      "index": 97,
+      "name": "XY Trainer Kit Wigglytuff",
+      "date": "November 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 6
+    },
+    {
+      "index": 98,
+      "name": "XY Trainer Kit Bisharp",
+      "date": "November 2014",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 6
+    },
+    {
+      "index": 99,
+      "name": "Primal Clash",
+      "date": "February 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 6
+    },
+    {
+      "index": 100,
+      "name": "Double Crisis",
+      "date": "March 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 6
+    },
+    {
+      "index": 101,
+      "name": "XY Trainer Kit Latios",
+      "date": "April 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 6
+    },
+    {
+      "index": 102,
+      "name": "XY Trainer Kit Latias",
+      "date": "April 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 6
+    },
+    {
+      "index": 103,
+      "name": "Roaring Skies",
+      "date": "May 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 7
+    },
+    {
+      "index": 104,
+      "name": "Ancient Origins",
+      "date": "August 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 7
+    },
+    {
+      "index": 105,
+      "name": "BREAKthrough",
+      "date": "November 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 7
+    },
+    {
+      "index": 106,
+      "name": "McDonald's Collection 2015",
+      "date": "November 2015",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 7
+    },
+    {
+      "index": 107,
+      "name": "BREAKpoint",
+      "date": "February 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 7
+    },
+    {
+      "index": 108,
+      "name": "Generations",
+      "date": "February 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 7
+    },
+    {
+      "index": 109,
+      "name": "XY Trainer Kit Suicune",
+      "date": "April 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 7
+    },
+    {
+      "index": 110,
+      "name": "XY Trainer Kit Pikachu Libre",
+      "date": "April 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 7
+    },
+    {
+      "index": 111,
+      "name": "Fates Collide",
+      "date": "May 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 7
+    },
+    {
+      "index": 112,
+      "name": "Steam Siege",
+      "date": "August 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 7
+    },
+    {
+      "index": 113,
+      "name": "McDonald's Collection 2016",
+      "date": "August 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 7
+    },
+    {
+      "index": 114,
+      "name": "Evolutions",
+      "date": "November 2016",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 7
+    },
+    {
+      "index": 115,
+      "name": "SM Black Star Promos",
+      "date": "February 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 116,
+      "name": "Sun & Moon",
+      "date": "February 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 7
+    },
+    {
+      "index": 117,
+      "name": "Sun & Moon Trainer Kit Alolan Raichu",
+      "date": "April 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 7
+    },
+    {
+      "index": 118,
+      "name": "Sun & Moon Trainer Kit Lycanroc",
+      "date": "April 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 8
+    },
+    {
+      "index": 119,
+      "name": "Guardians Rising",
+      "date": "May 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 8
+    },
+    {
+      "index": 120,
+      "name": "Burning Shadows",
+      "date": "August 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 8
+    },
+    {
+      "index": 121,
+      "name": "Shining Legends",
+      "date": "October 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 8
+    },
+    {
+      "index": 122,
+      "name": "Crimson Invasion",
+      "date": "November 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 8
+    },
+    {
+      "index": 123,
+      "name": "McDonald's Collection 2017",
+      "date": "November 2017",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 8
+    },
+    {
+      "index": 124,
+      "name": "Ultra Prism",
+      "date": "February 2018",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 8
+    },
+    {
+      "index": 125,
+      "name": "Forbidden Light",
+      "date": "May 2018",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 8
+    },
+    {
+      "index": 126,
+      "name": "Celestial Storm",
+      "date": "August 2018",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 8
+    },
+    {
+      "index": 127,
+      "name": "Dragon Majesty",
+      "date": "September 2018",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 8
+    },
+    {
+      "index": 128,
+      "name": "McDonald's Collection 2018",
+      "date": "October 2018",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 8
+    },
+    {
+      "index": 129,
+      "name": "Lost Thunder",
+      "date": "November 2018",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 8
+    },
+    {
+      "index": 130,
+      "name": "Team Up",
+      "date": "February 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 8
+    },
+    {
+      "index": 131,
+      "name": "Detective Pikachu",
+      "date": "April 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 8
+    },
+    {
+      "index": 132,
+      "name": "Unbroken Bonds",
+      "date": "May 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 9
+    },
+    {
+      "index": 133,
+      "name": "Unified Minds",
+      "date": "August 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 9
+    },
+    {
+      "index": 134,
+      "name": "Hidden Fates Shiny Vault",
+      "date": "August 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 9
+    },
+    {
+      "index": 135,
+      "name": "Hidden Fates",
+      "date": "August 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 9
+    },
+    {
+      "index": 136,
+      "name": "McDonald's Collection 2019",
+      "date": "October 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 9
+    },
+    {
+      "index": 137,
+      "name": "Cosmic Eclipse",
+      "date": "November 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 9
+    },
+    {
+      "index": 138,
+      "name": "SWSH Black Star Promos",
+      "date": "November 2019",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 139,
+      "name": "Sword & Shield",
+      "date": "February 2020",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 9
+    },
+    {
+      "index": 140,
+      "name": "Rebel Clash",
+      "date": "May 2020",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 9
+    },
+    {
+      "index": 141,
+      "name": "Darkness Ablaze",
+      "date": "August 2020",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 9
+    },
+    {
+      "index": 142,
+      "name": "Pokémon Futsal Collection",
+      "date": "September 2020",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 9
+    },
+    {
+      "index": 143,
+      "name": "Champion's Path",
+      "date": "September 2020",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 9
+    },
+    {
+      "index": 144,
+      "name": "Vivid Voltage",
+      "date": "November 2020",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 9
+    },
+    {
+      "index": 145,
+      "name": "McDonald's Collection 2021",
+      "date": "February 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 9
+    },
+    {
+      "index": 146,
+      "name": "Shining Fates Shiny Vault",
+      "date": "February 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 9
+    },
+    {
+      "index": 147,
+      "name": "Shining Fates",
+      "date": "February 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 9
+    },
+    {
+      "index": 148,
+      "name": "Battle Styles",
+      "date": "March 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 10
+    },
+    {
+      "index": 149,
+      "name": "Chilling Reign",
+      "date": "June 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 10
+    },
+    {
+      "index": 150,
+      "name": "Evolving Skies",
+      "date": "August 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 10
+    },
+    {
+      "index": 151,
+      "name": "Celebrations: Classic Collection",
+      "date": "October 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 10
+    },
+    {
+      "index": 152,
+      "name": "Celebrations",
+      "date": "October 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 10
+    },
+    {
+      "index": 153,
+      "name": "Fusion Strike",
+      "date": "November 2021",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 10
+    },
+    {
+      "index": 154,
+      "name": "Brilliant Stars Trainer Gallery",
+      "date": "February 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 10
+    },
+    {
+      "index": 155,
+      "name": "Brilliant Stars",
+      "date": "February 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 10
+    },
+    {
+      "index": 156,
+      "name": "Astral Radiance Trainer Gallery",
+      "date": "May 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 10
+    },
+    {
+      "index": 157,
+      "name": "Astral Radiance",
+      "date": "May 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 10
+    },
+    {
+      "index": 158,
+      "name": "Pokémon GO",
+      "date": "July 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 10
+    },
+    {
+      "index": 159,
+      "name": "McDonald's Collection 2022",
+      "date": "August 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 10
+    },
+    {
+      "index": 160,
+      "name": "Lost Origin Trainer Gallery",
+      "date": "September 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 10
+    },
+    {
+      "index": 161,
+      "name": "Lost Origin",
+      "date": "September 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 10
+    },
+    {
+      "index": 162,
+      "name": "Silver Tempest Trainer Gallery",
+      "date": "November 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 10
+    },
+    {
+      "index": 163,
+      "name": "Silver Tempest",
+      "date": "November 2022",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 10
+    },
+    {
+      "index": 164,
+      "name": "Scarlet & Violet Black Star Promos",
+      "date": "January 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 0
+    },
+    {
+      "index": 165,
+      "name": "Crown Zenith Galarian Gallery",
+      "date": "January 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 10
+    },
+    {
+      "index": 166,
+      "name": "Crown Zenith",
+      "date": "January 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 10
+    },
+    {
+      "index": 167,
+      "name": "Scarlet & Violet Energies",
+      "date": "March 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 10
+    },
+    {
+      "index": 168,
+      "name": "Scarlet & Violet",
+      "date": "March 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 10
+    },
+    {
+      "index": 169,
+      "name": "Paldea Evolved",
+      "date": "June 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 11
+    },
+    {
+      "index": 170,
+      "name": "McDonald's Collection 2023",
+      "date": "July 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 11
+    },
+    {
+      "index": 171,
+      "name": "Obsidian Flames",
+      "date": "August 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 11
+    },
+    {
+      "index": 172,
+      "name": "151",
+      "date": "September 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 11
+    },
+    {
+      "index": 173,
+      "name": "Paradox Rift",
+      "date": "November 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 11
+    },
+    {
+      "index": 174,
+      "name": "Pokémon Trading Card Game Classic (Venusaur)",
+      "date": "November 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 11
+    },
+    {
+      "index": 175,
+      "name": "Pokémon Trading Card Game Classic (Charizard)",
+      "date": "November 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 11
+    },
+    {
+      "index": 176,
+      "name": "Pokémon Trading Card Game Classic (Blastoise)",
+      "date": "November 2023",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 11
+    },
+    {
+      "index": 177,
+      "name": "Paldean Fates",
+      "date": "January 2024",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 11
+    },
+    {
+      "index": 178,
+      "name": "Temporal Forces",
+      "date": "March 2024",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 11
+    },
+    {
+      "index": 179,
+      "name": "Twilight Masquerade",
+      "date": "May 2024",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 11
+    },
+    {
+      "index": 180,
+      "name": "Shrouded Fable",
+      "date": "August 2024",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 11
+    },
+    {
+      "index": 181,
+      "name": "Stellar Crown",
+      "date": "September 2024",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 11
+    },
+    {
+      "index": 182,
+      "name": "Surging Sparks",
+      "date": "November 2024",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 11
+    },
+    {
+      "index": 183,
+      "name": "McDonald's Collection 2024",
+      "date": "December 2024",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 0,
+      "row": 12
+    },
+    {
+      "index": 184,
+      "name": "Prismatic Evolutions",
+      "date": "January 2025",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 1,
+      "row": 12
+    },
+    {
+      "index": 185,
+      "name": "Journey Together",
+      "date": "March 2025",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 2,
+      "row": 12
+    },
+    {
+      "index": 186,
+      "name": "Destined Rivals",
+      "date": "May 2025",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 3,
+      "row": 12
+    },
+    {
+      "index": 187,
+      "name": "Black Bolt",
+      "date": "July 2025",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 4,
+      "row": 12
+    },
+    {
+      "index": 188,
+      "name": "White Flare",
+      "date": "July 2025",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 5,
+      "row": 12
+    },
+    {
+      "index": 189,
+      "name": "Mega Evolution",
+      "date": "September 2025",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 6,
+      "row": 12
+    },
+    {
+      "index": 190,
+      "name": "Phantasmal Flames",
+      "date": "November 2025",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 7,
+      "row": 12
+    },
+    {
+      "index": 191,
+      "name": "Ascended Heroes",
+      "date": "January 2026",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 8,
+      "row": 12
+    },
+    {
+      "index": 192,
+      "name": "Perfect Order",
+      "date": "March 2026",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 9,
+      "row": 12
+    },
+    {
+      "index": 193,
+      "name": "Chaos Rising",
+      "date": "May 2026",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 10,
+      "row": 12
+    },
+    {
+      "index": 194,
+      "name": "Pitch Black",
+      "date": "July 2026",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 11,
+      "row": 12
+    },
+    {
+      "index": 195,
+      "name": "30th Celebration: Classic Collection",
+      "date": "September 2026",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 12
+    },
+    {
+      "index": 196,
+      "name": "30th Celebration",
+      "date": "September 2026",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 12,
+      "row": 12
+    },
+    {
+      "index": 197,
+      "name": "Delta Reign",
+      "date": "November 2026",
+      "setId": "",
+      "myCurioKey": "",
+      "col": 13,
+      "row": 12
+    }
+  ]
+}

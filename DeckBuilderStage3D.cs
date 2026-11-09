@@ -13,15 +13,16 @@ namespace PokeTCGPlay
     /// </summary>
     public class DeckBuilderStage3D
     {
-        public const int GridCols = 5;
+        public const int GridCols = 4;
         public const int GridRows = 2;
-        public const int PageSize = GridCols * GridRows; // 10 cartas 3D grandes por página
+        public const int PageSize = GridCols * GridRows; // 8 cartas 3D por página (4x2 como en la referencia)
 
         public struct SlotScreenInfo
         {
             public int SlotIndex;
             public CardDef Card;
             public Vector2 BottomCenterGui;
+            public Vector2 TopRightGui;
             public Rect ApproxGuiRect;
             public Vector3 WorldPos;
             public Quaternion WorldRot;
@@ -274,7 +275,9 @@ namespace PokeTCGPlay
             float zoomAnim,
             Vector3 zoomOriginWorldPos,
             Quaternion zoomOriginWorldRot,
-            float zoomOriginScale)
+            float zoomOriginScale,
+            bool showCatalog3D = true,
+            bool showDeckStack3D = true)
         {
             EnsureCreated();
             if (!stageRoot.activeSelf) stageRoot.SetActive(true);
@@ -293,101 +296,119 @@ namespace PokeTCGPlay
             cardPool.BeginFrame();
             currentScreenSlots.Clear();
 
+            if (catalogMat != null && catalogMat.gameObject.activeSelf != showCatalog3D)
+                catalogMat.gameObject.SetActive(showCatalog3D);
+            if (deckPedestal != null && deckPedestal.gameObject.activeSelf != showDeckStack3D)
+                deckPedestal.gameObject.SetActive(showDeckStack3D);
+            if (deckAnchor != null && deckAnchor.gameObject.activeSelf != showDeckStack3D)
+                deckAnchor.gameObject.SetActive(showDeckStack3D);
+
+            if (!showCatalog3D)
+            {
+                HoveredSlotIndex = -1;
+                IsHoveringDeckStack = false;
+                SyncInspect3D(zoomCard, zoomAnim, zoomOriginWorldPos, zoomOriginWorldRot, zoomOriginScale);
+                stageCam.Render();
+                return;
+            }
+
             // 1) Alinear el Tapete 3D del Catálogo exactamente con el área de pantalla asignada
-            Vector3 catTopLeft = GuiPointToLocalPlane(new Vector2(catalogGuiRect.xMin + 14f, catalogGuiRect.yMin + 10f));
-            Vector3 catBotRight = GuiPointToLocalPlane(new Vector2(catalogGuiRect.xMax - 14f, catalogGuiRect.yMax - 26f));
+            Vector3 catTopLeft = GuiPointToLocalPlane(new Vector2(catalogGuiRect.xMin + 12f, catalogGuiRect.yMin + 8f));
+            Vector3 catBotRight = GuiPointToLocalPlane(new Vector2(catalogGuiRect.xMax - 12f, catalogGuiRect.yMax - 8f));
             Vector3 catCenter = (catTopLeft + catBotRight) * 0.5f;
-            float spanX = Mathf.Max(0.32f, Mathf.Abs(catBotRight.x - catTopLeft.x));
+            float spanX = Mathf.Max(0.30f, Mathf.Abs(catBotRight.x - catTopLeft.x));
             float spanZ = Mathf.Max(0.20f, Mathf.Abs(catTopLeft.z - catBotRight.z));
 
-            catalogMat.localPosition = new Vector3(catCenter.x, -0.0018f, catCenter.z - 0.004f);
-            catalogMat.localScale = new Vector3(spanX + 0.032f, 0.0032f, spanZ + 0.032f);
+            catalogMat.localPosition = new Vector3(catCenter.x, -0.0022f, catCenter.z - 0.002f);
+            catalogMat.localScale = new Vector3(spanX + 0.028f, 0.0032f, spanZ + 0.028f);
 
-            // Escala óptima de carta 3D para que quepan 5 columnas × 2 filas con holgura limpia
-            float maxScaleByW = (spanX / (GridCols + 0.55f)) / TableView.CardWorldWidth;
-            float maxScaleByH = (spanZ / (GridRows + 0.42f)) / TableView.CardWorldLength;
-            float baseCardScale = Mathf.Clamp(Mathf.Min(maxScaleByW, maxScaleByH), 0.72f, 1.24f);
+            // Escala óptima de carta 3D para que quepan 4 columnas × 2 filas con holgura limpia
+            float maxScaleByW = (spanX / (GridCols + 0.48f)) / TableView.CardWorldWidth;
+            float maxScaleByH = (spanZ / (GridRows + 0.34f)) / TableView.CardWorldLength;
+            float baseCardScale = Mathf.Clamp(Mathf.Min(maxScaleByW, maxScaleByH), 0.72f, 1.30f);
 
             float colStep = spanX / GridCols;
             float rowStep = spanZ / GridRows;
             float startX = catCenter.x - colStep * ((GridCols - 1) * 0.5f);
-            float topRowZ = catCenter.z + rowStep * 0.48f;
+            float topRowZ = catCenter.z + rowStep * 0.49f;
 
             // 2) Alinear el Pedestal 3D y la Pila Física del Mazo Activo en el panel derecho
             Vector3 deckLocalCenter = GuiPointToLocalPlane(deckPedestalGuiRect.center);
-            deckPedestal.localPosition = new Vector3(deckLocalCenter.x, -0.0015f, deckLocalCenter.z);
-            float deckScale = Mathf.Clamp(baseCardScale * 0.86f, 0.68f, 0.98f);
-            deckPedestal.localScale = new Vector3(TableView.CardWorldWidth * deckScale * 1.32f, 0.0034f, TableView.CardWorldLength * deckScale * 1.26f);
-
-            float bounceScale = deckBounceTimer > 0f ? (1f + Mathf.Sin((deckBounceTimer / 0.22f) * Mathf.PI) * 0.06f) : 1f;
-            deckAnchor.localPosition = new Vector3(deckLocalCenter.x, 0.0005f, deckLocalCenter.z);
-            deckAnchor.localRotation = Quaternion.Euler(0f, -6f, 0f);
-            deckAnchor.localScale = Vector3.one * (deckScale * bounceScale);
-
-            int deckCount = currentDeck != null ? currentDeck.Count : 0;
-            deckStack3D.Sync(deckCount);
-
-            // Si el mazo tiene cartas, mostrar también la última carta añadida boca arriba coronando la pila 3D
+            float deckScale = Mathf.Clamp(baseCardScale * 0.78f, 0.62f, 0.92f);
             CardView deckTopCv = null;
-            if (deckCount > 0 && currentDeck != null)
+            int deckCount = currentDeck != null ? currentDeck.Count : 0;
+
+            if (showDeckStack3D)
             {
-                var topCard = currentDeck[deckCount - 1];
-                float stackTopY = Mathf.Max(0.0018f, deckCount * 0.00048f) * deckScale + 0.0014f;
-                deckTopCv = cardPool.Spawn(
-                    stageRoot.transform,
-                    new Vector3(deckLocalCenter.x, stackTopY, deckLocalCenter.z),
-                    topCard,
-                    false,
-                    deckScale * bounceScale,
-                    deckCount == (format?.DeckSize ?? 60),
-                    -5.5f);
-                if (deckTopCv != null)
+                deckPedestal.localPosition = new Vector3(deckLocalCenter.x, -0.0015f, deckLocalCenter.z);
+                deckPedestal.localScale = new Vector3(TableView.CardWorldWidth * deckScale * 1.30f, 0.0034f, TableView.CardWorldLength * deckScale * 1.24f);
+
+                float bounceScale = deckBounceTimer > 0f ? (1f + Mathf.Sin((deckBounceTimer / 0.22f) * Mathf.PI) * 0.06f) : 1f;
+                deckAnchor.localPosition = new Vector3(deckLocalCenter.x, 0.0005f, deckLocalCenter.z);
+                deckAnchor.localRotation = Quaternion.Euler(0f, -6f, 0f);
+                deckAnchor.localScale = Vector3.one * (deckScale * bounceScale);
+
+                deckStack3D.Sync(deckCount);
+
+                if (deckCount > 0 && currentDeck != null)
                 {
-                    deckTopCv.SetShadowEnabled(false);
-                    deckTopCv.SetRaycastEnabled(true);
-                    if (deckCount == (format?.DeckSize ?? 60))
-                        deckTopCv.SetHighlight(true, new Color(0.25f, 0.95f, 0.55f, 0.90f));
+                    var topCard = currentDeck[deckCount - 1];
+                    float stackTopY = Mathf.Max(0.0018f, deckCount * 0.00048f) * deckScale + 0.0014f;
+                    deckTopCv = cardPool.Spawn(
+                        stageRoot.transform,
+                        new Vector3(deckLocalCenter.x, stackTopY, deckLocalCenter.z),
+                        topCard,
+                        false,
+                        deckScale * bounceScale,
+                        false,
+                        -5.5f);
+                    if (deckTopCv != null)
+                    {
+                        deckTopCv.SetShadowEnabled(false);
+                        deckTopCv.SetRaycastEnabled(true);
+                        deckTopCv.SetHighlight(false, Color.clear);
+                        deckTopCv.SetGrayscale(false);
+                    }
                 }
             }
 
-            // 3) Renderizar las 10 cartas físicas 3D de la página actual (con deslizamiento de carrusel y hover)
+            // 3) Renderizar las 8 cartas físicas 3D de la página actual (sin zoom y sin marco de selección detrás para evitar clipping)
             int count = pageCards != null ? Mathf.Min(PageSize, pageCards.Count) : 0;
             var spawnedSlots = new CardView[PageSize];
 
-            // Pre-calcular posiciones base para Raycast
             for (int i = 0; i < count; i++)
             {
                 int col = i % GridCols;
                 int row = i / GridCols;
                 float lx = startX + col * colStep + carouselSlideX;
                 float lz = topRowZ - row * rowStep;
-                float lift = slotHoverLift[i];
-                float ly = 0.0016f + lift * 0.032f;
+                // Altura fija con holgura suficiente sobre el tapete para que al inclinarse jamás clipee con el fondo
+                float ly = 0.016f;
                 lastSlotLocalPos[i] = new Vector3(lx, ly, lz);
 
                 var card = pageCards[i];
                 bool beingInspected = zoomCard == card && zoomAnim > 0.03f;
                 if (beingInspected) continue;
 
-                float sc = baseCardScale * (1f + lift * 0.11f);
-                var cv = cardPool.Spawn(stageRoot.transform, lastSlotLocalPos[i], card, false, sc, false, 0f);
+                var cv = cardPool.Spawn(stageRoot.transform, lastSlotLocalPos[i], card, false, baseCardScale, false, 0f);
                 if (cv != null)
                 {
                     cv.HandIndex = i;
                     cv.SetRaycastEnabled(true);
+                    cv.SetHighlight(false, Color.clear);
                     spawnedSlots[i] = cv;
                 }
             }
 
-            // 4) Intersección geométrica 3D exacta contra las cartas de la cuadrícula y la pila física del mazo (independiente de PhysX)
+            // 4) Intersección geométrica 3D exacta contra las cartas de la cuadrícula y la pila física del mazo
             HoveredSlotIndex = -1;
             IsHoveringDeckStack = false;
             if (!inputBlockedByModal && zoomCard == null)
             {
                 Ray mouseRay = stageCam.ScreenPointToRay(Input.mousePosition);
                 float bestDist = float.MaxValue;
-                float halfW = TableView.CardWorldWidth * baseCardScale * 0.54f;
-                float halfL = TableView.CardWorldLength * baseCardScale * 0.54f;
+                float halfW = TableView.CardWorldWidth * baseCardScale * 0.52f;
+                float halfL = TableView.CardWorldLength * baseCardScale * 0.52f;
 
                 for (int i = 0; i < count; i++)
                 {
@@ -402,16 +423,19 @@ namespace PokeTCGPlay
                     }
                 }
 
-                float deckHalfW = TableView.CardWorldWidth * deckScale * 0.62f;
-                float deckHalfL = TableView.CardWorldLength * deckScale * 0.62f;
-                Vector3 deckWorldTop = deckTopCv != null ? deckTopCv.transform.position : stageRoot.transform.TransformPoint(new Vector3(deckLocalCenter.x, 0.004f, deckLocalCenter.z));
-                DeckStackWorldPos = deckWorldTop;
-                DeckStackWorldRot = deckTopCv != null ? deckTopCv.transform.rotation : deckAnchor.rotation;
-                DeckStackScale = deckScale;
-                if (IntersectsWorldQuad(mouseRay, deckWorldTop, deckAnchor.right, deckAnchor.forward, deckAnchor.up, deckHalfW, deckHalfL, out float deckDist) && deckDist < bestDist)
+                if (showDeckStack3D)
                 {
-                    HoveredSlotIndex = -1;
-                    IsHoveringDeckStack = true;
+                    float deckHalfW = TableView.CardWorldWidth * deckScale * 0.62f;
+                    float deckHalfL = TableView.CardWorldLength * deckScale * 0.62f;
+                    Vector3 deckWorldTop = deckTopCv != null ? deckTopCv.transform.position : stageRoot.transform.TransformPoint(new Vector3(deckLocalCenter.x, 0.004f, deckLocalCenter.z));
+                    DeckStackWorldPos = deckWorldTop;
+                    DeckStackWorldRot = deckTopCv != null ? deckTopCv.transform.rotation : deckAnchor.rotation;
+                    DeckStackScale = deckScale;
+                    if (IntersectsWorldQuad(mouseRay, deckWorldTop, deckAnchor.right, deckAnchor.forward, deckAnchor.up, deckHalfW, deckHalfL, out float deckDist) && deckDist < bestDist)
+                    {
+                        HoveredSlotIndex = -1;
+                        IsHoveringDeckStack = true;
+                    }
                 }
             }
             else
@@ -421,63 +445,51 @@ namespace PokeTCGPlay
                 DeckStackScale = deckScale;
             }
 
-            if (deckTopCv != null && IsHoveringDeckStack)
-                deckTopCv.SetHighlight(true, new Color(1f, 0.86f, 0.22f, 0.96f));
-
-            // 5) Aplicar animación de elevación 3D, inclinación hacia el cursor, tinte por colección y proyección de etiquetas
-            Vector3 mouseLocalOnMat = GuiPointToLocalPlane(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y));
+            // 5) Movimiento ligero al pasar el mouse sobre la carta (sin zoom ni cuadro de selección detrás) y escala de grises si no se posee
+            Vector3 mouseLocalOnMat = GuiPointToLocalPlane(new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y), 0.016f);
             for (int i = 0; i < PageSize; i++)
             {
                 float target = (i == HoveredSlotIndex && !inputBlockedByModal && zoomCard == null) ? 1f : 0f;
-                slotHoverLift[i] = Mathf.MoveTowards(slotHoverLift[i], target, dt * 9.5f);
+                slotHoverLift[i] = Mathf.MoveTowards(slotHoverLift[i], target, dt * 8.5f);
             }
 
-            var deckAsList = currentDeck as List<CardDef> ?? (currentDeck != null ? new List<CardDef>(currentDeck) : new List<CardDef>());
             for (int i = 0; i < count; i++)
             {
                 var card = pageCards[i];
                 var cv = spawnedSlots[i];
                 float lift = Mathf.SmoothStep(0f, 1f, slotHoverLift[i]);
+                bool hasCard = Collection.HasCard(card);
 
-                int owned = Collection.Owned(card);
-                int inDeck = CountInList(deckAsList, card.Id);
-                bool canAddMore = DeckValidator.RemainingAllowed(card, deckAsList, format) > 0;
+                float halfW = TableView.CardWorldWidth * baseCardScale * 0.5f;
+                float halfL = TableView.CardWorldLength * baseCardScale * 0.5f;
 
                 if (cv != null)
                 {
-                    // Inclinación 3D dinámica al pasar el ratón encima
-                    if (lift > 0.01f)
+                    cv.SetHighlight(false, Color.clear);
+                    cv.SetStatusTintOverlay(Color.clear);
+                    cv.SetGrayscale(!hasCard);
+
+                    if (lift > 0.005f)
                     {
                         Vector3 delta = mouseLocalOnMat - lastSlotLocalPos[i];
-                        float pitch = Mathf.Clamp(-delta.z * 120f, -9f, 9f) * lift;
-                        float roll = Mathf.Clamp(-delta.x * 135f, -10f, 10f) * lift;
-                        cv.SetFlipRoll(roll, pitch, 0f);
+                        float mx = Mathf.Clamp(delta.x / Mathf.Max(0.01f, halfW), -1f, 1f);
+                        float mz = Mathf.Clamp(delta.z / Mathf.Max(0.01f, halfL), -1f, 1f);
+                        float pitch = (-mz * 7.5f + Mathf.Sin(Time.unscaledTime * 2.0f) * 1.4f) * lift;
+                        float roll = (-mx * 8.5f + Mathf.Cos(Time.unscaledTime * 1.6f) * 1.2f) * lift;
+                        float yaw = (mx * 2.4f) * lift;
+                        cv.SetFlipRoll(roll, pitch, yaw);
                     }
-
-                    if (owned <= 0)
+                    else
                     {
-                        cv.SetStatusTintOverlay(new Color(0.04f, 0.05f, 0.08f, 0.58f));
-                        if (i == HoveredSlotIndex)
-                            cv.SetHighlight(true, new Color(1f, 0.42f, 0.42f, 0.90f));
-                    }
-                    else if (i == HoveredSlotIndex)
-                    {
-                        cv.SetHighlight(true, canAddMore
-                            ? new Color(1f, 0.86f, 0.22f, 0.96f)
-                            : new Color(0.45f, 0.82f, 1f, 0.90f));
-                    }
-                    else if (inDeck > 0)
-                    {
-                        cv.SetHighlight(true, new Color(0.24f, 0.92f, 0.56f, 0.85f));
+                        cv.SetFlipRoll(0f, 0f, 0f);
                     }
                 }
 
-                // Coordenadas proyectadas en pantalla para dibujar el contador debajo de cada carta 3D
-                float halfW = TableView.CardWorldWidth * baseCardScale * 0.5f;
-                float halfL = TableView.CardWorldLength * baseCardScale * 0.5f;
-                Vector3 baseSlotPos = new Vector3(lastSlotLocalPos[i].x, 0.002f, lastSlotLocalPos[i].z);
+                // Coordenadas proyectadas en pantalla para el contador superior derecho (x0, x3, x10)
+                Vector3 baseSlotPos = new Vector3(lastSlotLocalPos[i].x, 0.016f, lastSlotLocalPos[i].z);
                 Vector2 topLeftGui = LocalToGuiPoint(baseSlotPos + new Vector3(-halfW, 0f, halfL));
                 Vector2 botRightGui = LocalToGuiPoint(baseSlotPos + new Vector3(halfW, 0f, -halfL));
+                Vector2 topRightGui = LocalToGuiPoint(baseSlotPos + new Vector3(halfW, 0f, halfL));
                 Vector2 botCenterGui = LocalToGuiPoint(baseSlotPos + new Vector3(0f, 0f, -halfL - 0.004f));
 
                 currentScreenSlots.Add(new SlotScreenInfo
@@ -485,6 +497,7 @@ namespace PokeTCGPlay
                     SlotIndex = i,
                     Card = card,
                     BottomCenterGui = botCenterGui,
+                    TopRightGui = topRightGui,
                     ApproxGuiRect = Rect.MinMaxRect(
                         Mathf.Min(topLeftGui.x, botRightGui.x),
                         Mathf.Min(topLeftGui.y, botRightGui.y),
@@ -509,13 +522,11 @@ namespace PokeTCGPlay
                 float yaw = Mathf.Sin(smooth * Mathf.PI) * (fl.ToDeck ? -14f : 14f);
                 float pitch = Mathf.Sin(smooth * Mathf.PI) * -12f;
 
-                var fcv = cardPool.Spawn(stageRoot.transform, pos, fl.Card, false, sc, true, yaw, pitch);
+                var fcv = cardPool.Spawn(stageRoot.transform, pos, fl.Card, false, sc, false, yaw, pitch);
                 if (fcv != null)
                 {
                     fcv.SetRaycastEnabled(false);
-                    fcv.SetHighlight(true, fl.ToDeck
-                        ? new Color(0.30f, 0.98f, 0.60f, 0.92f)
-                        : new Color(1f, 0.55f, 0.42f, 0.90f));
+                    fcv.SetHighlight(false, Color.clear);
                 }
 
                 if (t >= 1f)
@@ -580,11 +591,12 @@ namespace PokeTCGPlay
             Quaternion curRot = Quaternion.Slerp(startRot, targetRot, smooth);
             float curScale = Mathf.Lerp(Mathf.Max(0.75f, originScale), 1.32f, smooth);
 
-            inspectCardView.Setup(zoomCard, false, curScale, true, 0f);
+            inspectCardView.Setup(zoomCard, false, curScale, false, 0f);
             inspectCardView.SetFlipRoll(inspectFlipAngle, 0f, 0f);
             inspectCardView.SetShadowEnabled(false);
             inspectCardView.SetRaycastEnabled(false);
-            inspectCardView.SetHighlight(true, new Color(1f, 0.88f, 0.26f, 0.88f * smooth));
+            inspectCardView.SetHighlight(false, Color.clear);
+            inspectCardView.SetGrayscale(false);
             inspectCardView.transform.position = curPos;
             inspectCardView.transform.rotation = curRot;
         }

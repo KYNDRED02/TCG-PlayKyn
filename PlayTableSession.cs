@@ -63,18 +63,18 @@ namespace PokeTCGPlay
             if (active == null)
             {
                 GameUI.PlayClickSound(2);
-                GameUI.Instance?.ShowToast("No tienes un mazo activo. Abre la Mesa de Creación (Workbench) para crearlo.", 5.5f);
+                GameUI.Instance?.ShowToast("You have no active deck. Open the Workbench (PokeDeck Builder) to create one.", 5.5f);
                 return;
             }
             var format = FormatRegistry.Get(active.Format) ?? FormatRegistry.Default;
             var missing = new System.Collections.Generic.List<string>();
             var playerDeck = active.Resolve(missing);
             var errors = DeckValidator.Validate(playerDeck, format);
-            if (missing.Count > 0) errors.Insert(0, $"Cartas desconocidas: {string.Join(", ", missing)}");
+            if (missing.Count > 0) errors.Insert(0, $"Unknown cards: {string.Join(", ", missing)}");
             if (errors.Count > 0)
             {
                 GameUI.PlayClickSound(2);
-                GameUI.Instance?.ShowToast($"Tu mazo '{active.Name}' no es válido: {errors[0]} — Edítalo en la Workbench.", 6.5f);
+                GameUI.Instance?.ShowToast($"Your deck '{active.Name}' is not valid: {errors[0]} — Edit it at the Workbench.", 6.5f);
                 return;
             }
 
@@ -90,7 +90,7 @@ namespace PokeTCGPlay
 
             if (seat == -1)
             {
-                GameUI.Instance?.ShowToast("Esta mesa ya está ocupada por 2 clientes.");
+                GameUI.Instance?.ShowToast("This table is already occupied by 2 customers.");
                 return;
             }
 
@@ -592,40 +592,58 @@ namespace PokeTCGPlay
     }
 
     /// <summary>
-    /// Parches sobre la Mesa de Creación (InteractableWorkbench / WorkbenchUIScreen) para abrir el Creador de Mazos Pokémon TCG.
+    /// Parches sobre la Mesa de Creación (WorkbenchUIScreen) para mostrar el botón independiente 'PokeDeck Builder'
+    /// sin reemplazar ni interferir con el creador de mazos del juego base.
     /// </summary>
     public static class WorkbenchPatches
     {
-        [HarmonyPatch(typeof(InteractableWorkbench), nameof(InteractableWorkbench.OnRightMouseButtonUp))]
-        [HarmonyPrefix]
-        public static bool WorkbenchRightClick_Prefix(InteractableWorkbench __instance)
-        {
-            if (PlayTableSession.CurrentTable == null && DeckBuilderUI.Instance != null)
-            {
-                DeckBuilderUI.Instance.OpenFromWorkbench(__instance);
-                return false;
-            }
-            return true;
-        }
-
-        [HarmonyPatch(typeof(WorkbenchUIScreen), nameof(WorkbenchUIScreen.OnPressEditDeckButton))]
-        [HarmonyPrefix]
-        public static bool OnPressEditDeckButton_Prefix(WorkbenchUIScreen __instance)
-        {
-            if (DeckBuilderUI.Instance != null)
-            {
-                DeckBuilderUI.Instance.OpenFromWorkbenchScreen(__instance);
-                return false;
-            }
-            return true;
-        }
-
         [HarmonyPatch(typeof(WorkbenchUIScreen), nameof(WorkbenchUIScreen.OpenScreen))]
         [HarmonyPostfix]
-        public static void OpenScreen_Postfix()
+        public static void OpenScreen_Postfix(WorkbenchUIScreen __instance)
         {
             if (DeckBuilderUI.Instance != null)
-                DeckBuilderUI.Instance.OnWorkbenchScreenOpened();
+                DeckBuilderUI.Instance.OnWorkbenchScreenOpened(__instance);
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), "OnPressEditDeckButton")]
+        [HarmonyPostfix]
+        public static void OnPressEditDeckButton_Postfix()
+        {
+            if (DeckBuilderUI.Instance != null)
+                DeckBuilderUI.Instance.SetBaseWorkbenchSubscreenOpen(true);
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), "OnCloseEditDeckScreen")]
+        [HarmonyPostfix]
+        public static void OnCloseEditDeckScreen_Postfix()
+        {
+            if (DeckBuilderUI.Instance != null)
+                DeckBuilderUI.Instance.SetBaseWorkbenchSubscreenOpen(false);
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), "OnPressRulebookButton")]
+        [HarmonyPostfix]
+        public static void OnPressRulebookButton_Postfix()
+        {
+            if (DeckBuilderUI.Instance != null)
+                DeckBuilderUI.Instance.SetBaseWorkbenchSubscreenOpen(true);
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), "OnCloseRulebookScreen")]
+        [HarmonyPostfix]
+        public static void OnCloseRulebookScreen_Postfix()
+        {
+            if (DeckBuilderUI.Instance != null)
+                DeckBuilderUI.Instance.SetBaseWorkbenchSubscreenOpen(false);
+        }
+
+        [HarmonyPatch(typeof(WorkbenchUIScreen), nameof(WorkbenchUIScreen.CloseScreen))]
+        [HarmonyPrefix]
+        public static bool CloseScreen_Prefix()
+        {
+            if (DeckBuilderUI.Instance != null && DeckBuilderUI.Instance.IsOpen)
+                return false;
+            return true;
         }
 
         [HarmonyPatch(typeof(WorkbenchUIScreen), nameof(WorkbenchUIScreen.CloseScreen))]

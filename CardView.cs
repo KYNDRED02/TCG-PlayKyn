@@ -24,6 +24,7 @@ namespace PokeTCGPlay
         public float CurrentScale { get; private set; } = 1f;
         public float CurrentYaw { get; private set; }
         public bool IsRaycastEnabled { get; private set; } = true;
+        public bool IsGrayscale { get; private set; }
         public BoxCollider HitCollider { get; private set; }
 
         Transform visualRoot;
@@ -183,6 +184,7 @@ namespace PokeTCGPlay
             CurrentScale = scale;
             CurrentYaw = yawDegrees;
             IsRaycastEnabled = true;
+            IsGrayscale = false;
             if (HitCollider != null) HitCollider.enabled = true;
 
             transform.localScale = new Vector3(scale, 1f, scale);
@@ -246,6 +248,13 @@ namespace PokeTCGPlay
                 visualRoot.localRotation = Quaternion.Euler(pitchDegrees, yawDegrees, flipZ);
         }
 
+        public void SetGrayscale(bool grayscale)
+        {
+            if (IsGrayscale == grayscale) return;
+            IsGrayscale = grayscale;
+            RefreshTextures();
+        }
+
         public void RefreshTextures()
         {
             // Reverso oficial
@@ -261,13 +270,25 @@ namespace PokeTCGPlay
                 var sp = SpriteCache.Get(Card.Sprite);
                 if (sp != null && sp.texture != null)
                 {
+                    if (IsGrayscale)
+                    {
+                        var grayTex = SpriteCache.GetGrayscaleTexture(Card.Sprite, sp);
+                        if (grayTex != null)
+                        {
+                            frontMat.color = Color.white;
+                            frontMat.mainTexture = grayTex;
+                            frontMat.mainTextureOffset = Vector2.zero;
+                            frontMat.mainTextureScale = Vector2.one;
+                            return;
+                        }
+                    }
                     frontMat.color = Color.white;
                     ApplySpriteToMaterial(frontMat, sp);
                 }
                 else
                 {
                     frontMat.mainTexture = sFallbackFrontTex;
-                    frontMat.color = new Color(0.22f, 0.32f, 0.48f, 1f);
+                    frontMat.color = IsGrayscale ? new Color(0.28f, 0.28f, 0.30f, 1f) : new Color(0.22f, 0.32f, 0.48f, 1f);
                 }
             }
         }

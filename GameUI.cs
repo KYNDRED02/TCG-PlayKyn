@@ -13,7 +13,12 @@ namespace PokeTCGPlay
     /// usando la imagen real del Playmat, lanzamiento de moneda animado, energías debajo del Pokémon,
     /// iconos de estados alterados con contador de turnos, animaciones de movimiento de cartas y zoom con elevación.
     /// </summary>
-    public class GameUI : MonoBehaviour
+    /// <summary>
+    /// Controlador principal de la interfaz de usuario en partida (HUD, OnGUI, Canvas nativo).
+    /// La inspección de cartas está en GameUI.Inspect.cs, la interacción 3D en GameUI.Input3D.cs,
+    /// y los controles de Pokédex en GameUI.Pokedex.cs.
+    /// </summary>
+    public partial class GameUI : MonoBehaviour
     {
         public static GameUI Instance { get; private set; }
 
@@ -167,7 +172,7 @@ namespace PokeTCGPlay
                 StatusCounters3D.ActivePopups.Clear();
                 game = new Game(playerDeck, npcDeck);
                 game.Players[1].Name = "Cliente";
-                game.Say($"El cliente juega con el mazo: {npcDeckLabel}.");
+                game.Say($"Customer is playing with deck: {npcDeckLabel}.");
                 game.OnAnim = OnGameAnimEvent;
 
                 selHand = -1;
@@ -187,7 +192,7 @@ namespace PokeTCGPlay
                 subCoinTimer = 0f;
 
                 open = true;
-                message = "Lanzamiento de moneda: elige Cara (Pikachu) o Cruz (Pokéball) para decidir quién inicia.";
+                message = "Coin Toss: choose Heads (Pikachu) or Tails (Pokéball) to decide who goes first.";
             }
             catch (Exception e)
             {
@@ -283,7 +288,8 @@ namespace PokeTCGPlay
             {
                 if (gameOverGroup != null && gameOverGroup.activeSelf)
                     gameOverGroup.SetActive(false);
-                ClearNativeDynamicPool();
+                if (DeckBuilderUI.Instance == null || !DeckBuilderUI.Instance.NeedsNativeOverlay)
+                    ClearNativeDynamicPool();
                 if (PlayTableSession.CurrentTable != null)
                     LeaveTable();
                 return;
@@ -861,7 +867,9 @@ namespace PokeTCGPlay
                 GUI.Box(new Rect((Screen.width - 520) * 0.5f, 40, 520, 48), toastMessage, ToastStyle);
             }
 
-            if (!PlayTableSession.IsWaitingForNpc && (!open || game == null))
+            bool builderActive = DeckBuilderUI.Instance != null && DeckBuilderUI.Instance.NeedsNativeOverlay;
+
+            if (!builderActive && !PlayTableSession.IsWaitingForNpc && (!open || game == null))
             {
                 if (waitingGroup != null && waitingGroup.activeSelf)
                     waitingGroup.SetActive(false);
@@ -875,6 +883,15 @@ namespace PokeTCGPlay
             BeginNativeRepaint();
             try
             {
+                if (builderActive && !PlayTableSession.IsWaitingForNpc && (!open || game == null))
+                {
+                    if (waitingGroup != null && waitingGroup.activeSelf)
+                        waitingGroup.SetActive(false);
+                    if (gameOverGroup != null && gameOverGroup.activeSelf)
+                        gameOverGroup.SetActive(false);
+                    DeckBuilderUI.Instance.DrawBuilderNativeGUI();
+                    return;
+                }
                 if (PlayTableSession.IsWaitingForNpc)
                 {
                     if (gameOverGroup != null && gameOverGroup.activeSelf)
@@ -935,6 +952,21 @@ namespace PokeTCGPlay
                 // 8. Fase de Moneda Inicial antes de iniciar la partida (se oculta el modal mientras gira la moneda)
                 if (game.Phase == Phase.CoinToss && !startCoinSpinning)
                     DrawInitialCoinTossModal();
+
+                // 9.5. Parte 1: Telón oscurecido y UI interactiva de Pokédex
+                if (TableView.Instance != null && TableView.Instance.PokedexDimAlpha > 0.005f)
+                {
+                    DrawNativeBox(
+                        new Rect(0, 0, Screen.width, Screen.height),
+                        sDarkBackdropSprite,
+                        new Color(0.02f, 0.03f, 0.06f, 0.72f * TableView.Instance.PokedexDimAlpha),
+                        false);
+                }
+
+                if (TableView.Instance != null && TableView.Instance.IsPokedexInteracting && zoomedCard == null)
+                {
+                    DrawPokedexInteractiveUI();
+                }
 
                 // 10. Zoom con Clic Derecho (la carta se eleva desde la mesa y regresa a ella)
                 if (zoomedCard != null)
@@ -1058,7 +1090,7 @@ namespace PokeTCGPlay
                 }
                 Rect badge2D = new Rect(r.x + 2f, r.yMax - 24f, r.width - 4f, 22f);
                 GUI.Box(badge2D, "", SubBoxStyle);
-                GUI.Label(badge2D, $"<b>Mazo: {count}</b>", CardLabelStyle);
+                GUI.Label(badge2D, $"<b>Deck: {count}</b>", CardLabelStyle);
                 return;
             }
 
@@ -1066,7 +1098,7 @@ namespace PokeTCGPlay
             {
                 Rect tip = new Rect(r.center.x - 48f, r.y - 26f, 96f, 22f);
                 GUI.Box(tip, "", SubBoxStyle);
-                GUI.Label(tip, $"<b>Mazo: {count}</b>", CardLabelStyle);
+                GUI.Label(tip, $"<b>Deck: {count}</b>", CardLabelStyle);
             }
         }
 
@@ -1094,7 +1126,7 @@ namespace PokeTCGPlay
             {
                 Rect tip = new Rect(r.center.x - 54f, r.y - 26f, 108f, 22f);
                 GUI.Box(tip, "", SubBoxStyle);
-                GUI.Label(tip, $"<b>Descarte: {discard.Count}</b>", CardLabelStyle);
+                GUI.Label(tip, $"<b>Discard: {discard.Count}</b>", CardLabelStyle);
             }
         }
 
@@ -1187,7 +1219,7 @@ namespace PokeTCGPlay
             GUI.DrawTexture(new Rect(hpBar.x, hpBar.y, hpBar.width * hpRatio, hpBar.height), barFill);
             GUI.color = prevCol;
 
-            GUI.Label(hpBar, $"<b>{pip.RemainingHp}/{pip.Card.Hp} PS</b>", CardLabelStyle);
+            GUI.Label(hpBar, $"<b>{pip.RemainingHp}/{pip.Card.Hp} HP</b>", CardLabelStyle);
 
             if (pip.Damage > 0)
             {
@@ -1211,7 +1243,7 @@ namespace PokeTCGPlay
             }
             if (pip.Poisoned)
             {
-                DrawStatusIcon(new Rect(iconX, iconY, 30f, 24f), "VEN", poisTex, 0, phase);
+                DrawStatusIcon(new Rect(iconX, iconY, 30f, 24f), "PSN", poisTex, 0, phase);
                 iconY += 27f;
                 phase += 1.1f;
             }
@@ -1304,7 +1336,7 @@ namespace PokeTCGPlay
                     var fc = Me.Hand[focusIdx];
                     string hint = HintFor(fc);
                     string txt = $"<b>{fc.Name}</b>" + (!string.IsNullOrEmpty(hint) ? $" — {hint}" : "") +
-                                 "   <color=#9ecbff>[Arrastrar / Clic izq.: Jugar | Clic der.: Inspeccionar]</color>";
+                                 "   <color=#9ecbff>[Drag / Left-click: Play | Right-click: Inspect]</color>";
                     float pillW = Mathf.Min(760f, playmatRect.width * 0.94f);
                     Rect pill = new Rect(playmatRect.center.x - pillW * 0.5f, Screen.height - 34f, pillW, 28f);
                     GUI.Box(pill, txt, SubBoxStyle);
@@ -1338,6 +1370,9 @@ namespace PokeTCGPlay
 
         void DrawSideControls()
         {
+            if (TableView.Instance != null && TableView.Instance.IsPokedexActive)
+                return;
+
             // Panel de acciones compacto anclado al borde derecho de la pantalla para no invadir la mesa ni el abanico 3D
             float panelW = 248f;
             Rect rightPanel = new Rect(Screen.width - panelW - 14f, 46f, panelW, Screen.height - 96f);
@@ -1352,7 +1387,12 @@ namespace PokeTCGPlay
             }
             else if (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy())
             {
-                GUI.Box(new Rect(0, 0, panelW, 315f), "", BoxBgStyle);
+                float extraPowersHeight = Me.InPlay.Count(p => {
+                    var pow = p.Card.Power ?? p.Card.Abilities.FirstOrDefault();
+                    return pow != null && game.IsActivatedPower(pow.Name);
+                }) * 36f;
+                float panelH = Mathf.Min(Screen.height - 96f, 315f + extraPowersHeight);
+                GUI.Box(new Rect(0, 0, panelW, panelH), "", BoxBgStyle);
                 GUILayout.BeginVertical(GUILayout.Width(panelW - 10f));
                 GUILayout.Space(6);
                 GUILayout.Label($"<b>{Loc.T("Acciones", "Actions")} — {Me.Active.Card.Name}</b>", HeaderStyle);
@@ -1370,6 +1410,26 @@ namespace PokeTCGPlay
                     }
                     GUI.enabled = true;
                     GUILayout.Space(4);
+                }
+
+                // Habilidades Pokémon activables en juego (Activo y Banca)
+                foreach (var pInPlay in Me.InPlay)
+                {
+                    var pow = pInPlay.Card.Power ?? pInPlay.Card.Abilities.FirstOrDefault();
+                    if (pow != null && game.IsActivatedPower(pow.Name))
+                    {
+                        bool used = pInPlay.PowersUsedThisTurn.Contains(pow.Name);
+                        bool dis = game.IsPowerDisabled(pInPlay);
+                        GUI.enabled = !used && !dis && !IsAnimBusy();
+                        string pBtnText = $"★ {pow.Name}" + (pInPlay != a ? $" ({pInPlay.Card.Name})" : "");
+                        if (GUILayout.Button(pBtnText, BtnGoldStyle, GUILayout.Height(32)))
+                        {
+                            PlayClickSound(1);
+                            Report(game.UsePokemonPower(Me, pInPlay));
+                        }
+                        GUI.enabled = true;
+                        GUILayout.Space(4);
+                    }
                 }
 
                 if (GUILayout.Button(retreatMode ? Loc.T("Cancelar Retirada", "Cancel Retreat") : $"{Loc.T("Retirarse (Coste:", "Retreat (Cost:")} {a.Card.RetreatCost})", retreatMode ? BtnRedStyle : BtnStyle, GUILayout.Height(33)))
@@ -1972,13 +2032,145 @@ namespace PokeTCGPlay
             usedNativeRaw++;
             if (!raw.gameObject.activeSelf) raw.gameObject.SetActive(true);
             raw.texture = tex;
+            raw.uvRect = new Rect(0f, 0f, 1f, 1f);
             raw.color = col;
             var rt = raw.rectTransform;
             SetScreenRect(rt, rect);
             rt.SetSiblingIndex(nativeSiblingCursor++);
         }
 
-        public void DrawNativeLabel(Rect rect, string text, float fontSize, TextAlignmentOptions align, Color col)
+        public void DrawNativeSprite(Rect rect, Sprite sp, Color col)
+        {
+            if (!isNativeRepaintPass || sp == null || sp.texture == null) return;
+            EnsureNativeCanvasOverlay();
+            RawImage raw;
+            if (usedNativeRaw < nativeRawPool.Count)
+            {
+                raw = nativeRawPool[usedNativeRaw];
+            }
+            else
+            {
+                var go = new GameObject("PooledRaw_" + nativeRawPool.Count, typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                go.transform.SetParent(dynamicPoolRoot, false);
+                raw = go.GetComponent<RawImage>();
+                raw.raycastTarget = false;
+                nativeRawPool.Add(raw);
+            }
+            usedNativeRaw++;
+            if (!raw.gameObject.activeSelf) raw.gameObject.SetActive(true);
+            Texture2D t = sp.texture;
+            Rect tr = sp.textureRect;
+            raw.texture = t;
+            raw.uvRect = new Rect(tr.x / t.width, tr.y / t.height, tr.width / t.width, tr.height / t.height);
+            raw.color = col;
+            var rt = raw.rectTransform;
+            SetScreenRect(rt, rect);
+            rt.SetSiblingIndex(nativeSiblingCursor++);
+        }
+
+        public void DrawNativeAtlasIcon(Rect rect, Texture tex, Rect uvRect, Color col)
+        {
+            if (!isNativeRepaintPass || tex == null) return;
+            EnsureNativeCanvasOverlay();
+            RawImage raw;
+            if (usedNativeRaw < nativeRawPool.Count)
+            {
+                raw = nativeRawPool[usedNativeRaw];
+            }
+            else
+            {
+                var go = new GameObject("PooledRaw_" + nativeRawPool.Count, typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                go.transform.SetParent(dynamicPoolRoot, false);
+                raw = go.GetComponent<RawImage>();
+                raw.raycastTarget = false;
+                nativeRawPool.Add(raw);
+            }
+            usedNativeRaw++;
+            if (!raw.gameObject.activeSelf) raw.gameObject.SetActive(true);
+            raw.texture = tex;
+            raw.uvRect = uvRect;
+            raw.color = col;
+            var rt = raw.rectTransform;
+            SetScreenRect(rt, rect);
+            rt.SetSiblingIndex(nativeSiblingCursor++);
+        }
+
+        static string sActiveSliderId = "";
+
+        public float DrawNativeSlider(Rect rect, string sliderId, float value, float min, float max, out bool changed)
+        {
+            changed = false;
+            float range = Mathf.Max(0.0001f, max - min);
+            float t = Mathf.Clamp01((value - min) / range);
+
+            float padX = 12f;
+            float trackW = Mathf.Max(24f, rect.width - padX * 2f);
+            float trackH = 14f;
+            Rect trackRect = new Rect(rect.x + padX, rect.center.y - trackH * 0.5f, trackW, trackH);
+            Rect hitRect = new Rect(rect.x, rect.y, rect.width, rect.height);
+
+            Vector2 guiMouse = Event.current != null ? Event.current.mousePosition : Vector2.zero;
+            bool hover = hitRect.Contains(guiMouse);
+
+            if (!Input.GetMouseButton(0) && sActiveSliderId == sliderId)
+            {
+                sActiveSliderId = "";
+            }
+
+            if (Event.current != null)
+            {
+                if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && hover)
+                {
+                    sActiveSliderId = sliderId;
+                    float nextT = Mathf.Clamp01((guiMouse.x - trackRect.x) / trackRect.width);
+                    float nextVal = min + nextT * range;
+                    if (Mathf.Abs(nextVal - value) > 0.0005f)
+                    {
+                        value = nextVal;
+                        t = nextT;
+                        changed = true;
+                    }
+                    Event.current.Use();
+                }
+                else if (sActiveSliderId == sliderId && Input.GetMouseButton(0))
+                {
+                    float nextT = Mathf.Clamp01((guiMouse.x - trackRect.x) / trackRect.width);
+                    float nextVal = min + nextT * range;
+                    if (Mathf.Abs(nextVal - value) > 0.0005f)
+                    {
+                        value = nextVal;
+                        t = nextT;
+                        changed = true;
+                    }
+                    if (Event.current.type == EventType.MouseDrag)
+                        Event.current.Use();
+                }
+            }
+
+            bool isDragging = sActiveSliderId == sliderId && Input.GetMouseButton(0);
+
+            // Track background
+            DrawNativeBox(trackRect, sSubPanelSprite, new Color(0.06f, 0.09f, 0.15f, 0.98f));
+
+            // Filled portion
+            if (t > 0.005f)
+            {
+                float fillW = Mathf.Max(10f, trackRect.width * t);
+                Rect fillRect = new Rect(trackRect.x, trackRect.y, fillW, trackRect.height);
+                DrawNativeBox(fillRect, isDragging ? sBtnGoldN : sBtnBlueN, Color.white);
+            }
+
+            // Draggable thumb knob
+            float thumbW = 22f;
+            float thumbH = 28f;
+            float thumbCenterX = trackRect.x + t * trackRect.width;
+            Rect thumbRect = new Rect(thumbCenterX - thumbW * 0.5f, trackRect.center.y - thumbH * 0.5f, thumbW, thumbH);
+            DrawNativeBox(thumbRect, isDragging ? sBtnGoldA : (hover ? sBtnGoldH : sBtnGoldN), Color.white);
+
+            return value;
+        }
+
+        public void DrawNativeLabel(Rect rect, string text, float fontSize, TextAlignmentOptions align, Color col, bool autoSize = false, float minFontSize = 10f)
         {
             if (!isNativeRepaintPass) return;
             EnsureNativeCanvasOverlay();
@@ -1995,7 +2187,16 @@ namespace PokeTCGPlay
             usedNativeTmp++;
             if (!tmp.gameObject.activeSelf) tmp.gameObject.SetActive(true);
             tmp.text = text;
-            tmp.fontSize = fontSize;
+            tmp.enableAutoSizing = autoSize;
+            if (autoSize)
+            {
+                tmp.fontSizeMax = fontSize;
+                tmp.fontSizeMin = minFontSize;
+            }
+            else
+            {
+                tmp.fontSize = fontSize;
+            }
             tmp.alignment = align;
             tmp.color = col;
             var rt = tmp.rectTransform;
@@ -2010,11 +2211,143 @@ namespace PokeTCGPlay
             bool pressed = hover && Input.GetMouseButton(0);
 
             DrawNativeBox(rect, pressed ? sAct : (hover ? sHov : sNorm), Color.white);
-            Rect lblRect = new Rect(rect.x + 6f, rect.y + (pressed ? 1.5f : -0.5f), rect.width - 12f, rect.height);
+            Rect lblRect = new Rect(rect.x + 8f, rect.y + (pressed ? 1.5f : 0f), Mathf.Max(8f, rect.width - 16f), Mathf.Max(8f, rect.height - 2f));
             Color lblCol = hover ? new Color(1f, 0.98f, 0.85f, 1f) : Color.white;
-            DrawNativeLabel(lblRect, label, fontSize, TextAlignmentOptions.Center, lblCol);
+            DrawNativeLabel(lblRect, label, fontSize, TextAlignmentOptions.Center, lblCol, autoSize: true, minFontSize: 10f);
 
             return GUI.Button(rect, GUIContent.none, GUIStyle.none);
+        }
+
+        public bool DrawNativeIconButton(Rect rect, Texture2D iconTex, Sprite sNorm, Sprite sHov, Sprite sAct, float iconPadding = 8f)
+        {
+            Vector2 guiMouse = Event.current != null ? Event.current.mousePosition : Vector2.zero;
+            bool hover = rect.Contains(guiMouse);
+            bool pressed = hover && Input.GetMouseButton(0);
+
+            DrawNativeBox(rect, pressed ? sAct : (hover ? sHov : sNorm), Color.white);
+            if (iconTex != null)
+            {
+                Rect iconRect = new Rect(
+                    rect.x + iconPadding,
+                    rect.y + iconPadding + (pressed ? 1f : 0f),
+                    Mathf.Max(8f, rect.width - iconPadding * 2f),
+                    Mathf.Max(8f, rect.height - iconPadding * 2f));
+                Color ic = hover ? new Color(1f, 0.96f, 0.82f, 1f) : new Color(0.92f, 0.96f, 1f, 0.96f);
+                DrawNativeRawTex(iconRect, iconTex, ic);
+            }
+
+            return GUI.Button(rect, GUIContent.none, GUIStyle.none);
+        }
+
+        public bool DrawNativeTypeIconButton(Rect rect, string typeId, bool selected, bool anyFilterActive)
+        {
+            Vector2 guiMouse = Event.current != null ? Event.current.mousePosition : Vector2.zero;
+            bool hover = rect.Contains(guiMouse);
+            bool pressed = hover && Input.GetMouseButton(0);
+
+            if (selected || hover)
+            {
+                float pad = selected ? 5f : 3f;
+                Rect glowRect = new Rect(rect.x - pad, rect.y - pad, rect.width + pad * 2f, rect.height + pad * 2f);
+                Color glowCol = selected
+                    ? new Color(1f, 0.88f, 0.36f, 0.88f)
+                    : new Color(0.65f, 0.86f, 1f, 0.45f);
+                DrawNativeBox(glowRect, sGlowSprite, glowCol, sliced: false);
+            }
+
+            float scale = pressed ? 0.94f : (selected ? 1.10f : (hover ? 1.06f : 1.0f));
+            float w = rect.width * scale;
+            float h = rect.height * scale;
+            Rect iconRect = new Rect(rect.center.x - w * 0.5f, rect.center.y - h * 0.5f, w, h);
+
+            Texture2D tex = SpriteCache.GetTypeIcon(typeId);
+            Color tint = selected
+                ? Color.white
+                : (hover
+                    ? new Color(1f, 1f, 1f, 0.96f)
+                    : (anyFilterActive ? new Color(0.55f, 0.60f, 0.68f, 0.62f) : new Color(0.90f, 0.93f, 0.98f, 0.90f)));
+            if (tex != null)
+                DrawNativeRawTex(iconRect, tex, tint);
+
+            return GUI.Button(rect, GUIContent.none, GUIStyle.none);
+        }
+
+        static GUIStyle sInvisibleTextFieldStyle;
+
+        public string DrawNativeTextField(Rect rect, string controlName, string currentText, string placeholder, float fontSize, int maxLen = 60, Texture2D leftIcon = null)
+        {
+            if (sInvisibleTextFieldStyle == null)
+            {
+                sInvisibleTextFieldStyle = new GUIStyle(GUI.skin.textField)
+                {
+                    normal = { background = null, textColor = Color.clear },
+                    hover = { background = null, textColor = Color.clear },
+                    focused = { background = null, textColor = Color.clear },
+                    active = { background = null, textColor = Color.clear },
+                    border = new RectOffset(0, 0, 0, 0),
+                    padding = new RectOffset(6, 6, 4, 4)
+                };
+            }
+
+            string safeText = currentText ?? "";
+            bool hasClearBtn = safeText.Length > 0;
+            Rect clearRect = new Rect(rect.xMax - 26f, rect.y + (rect.height - 22f) * 0.5f, 22f, 22f);
+
+            // Si hace clic en la 'X' para limpiar la búsqueda, vaciamos antes del TextField
+            if (hasClearBtn && Event.current != null && Event.current.type == EventType.MouseDown && Event.current.button == 0 && clearRect.Contains(Event.current.mousePosition))
+            {
+                PlayClickSound(0);
+                safeText = "";
+                GUI.FocusControl(null);
+                Event.current.Use();
+            }
+
+            float inputW = hasClearBtn ? Mathf.Max(24f, rect.width - 28f) : rect.width;
+            Rect fieldHitRect = new Rect(rect.x, rect.y, inputW, rect.height);
+
+            GUI.SetNextControlName(controlName);
+            string next = GUI.TextField(fieldHitRect, safeText, maxLen, sInvisibleTextFieldStyle);
+            bool focused = GUI.GetNameOfFocusedControl() == controlName;
+
+            if (focused && Event.current != null && Event.current.type == EventType.KeyDown &&
+                (Event.current.keyCode == KeyCode.Return || Event.current.keyCode == KeyCode.KeypadEnter))
+            {
+                GUI.FocusControl(null);
+            }
+
+            Color boxCol = focused ? new Color(1f, 0.96f, 0.84f, 1f) : new Color(0.84f, 0.90f, 0.98f, 0.96f);
+            DrawNativeBox(rect, sSubPanelSprite, boxCol);
+
+            float textLeft = rect.x + 10f;
+            if (leftIcon != null)
+            {
+                float icSz = Mathf.Min(18f, rect.height - 12f);
+                Rect icRect = new Rect(rect.x + 9f, rect.y + (rect.height - icSz) * 0.5f, icSz, icSz);
+                DrawNativeRawTex(icRect, leftIcon, focused ? new Color(1f, 0.90f, 0.48f, 0.98f) : new Color(0.70f, 0.82f, 0.96f, 0.90f));
+                textLeft = icRect.xMax + 7f;
+            }
+
+            float textRight = hasClearBtn ? clearRect.x - 4f : rect.xMax - 8f;
+            Rect lblRect = new Rect(textLeft, rect.y + 2f, Mathf.Max(10f, textRight - textLeft), rect.height - 4f);
+
+            if (string.IsNullOrEmpty(next) && !focused)
+            {
+                DrawNativeLabel(lblRect, placeholder, fontSize, TextAlignmentOptions.Left, new Color(0.62f, 0.72f, 0.85f, 0.78f), autoSize: true, minFontSize: 10f);
+            }
+            else
+            {
+                string caret = focused && ((int)(Time.unscaledTime * 2.2f) % 2 == 0) ? "<color=#ffe066>|</color>" : "";
+                Color txtCol = focused ? new Color(1f, 0.95f, 0.72f, 1f) : Color.white;
+                DrawNativeLabel(lblRect, next + caret, fontSize, TextAlignmentOptions.Left, txtCol, autoSize: true, minFontSize: 10f);
+            }
+
+            if (hasClearBtn)
+            {
+                bool hovClear = Event.current != null && clearRect.Contains(Event.current.mousePosition);
+                DrawNativeLabel(clearRect, "X", fontSize - 1f, TextAlignmentOptions.Center, hovClear ? new Color(1f, 0.55f, 0.55f, 1f) : new Color(0.75f, 0.82f, 0.92f, 0.85f), autoSize: true, minFontSize: 9f);
+            }
+
+            return next;
         }
 
         void DrawWaitingForOpponentScreen()
@@ -2164,903 +2497,9 @@ namespace PokeTCGPlay
             DrawEnergyOrb(r, type, GUI.color.a);
         }
 
-        /// <summary>
-        /// F5: Muestra la Inspección de Carta (en mesa 3D la carta sube físicamente en 3D hacia la cámara con giro interactivo
-        /// y telón 3D oscurecido detrás; a la derecha se despliega el panel con ataques, costes como iconos de energía,
-        /// debilidad, resistencia y coste de retirada). Devuelve true si el usuario cerró la inspección.
-        /// </summary>
-        public static bool DrawElevatedZoomOverlay(CardDef card, PokemonInPlay pip, Rect originRect, float animT, bool force3DCard = false, Action extraFooterUI = null)
-        {
-            EnsureStyles();
-            float smooth = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(animT));
-            bool use3DCard = force3DCard || (Instance != null && Instance.open && TableView.Instance != null && TableView.Instance.IsBoard3DReady);
-
-            Color prevCol = GUI.color;
-            float targetH = Mathf.Min(Screen.height * 0.74f, 570f);
-            float targetW = Mathf.Round(targetH * (63f / 88f));
-            float totalW = targetW + 480f;
-            Rect targetCardRect = new Rect((Screen.width - totalW) * 0.5f, (Screen.height - targetH) * 0.5f, targetW, targetH);
-
-            if (!use3DCard)
-            {
-                // Respaldo 2D (por ejemplo, al inspeccionar cartas dentro del Deck Builder en la Workbench)
-                GUI.color = new Color(1f, 1f, 1f, smooth * 0.85f);
-                GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), zoomBgTex);
-                GUI.color = prevCol;
-
-                Rect animCardRect = new Rect(
-                    Mathf.Lerp(originRect.x, targetCardRect.x, smooth),
-                    Mathf.Lerp(originRect.y, targetCardRect.y, smooth),
-                    Mathf.Lerp(originRect.width, targetCardRect.width, smooth),
-                    Mathf.Lerp(originRect.height, targetCardRect.height, smooth)
-                );
-
-                float shadowOffset = 18f * smooth;
-                GUI.Box(new Rect(animCardRect.x + shadowOffset, animCardRect.y + shadowOffset, animCardRect.width, animCardRect.height), "", BoxBgStyle);
-                DrawCardSpriteOnly(animCardRect, card);
-            }
-
-            // Panel lateral F5 con ataques, costes como iconos de energía, debilidad, resistencia y retirada
-            if (smooth > 0.25f)
-            {
-                float panelAlpha = Mathf.Clamp01((smooth - 0.25f) / 0.75f);
-                GUI.color = new Color(1f, 1f, 1f, panelAlpha);
-                Rect infoBox = new Rect(targetCardRect.xMax + 24f, targetCardRect.y, 462f, targetH);
-                GUI.Box(infoBox, "", BoxBgStyle);
-
-                GUILayout.BeginArea(new Rect(infoBox.x + 20f, infoBox.y + 16f, infoBox.width - 40f, infoBox.height - 32f));
-
-                // Cabecera: Nombre, Número y Orbe de Tipo + PS
-                GUILayout.BeginHorizontal();
-                GUILayout.Label($"<size=23><b>{card.Name}</b></size> <color=#9ecbff><size=14>({card.SetId} #{card.Number})</size></color>", HeaderStyle);
-                GUILayout.FlexibleSpace();
-                if (card.Supertype == Supertype.Pokemon)
-                {
-                    int curHp = pip != null ? pip.RemainingHp : card.Hp;
-                    GUILayout.Label($"<size=18><color=#ff7b7b><b>{curHp}/{card.Hp} PS</b></color></size>", HeaderStyle);
-                    GUILayout.Space(6);
-                    DrawInlineEnergyOrb(card.Type, 24f);
-                }
-                else if (card.Supertype == Supertype.Energy && !string.IsNullOrEmpty(card.EnergyProvides))
-                {
-                    DrawInlineEnergyOrb(card.EnergyProvides, 24f);
-                }
-                GUILayout.EndHorizontal();
-
-                GUILayout.Space(6);
-
-                if (card.Supertype == Supertype.Pokemon)
-                {
-                    string stageTxt = $"<b>Etapa:</b> {card.Stage}" + (!string.IsNullOrEmpty(card.EvolvesFrom) ? $"  •  <i>Evoluciona de {card.EvolvesFrom}</i>" : "");
-                    GUILayout.Label(stageTxt, ZoomTextStyle);
-
-                    // Barra visual de PS
-                    float hpRatio = Mathf.Clamp01((pip != null ? pip.RemainingHp : card.Hp) / (float)Math.Max(1, card.Hp));
-                    Rect hpBar = GUILayoutUtility.GetRect(infoBox.width - 44f, 10f);
-                    GUI.DrawTexture(hpBar, hpBgTex);
-                    GUI.DrawTexture(new Rect(hpBar.x, hpBar.y, hpBar.width * hpRatio, hpBar.height), hpFillTex);
-
-                    // Energías unidas físicamente como iconos de energía
-                    if (pip != null && pip.Energy.Count > 0)
-                    {
-                        GUILayout.Space(6);
-                        GUILayout.BeginHorizontal();
-                        GUILayout.Label("<b>Energías unidas:</b>", ZoomTextStyle, GUILayout.Width(120f));
-                        foreach (var e in pip.Energy)
-                        {
-                            DrawInlineEnergyOrb(e.EnergyProvides, 20f);
-                            GUILayout.Space(3f);
-                        }
-                        GUILayout.FlexibleSpace();
-                        GUILayout.EndHorizontal();
-                    }
-
-                    if (pip != null && (pip.Status != Status.None || pip.Poisoned || pip.DefenderUntilTurn >= 0))
-                    {
-                        GUILayout.Space(4);
-                        GUILayout.Label($"<color=#ffd166><b>Estado en mesa:</b> {(pip.Status != Status.None ? pip.Status.ToString() : "Normal")} {(pip.Poisoned ? "[Envenenado]" : "")}</color>", ZoomTextStyle);
-                    }
-
-                    // Poké-Power / Habilidad
-                    if (card.Power != null)
-                    {
-                        GUILayout.Space(8);
-                        GUILayout.BeginVertical(SubBoxStyle);
-                        GUILayout.Label($"<color=#ffd166><b>⚡ Poké-Power: {card.Power.Name}</b></color>", ZoomTextStyle);
-                        GUILayout.Label(card.Power.Text, ZoomTextStyle);
-                        GUILayout.EndVertical();
-                    }
-
-                    // Lista de Ataques con iconos de coste de energía
-                    GUILayout.Space(8);
-                    foreach (var atk in card.Attacks)
-                    {
-                        GUILayout.BeginVertical(SubBoxStyle);
-                        GUILayout.BeginHorizontal();
-                        if (atk.Cost != null && atk.Cost.Count > 0)
-                        {
-                            foreach (var cType in atk.Cost)
-                            {
-                                DrawInlineEnergyOrb(cType, 21f);
-                                GUILayout.Space(3f);
-                            }
-                        }
-                        else
-                        {
-                            GUILayout.Label("<color=#9ecbff>[0]</color>", ZoomTextStyle, GUILayout.Width(24f));
-                        }
-                        GUILayout.Space(6f);
-                        GUILayout.Label($"<size=16><color=#80ed99><b>{atk.Name}</b></color></size>", ZoomTextStyle);
-                        GUILayout.FlexibleSpace();
-                        if (atk.BaseDamage > 0 || !string.IsNullOrEmpty(atk.DamageSuffix))
-                        {
-                            GUILayout.Label($"<size=17><color=#ffe066><b>{atk.BaseDamage}{atk.DamageSuffix}</b></color></size>", HeaderStyle);
-                        }
-                        GUILayout.EndHorizontal();
-
-                        if (!string.IsNullOrEmpty(atk.Text))
-                        {
-                            GUILayout.Space(3f);
-                            GUILayout.Label($"<color=#dce6f2><i>{atk.Text}</i></color>", ZoomTextStyle);
-                        }
-                        GUILayout.EndVertical();
-                        GUILayout.Space(5);
-                    }
-
-                    GUILayout.FlexibleSpace();
-
-                    // Barra inferior F5: Debilidad, Resistencia y Coste de Retirada con iconos de energía
-                    GUILayout.BeginVertical(SubBoxStyle);
-                    GUILayout.BeginHorizontal();
-
-                    // Columna 1: Debilidad
-                    GUILayout.BeginHorizontal(GUILayout.Width(132f));
-                    GUILayout.Label("<b>Debilidad:</b>", ZoomTextStyle, GUILayout.Width(72f));
-                    if (!string.IsNullOrEmpty(card.WeaknessType))
-                    {
-                        DrawInlineEnergyOrb(card.WeaknessType, 19f);
-                        GUILayout.Space(3f);
-                        GUILayout.Label("<b>×2</b>", ZoomTextStyle);
-                    }
-                    else
-                    {
-                        GUILayout.Label("—", ZoomTextStyle);
-                    }
-                    GUILayout.EndHorizontal();
-
-                    // Columna 2: Resistencia
-                    GUILayout.BeginHorizontal(GUILayout.Width(142f));
-                    GUILayout.Label("<b>Resistencia:</b>", ZoomTextStyle, GUILayout.Width(84f));
-                    if (!string.IsNullOrEmpty(card.ResistanceType))
-                    {
-                        DrawInlineEnergyOrb(card.ResistanceType, 19f);
-                        GUILayout.Space(3f);
-                        GUILayout.Label($"<b>-{card.ResistanceValue}</b>", ZoomTextStyle);
-                    }
-                    else
-                    {
-                        GUILayout.Label("—", ZoomTextStyle);
-                    }
-                    GUILayout.EndHorizontal();
-
-                    // Columna 3: Coste de Retirada
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Label("<b>Retirada:</b>", ZoomTextStyle, GUILayout.Width(64f));
-                    if (card.RetreatCost > 0)
-                    {
-                        for (int r = 0; r < card.RetreatCost; r++)
-                        {
-                            DrawInlineEnergyOrb("Colorless", 18f);
-                            GUILayout.Space(2f);
-                        }
-                    }
-                    else
-                    {
-                        GUILayout.Label("0", ZoomTextStyle);
-                    }
-                    GUILayout.EndHorizontal();
-
-                    GUILayout.EndHorizontal();
-                    GUILayout.EndVertical();
-                }
-                else
-                {
-                    GUILayout.Label($"<b>Categoría:</b> {card.Supertype}" + (!string.IsNullOrEmpty(card.EnergyProvides) ? $" ({card.EnergyProvides})" : ""), ZoomTextStyle);
-                    GUILayout.Space(10);
-                    if (!string.IsNullOrEmpty(card.RulesText))
-                    {
-                        GUILayout.BeginVertical(SubBoxStyle);
-                        GUILayout.Label(card.RulesText, ZoomTextStyle);
-                        GUILayout.EndVertical();
-                    }
-                    GUILayout.FlexibleSpace();
-                }
-
-                if (extraFooterUI != null)
-                {
-                    GUILayout.Space(6);
-                    extraFooterUI.Invoke();
-                }
-
-                GUILayout.Space(6);
-                GUILayout.Label("<color=#aebcd0><i>Mueve el ratón para inclinar la carta 3D  •  Clic fuera o Esc para cerrar</i></color>", SubHeaderStyle);
-                GUILayout.EndArea();
-                GUI.color = prevCol;
-            }
-
-            if (Event.current.type == EventType.MouseDown)
-            {
-                Event.current.Use();
-                return true;
-            }
-            return false;
-        }
-
-        // ==================== Helpers de Dibujo de Cartas ====================
-        public static void DrawCardSpriteOnly(Rect rect, CardDef c)
-        {
-            if (c == null) return;
-            var sp = SpriteCache.Get(c.Sprite);
-            if (sp != null && sp.texture != null)
-            {
-                var t = sp.texture;
-                var tr = sp.textureRect;
-                GUI.DrawTextureWithTexCoords(rect, t, new Rect(tr.x / t.width, tr.y / t.height, tr.width / t.width, tr.height / t.height));
-            }
-            else
-            {
-                GUI.Box(rect, c.Name);
-            }
-        }
-
-        public static void DrawCardBackRect(Rect rect)
-        {
-            var cb = SpriteCache.GetCardBack();
-            if (cb != null && cb.texture != null)
-            {
-                var t = cb.texture;
-                var tr = cb.textureRect;
-                GUI.DrawTextureWithTexCoords(rect, t, new Rect(tr.x / t.width, tr.y / t.height, tr.width / t.width, tr.height / t.height));
-            }
-            else
-            {
-                GUI.Box(rect, "POKÉMON");
-            }
-        }
-
-        /// <summary>Dibuja una carta y devuelve 0 (clic izquierdo), 1 (clic derecho / zoom) o -1.</summary>
-        public static int DrawCardWithInput(Rect rect, CardDef c, bool highlight, bool allowInput)
-        {
-            EnsureStyles();
-            if (highlight)
-                GUI.DrawTexture(new Rect(rect.x - 4f, rect.y - 4f, rect.width + 8f, rect.height + 8f), highlightTex);
-
-            DrawCardSpriteOnly(rect, c);
-
-            if (allowInput && Event.current.type == EventType.MouseDown && rect.Contains(Event.current.mousePosition))
-            {
-                int b = Event.current.button;
-                Event.current.Use();
-                return b;
-            }
-            return -1;
-        }
-
-        // ==================== F4: Interacciones 3D (Mano en Abanico, Hover, Drag & Drop y Raycast 3D) ====================
-        bool IsMouseOverHud(Vector2 guiMouse)
-        {
-            // Botones laterales izquierdos ("Opciones" y "Levantarse")
-            Rect leftBtns = new Rect(20f, 98f, 184f, 114f);
-            if (leftBtns.Contains(guiMouse)) return true;
-
-            bool hasRightPanel = game != null && (
-                                     (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me) ||
-                                     (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy()));
-            if (hasRightPanel)
-            {
-                float panelW = 248f;
-                float panelH = 340f;
-                Rect rightPanel = new Rect(Screen.width - panelW - 14f, 46f, panelW, panelH);
-                if (rightPanel.Contains(guiMouse)) return true;
-            }
-
-            return false;
-        }
-
-        void Update3DInput()
-        {
-            var tv = TableView.Instance;
-            if (tv == null || !tv.IsBoard3DReady || game == null) return;
-
-            bool animBusy = IsAnimBusy();
-            bool allow3DInput = zoomedCard == null && !showSettingsModal && game.Phase != Phase.CoinToss && game.Phase != Phase.GameOver &&
-                                !startCoinSpinning && !animBusy && !game.PendingAiTurn;
-
-            if (!allow3DInput)
-            {
-                Reset3DInputState();
-                tv.UpdateSlotHighlights3D(null, null);
-                return;
-            }
-
-            var cam = TableView.GetActiveCamera();
-            if (cam == null) return;
-
-            Vector2 guiMouse = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
-            bool overHud = IsMouseOverHud(guiMouse);
-            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
-
-            if (!isDragging3D)
-            {
-                if (!overHud)
-                {
-                    if (tv.RaycastHandCard3D(ray, out int hIdx, out _) && hIdx >= 0 && hIdx < Me.Hand.Count)
-                    {
-                        if (hoveredHandIdx != hIdx)
-                        {
-                            hoveredHandIdx = hIdx;
-                            PlayClickSound(0);
-                        }
-                        hoveredSlot3D = null;
-                        hoveredBoardCard3D = null;
-                    }
-                    else
-                    {
-                        hoveredHandIdx = -1;
-                        tv.RaycastBoard3D(ray, out hoveredSlot3D, out hoveredBoardCard3D);
-                    }
-                }
-                else
-                {
-                    hoveredHandIdx = -1;
-                    hoveredSlot3D = null;
-                    hoveredBoardCard3D = null;
-                }
-            }
-            else
-            {
-                tv.TryGetDragWorldPos(ray, out currentDragWorldPos);
-                if (tv.RaycastHandCard3D(ray, out int overHandIdx, out _) && overHandIdx >= 0)
-                {
-                    hoveredSlot3D = null;
-                    hoveredBoardCard3D = null;
-                }
-                else
-                {
-                    tv.RaycastBoard3D(ray, out hoveredSlot3D, out hoveredBoardCard3D);
-                }
-            }
-
-            // Actualizar casillas iluminadas en el tapete 3D
-            int activeCardIdx = isDragging3D ? pressedHandIdx : (selHand >= 0 ? selHand : hoveredHandIdx);
-            ComputeValidTargetAnchors(activeCardIdx);
-            Transform hoveredAnchor = hoveredSlot3D != null ? hoveredSlot3D.Anchor : null;
-            tv.UpdateSlotHighlights3D(validTargetAnchors, hoveredAnchor);
-
-            // --- Clic Izquierdo y Arrastre 3D (Select + Drag & Drop) ---
-            if (Input.GetMouseButtonDown(0) && !overHud)
-            {
-                if (hoveredHandIdx >= 0 && hoveredHandIdx < Me.Hand.Count)
-                {
-                    pressedHandIdx = hoveredHandIdx;
-                    pressMousePos = Input.mousePosition;
-                    isDragging3D = false;
-                    tv.TryGetDragWorldPos(ray, out currentDragWorldPos);
-                }
-                else if (hoveredSlot3D != null || hoveredBoardCard3D != null)
-                {
-                    On3DBoardLeftClick(hoveredSlot3D, hoveredBoardCard3D);
-                }
-                else
-                {
-                    selHand = -1;
-                }
-            }
-
-            if (Input.GetMouseButton(0) && pressedHandIdx >= 0 && pressedHandIdx < Me.Hand.Count)
-            {
-                if (!isDragging3D && Vector2.Distance(Input.mousePosition, pressMousePos) > 7f)
-                {
-                    isDragging3D = true;
-                    selHand = pressedHandIdx;
-                    retreatMode = false;
-                    var c = Me.Hand[pressedHandIdx];
-                    message = $"Arrastrando: {c.Name} — {HintFor(c)}";
-                }
-            }
-
-            if (Input.GetMouseButtonUp(0) && pressedHandIdx >= 0)
-            {
-                int idx = pressedHandIdx;
-                bool wasDragging = isDragging3D;
-                pressedHandIdx = -1;
-                isDragging3D = false;
-
-                if (idx >= 0 && idx < Me.Hand.Count)
-                {
-                    if (wasDragging)
-                    {
-                        TryDropHandCard3D(idx, hoveredSlot3D, currentDragWorldPos);
-                    }
-                    else
-                    {
-                        Vector3 handWorldPos = tv.GetHandCardWorldPos(0, idx, Me.Hand.Count);
-                        BoardAnimator.Instance?.SetNextHandOrigin(handWorldPos);
-                        PlayClickSound(0);
-                        OnHandLeftClicked(idx);
-                    }
-                }
-            }
-
-            // --- Clic Derecho en 3D = Inspeccionar cualquier carta ---
-            if (Input.GetMouseButtonDown(1) && !overHud)
-            {
-                if (isDragging3D)
-                {
-                    isDragging3D = false;
-                    pressedHandIdx = -1;
-                    PlayClickSound(2);
-                    return;
-                }
-
-                if (hoveredHandIdx >= 0 && hoveredHandIdx < Me.Hand.Count)
-                {
-                    var c = Me.Hand[hoveredHandIdx];
-                    Vector3 cardWorldPos = tv.GetHandCardWorldPos(0, hoveredHandIdx, Me.Hand.Count);
-                    Quaternion cardWorldRot = tv.GetHandCardWorldRot(0, hoveredHandIdx, Me.Hand.Count);
-                    if (!tv.TryProjectWorldPosToGUI(cardWorldPos, 1.05f, slotW, slotH, out Rect originRect))
-                        originRect = GetHandCenterRect(0);
-                    PlayClickSound(0);
-                    StartZoom(c, null, originRect, cardWorldPos, cardWorldRot, 1.02f);
-                }
-                else if (hoveredBoardCard3D != null && hoveredBoardCard3D.BoundPip != null)
-                {
-                    var pip = hoveredBoardCard3D.BoundPip;
-                    int pOwner = Mathf.Clamp(hoveredBoardCard3D.OwnerIndex, 0, 1);
-                    Rect originRect = game.Players[pOwner].Active == pip
-                        ? GetActiveRect(pOwner)
-                        : GetBenchRect(pOwner, Mathf.Max(0, game.Players[pOwner].Bench.IndexOf(pip)));
-                    PlayClickSound(0);
-                    StartZoom(pip.Card, pip, originRect, hoveredBoardCard3D.transform.position, hoveredBoardCard3D.transform.rotation, hoveredBoardCard3D.CurrentScale);
-                }
-                else if (hoveredBoardCard3D != null && hoveredBoardCard3D.IsDiscardTop)
-                {
-                    int pOwner = Mathf.Clamp(hoveredBoardCard3D.OwnerIndex, 0, 1);
-                    PlayClickSound(0);
-                    StartZoom(hoveredBoardCard3D.Card, null, GetTrashRect(pOwner), hoveredBoardCard3D.transform.position, hoveredBoardCard3D.transform.rotation, 1f);
-                }
-                else if (hoveredSlot3D != null)
-                {
-                    int pOwner = Mathf.Clamp(hoveredSlot3D.PlayerIndex, 0, 1);
-                    Transform slotAnchor = hoveredSlot3D.Anchor;
-                    Vector3 slotPos = slotAnchor != null ? slotAnchor.position : Vector3.zero;
-                    Quaternion slotRot = slotAnchor != null ? slotAnchor.rotation : Quaternion.identity;
-                    if (hoveredSlot3D.Kind == TableSlotKind.Discard)
-                    {
-                        var disc = game.Players[pOwner].Discard;
-                        if (disc.Count > 0)
-                        {
-                            PlayClickSound(0);
-                            StartZoom(disc[disc.Count - 1], null, GetTrashRect(pOwner), slotPos, slotRot, 1f);
-                        }
-                    }
-                    else if (hoveredSlot3D.Kind == TableSlotKind.Active)
-                    {
-                        var pip = game.Players[pOwner].Active;
-                        if (pip != null)
-                        {
-                            PlayClickSound(0);
-                            StartZoom(pip.Card, pip, GetActiveRect(pOwner), slotPos, slotRot, 1.08f);
-                        }
-                    }
-                    else if (hoveredSlot3D.Kind == TableSlotKind.Bench)
-                    {
-                        int bIdx = hoveredSlot3D.BenchIndex;
-                        var bench = game.Players[pOwner].Bench;
-                        if (bIdx >= 0 && bIdx < bench.Count)
-                        {
-                            PlayClickSound(0);
-                            StartZoom(bench[bIdx].Card, bench[bIdx], GetBenchRect(pOwner, bIdx), slotPos, slotRot, 0.94f);
-                        }
-                    }
-                }
-            }
-        }
-
-        bool CanEvolveTarget(CardDef evoCard, PokemonInPlay target)
-        {
-            if (evoCard == null || target == null || target.IsDoll) return false;
-            if (evoCard.Supertype != Supertype.Pokemon || evoCard.Stage == "Basic") return false;
-            if (evoCard.EvolvesFrom != target.Card.Name) return false;
-            if (game.Turn <= 2 || target.TurnPlaced == game.Turn || target.TurnEvolved == game.Turn) return false;
-            return true;
-        }
-
-        static bool IsGlobalTrainer(CardDef c)
-        {
-            if (c == null || c.Supertype != Supertype.Trainer) return false;
-            switch (c.Name)
-            {
-                case "Potion":
-                case "Super Potion":
-                case "Defender":
-                case "Scoop Up":
-                case "Devolution Spray":
-                case "Pokémon Breeder":
-                case "Gust of Wind":
-                case "Energy Removal":
-                case "Super Energy Removal":
-                    return false;
-                default:
-                    return true;
-            }
-        }
-
-        void ComputeValidTargetAnchors(int handIdx)
-        {
-            validTargetAnchors.Clear();
-            var tv = TableView.Instance;
-            if (tv == null || game == null) return;
-
-            if (game.Phase == Phase.Setup)
-            {
-                if (handIdx >= 0 && handIdx < Me.Hand.Count && !Me.Hand[handIdx].IsBasicPokemon)
-                    return;
-
-                if (Me.Active == null)
-                {
-                    if (tv.ActiveAnchor[0] != null) validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                }
-                else if (Me.Bench.Count < 5)
-                {
-                    for (int i = Me.Bench.Count; i < 5; i++)
-                        if (tv.BenchAnchor[0, i] != null) validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                }
-                return;
-            }
-
-            if (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me)
-            {
-                for (int i = 0; i < Me.Bench.Count; i++)
-                    if (tv.BenchAnchor[0, i] != null) validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                return;
-            }
-
-            if (retreatMode && game.Phase == Phase.Main && game.Current == Me)
-            {
-                for (int i = 0; i < Me.Bench.Count; i++)
-                    if (tv.BenchAnchor[0, i] != null) validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                return;
-            }
-
-            if (game.Phase != Phase.Main || game.Current != Me) return;
-            if (handIdx < 0 || handIdx >= Me.Hand.Count) return;
-
-            var c = Me.Hand[handIdx];
-            if (c.IsBasicPokemon)
-            {
-                if (Me.Bench.Count < 5)
-                {
-                    for (int i = Me.Bench.Count; i < 5; i++)
-                        if (tv.BenchAnchor[0, i] != null) validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                }
-            }
-            else if (c.Supertype == Supertype.Pokemon && c.Stage != "Basic")
-            {
-                if (CanEvolveTarget(c, Me.Active) && tv.ActiveAnchor[0] != null)
-                    validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                for (int i = 0; i < Me.Bench.Count; i++)
-                    if (CanEvolveTarget(c, Me.Bench[i]) && tv.BenchAnchor[0, i] != null)
-                        validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-            }
-            else if (c.Supertype == Supertype.Energy)
-            {
-                if (!Me.EnergyPlayedThisTurn)
-                {
-                    if (Me.Active != null && !Me.Active.IsDoll && tv.ActiveAnchor[0] != null)
-                        validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                    for (int i = 0; i < Me.Bench.Count; i++)
-                        if (!Me.Bench[i].IsDoll && tv.BenchAnchor[0, i] != null)
-                            validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                }
-            }
-            else if (c.Supertype == Supertype.Trainer)
-            {
-                switch (c.Name)
-                {
-                    case "Potion":
-                    case "Super Potion":
-                        if (Me.Active != null && Me.Active.Damage > 0 && (c.Name == "Potion" || Me.Active.Energy.Count > 0))
-                            validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                        for (int i = 0; i < Me.Bench.Count; i++)
-                            if (Me.Bench[i].Damage > 0 && (c.Name == "Potion" || Me.Bench[i].Energy.Count > 0))
-                                validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                        break;
-
-                    case "Defender":
-                    case "Scoop Up":
-                        if (Me.Active != null && (c.Name != "Scoop Up" || Me.Bench.Count > 0))
-                            validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                        for (int i = 0; i < Me.Bench.Count; i++)
-                            validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                        break;
-
-                    case "Devolution Spray":
-                        if (Me.Active != null && Me.Active.Stack.Count >= 2)
-                            validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                        for (int i = 0; i < Me.Bench.Count; i++)
-                            if (Me.Bench[i].Stack.Count >= 2)
-                                validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                        break;
-
-                    case "Switch":
-                        for (int i = 0; i < Me.Bench.Count; i++)
-                            validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                        break;
-
-                    case "Gust of Wind":
-                        for (int i = 0; i < Cpu.Bench.Count; i++)
-                            validTargetAnchors.Add(tv.BenchAnchor[1, i]);
-                        break;
-
-                    case "Energy Removal":
-                    case "Super Energy Removal":
-                        if (Cpu.Active != null && Cpu.Active.Energy.Count > 0)
-                            validTargetAnchors.Add(tv.ActiveAnchor[1]);
-                        for (int i = 0; i < Cpu.Bench.Count; i++)
-                            if (Cpu.Bench[i].Energy.Count > 0)
-                                validTargetAnchors.Add(tv.BenchAnchor[1, i]);
-                        break;
-
-                    case "PlusPower":
-                    case "Full Heal":
-                        if (Me.Active != null && tv.ActiveAnchor[0] != null)
-                            validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                        if (tv.CoinAnchor != null)
-                            validTargetAnchors.Add(tv.CoinAnchor);
-                        break;
-
-                    case "Revive":
-                    case "Clefairy Doll":
-                        if (Me.Bench.Count < 5)
-                        {
-                            for (int i = Me.Bench.Count; i < 5; i++)
-                                validTargetAnchors.Add(tv.BenchAnchor[0, i]);
-                        }
-                        if (tv.CoinAnchor != null)
-                            validTargetAnchors.Add(tv.CoinAnchor);
-                        break;
-
-                    default:
-                        if (tv.CoinAnchor != null) validTargetAnchors.Add(tv.CoinAnchor);
-                        if (tv.ActiveAnchor[0] != null) validTargetAnchors.Add(tv.ActiveAnchor[0]);
-                        break;
-                }
-            }
-        }
-
-        PokemonInPlay ResolvePipFromSlotOrCard(TableSlot3D slot, CardView boardCard, out PlayerState owner)
-        {
-            owner = null;
-            if (boardCard != null && boardCard.BoundPip != null)
-            {
-                int p = Mathf.Clamp(boardCard.OwnerIndex, 0, 1);
-                owner = game.Players[p];
-                return boardCard.BoundPip;
-            }
-            if (slot != null)
-            {
-                int p = Mathf.Clamp(slot.PlayerIndex, 0, 1);
-                owner = game.Players[p];
-                if (slot.Kind == TableSlotKind.Active)
-                    return owner.Active;
-                if (slot.Kind == TableSlotKind.Bench && slot.BenchIndex >= 0 && slot.BenchIndex < owner.Bench.Count)
-                    return owner.Bench[slot.BenchIndex];
-            }
-            return null;
-        }
-
-        bool IsWorldPosOverPlaymat(Vector3 worldPos)
-        {
-            var tv = TableView.Instance;
-            if (tv == null || tv.PlaymatRoot == null) return false;
-            Vector3 local = tv.PlaymatRoot.InverseTransformPoint(worldPos);
-            return Mathf.Abs(local.x) <= TableView.MatWidth * 0.48f &&
-                   local.z >= -TableView.MatLength * 0.36f &&
-                   local.z <= TableView.MatLength * 0.48f;
-        }
-
-        void TryDropHandCard3D(int handIdx, TableSlot3D dropSlot, Vector3 dropWorldPos)
-        {
-            if (handIdx < 0 || handIdx >= Me.Hand.Count) return;
-            var c = Me.Hand[handIdx];
-
-            // 1) En Fase de Preparación (Setup)
-            if (game.Phase == Phase.Setup)
-            {
-                bool onPlayerSide = (dropSlot != null && dropSlot.PlayerIndex == 0 && (dropSlot.Kind == TableSlotKind.Active || dropSlot.Kind == TableSlotKind.Bench))
-                                 || IsWorldPosOverPlaymat(dropWorldPos);
-                if (onPlayerSide)
-                {
-                    BoardAnimator.Instance?.SetNextHandOrigin(dropWorldPos);
-                    PlayClickSound(1);
-                    Report(game.SetupPlace(Me, handIdx));
-                    return;
-                }
-                PlayClickSound(0);
-                return;
-            }
-
-            // 2) En Fase Principal (Main)
-            if (game.Phase == Phase.Main && game.Current == Me)
-            {
-                var targetPip = ResolvePipFromSlotOrCard(dropSlot, hoveredBoardCard3D, out PlayerState owner);
-
-                if (c.IsBasicPokemon)
-                {
-                    if ((dropSlot != null && dropSlot.PlayerIndex == 0 && (dropSlot.Kind == TableSlotKind.Bench || dropSlot.Kind == TableSlotKind.Active))
-                        || IsWorldPosOverPlaymat(dropWorldPos))
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(dropWorldPos);
-                        PlayClickSound(1);
-                        Report(game.PlayBasic(Me, handIdx));
-                        return;
-                    }
-                }
-                else if (c.Supertype == Supertype.Energy)
-                {
-                    if (targetPip != null && owner == Me)
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(dropWorldPos);
-                        PlayClickSound(1);
-                        Report(game.AttachEnergy(Me, handIdx, targetPip));
-                        return;
-                    }
-                }
-                else if (c.Supertype == Supertype.Pokemon && c.Stage != "Basic")
-                {
-                    if (targetPip != null && owner == Me)
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(dropWorldPos);
-                        PlayClickSound(1);
-                        Report(game.Evolve(Me, handIdx, targetPip));
-                        return;
-                    }
-                }
-                else if (c.Supertype == Supertype.Trainer)
-                {
-                    if (targetPip != null)
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(dropWorldPos);
-                        PlayClickSound(1);
-                        Report(game.PlayTrainer(Me, handIdx, targetPip));
-                        return;
-                    }
-                    if (IsGlobalTrainer(c) && (dropSlot != null || IsWorldPosOverPlaymat(dropWorldPos)))
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(dropWorldPos);
-                        PlayClickSound(1);
-                        Report(game.PlayTrainer(Me, handIdx, null));
-                        return;
-                    }
-                }
-            }
-
-            // Si se soltó fuera de un objetivo válido, la carta regresa suavemente al abanico 3D de la mano
-            PlayClickSound(0);
-        }
-
-        void On3DBoardLeftClick(TableSlot3D slot, CardView boardCard)
-        {
-            var pip = ResolvePipFromSlotOrCard(slot, boardCard, out PlayerState owner);
-
-            if (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me)
-            {
-                if (pip != null && owner == Me && Me.Bench.Contains(pip))
-                {
-                    PlayClickSound(1);
-                    Report(game.Promote(Me, Me.Bench.IndexOf(pip)));
-                }
-                return;
-            }
-
-            if (retreatMode && game.Phase == Phase.Main && game.Current == Me)
-            {
-                if (pip != null && owner == Me && Me.Bench.Contains(pip))
-                {
-                    retreatMode = false;
-                    PlayClickSound(1);
-                    Report(game.Retreat(Me, Me.Bench.IndexOf(pip)));
-                }
-                return;
-            }
-
-            if (selHand >= 0 && selHand < Me.Hand.Count)
-            {
-                Vector3 handOrigin = TableView.Instance != null
-                    ? TableView.Instance.GetHandCardWorldPos(0, selHand, Me.Hand.Count)
-                    : default;
-
-                if (game.Phase == Phase.Setup && slot != null && slot.PlayerIndex == 0 &&
-                    (slot.Kind == TableSlotKind.Active || slot.Kind == TableSlotKind.Bench))
-                {
-                    BoardAnimator.Instance?.SetNextHandOrigin(handOrigin);
-                    PlayClickSound(1);
-                    Report(game.SetupPlace(Me, selHand));
-                    return;
-                }
-
-                if (game.Phase == Phase.Main && game.Current == Me)
-                {
-                    var c = Me.Hand[selHand];
-                    if (c.IsBasicPokemon && slot != null && slot.PlayerIndex == 0 && slot.Kind == TableSlotKind.Bench)
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(handOrigin);
-                        PlayClickSound(1);
-                        Report(game.PlayBasic(Me, selHand));
-                        return;
-                    }
-
-                    if (pip != null)
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(handOrigin);
-                        PlayClickSound(1);
-                        OnPokemonLeftClicked(owner, pip);
-                        return;
-                    }
-
-                    if (c.Supertype == Supertype.Trainer && IsGlobalTrainer(c) && slot != null &&
-                        (slot.Kind == TableSlotKind.PlayfieldCenter || slot.Kind == TableSlotKind.Active || slot.Kind == TableSlotKind.Bench))
-                    {
-                        BoardAnimator.Instance?.SetNextHandOrigin(handOrigin);
-                        PlayClickSound(1);
-                        Report(game.PlayTrainer(Me, selHand, null));
-                        return;
-                    }
-                }
-            }
-            else if (pip != null)
-            {
-                OnPokemonLeftClicked(owner, pip);
-            }
-        }
-
-        // ==================== Interacciones del Jugador ====================
-        void OnHandLeftClicked(int i)
-        {
-            if (game.Phase == Phase.Setup) { Report(game.SetupPlace(Me, i)); return; }
-            selHand = selHand == i ? -1 : i;
-            if (selHand >= 0 && selHand < Me.Hand.Count)
-            {
-                var c = Me.Hand[selHand];
-                message = $"Seleccionada: {c.Name} — {HintFor(c)}";
-            }
-        }
-
-        void OnPokemonLeftClicked(PlayerState owner, PokemonInPlay pip)
-        {
-            if (game.Phase == Phase.ChoosePromotion && owner == Me && Me.Bench.Contains(pip)) { Report(game.Promote(Me, Me.Bench.IndexOf(pip))); return; }
-            if (retreatMode && owner == Me && Me.Bench.Contains(pip)) { retreatMode = false; Report(game.Retreat(Me, Me.Bench.IndexOf(pip))); return; }
-            if (selHand < 0 || selHand >= Me.Hand.Count) return;
-            var c = Me.Hand[selHand];
-            if (c.Supertype == Supertype.Energy && owner == Me) Report(game.AttachEnergy(Me, selHand, pip));
-            else if (c.Supertype == Supertype.Pokemon && owner == Me) Report(game.Evolve(Me, selHand, pip));
-            else if (c.Supertype == Supertype.Trainer) Report(game.PlayTrainer(Me, selHand, pip));
-        }
-
-        string HintFor(CardDef c)
-        {
-            if (c.Supertype == Supertype.Energy) return "Arrástrala o haz clic en uno de tus Pokémon para unirla debajo.";
-            if (c.Supertype == Supertype.Pokemon && c.Stage != "Basic") return $"Arrástrala o haz clic en tu {c.EvolvesFrom} para evolucionarlo.";
-            if (c.Supertype == Supertype.Trainer) return IsGlobalTrainer(c) ? "Arrástrala al tapete o pulsa 'Usar Entrenador'." : "Arrástrala o haz clic en el Pokémon objetivo.";
-            if (c.IsBasicPokemon) return game.Phase == Phase.Setup ? "Arrástralo al puesto iluminado o haz clic para colocarlo." : "Arrástralo a una casilla libre de tu Banca o pulsa 'Bajar a la Banca'.";
-            return "";
-        }
-
-        void Report(string err)
-        {
-            message = err ?? "";
-            if (err == null) selHand = -1;
-        }
+        // ==================== Parte 1: Interfaz Interactiva de Pokédex ====================
+        // [DrawPokedexInteractiveUI se define en GameUI.Pokedex.cs]
+        // [DrawElevatedZoomOverlay y funciones de dibujo de cartas se definen en GameUI.Inspect.cs]
+        // [Update3DInput, arrastre de cartas y clics en mesa se definen en GameUI.Input3D.cs]
     }
 }

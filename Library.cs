@@ -137,12 +137,37 @@ namespace PokeTCGPlay
         {
             if (c == null) return 0;
             if (!Enforced || (FreeBasicEnergy && c.IsBasicEnergy)) return int.MaxValue;
+            return ActualOwnedCount(c);
+        }
+
+        /// <summary>Cantidad real de copias físicas en el álbum y estantes del jugador.</summary>
+        public static int ActualOwnedCount(CardDef c)
+        {
+            if (c == null) return 0;
             float now = UnityEngine.Time.realtimeSinceStartup;
             if (now - cacheTime > 3f) { cache.Clear(); cacheTime = now; }
             if (cache.TryGetValue(c.Id, out int v)) return v;
             v = ReadOwnedBySprite(c.Sprite, c.MyCurioBorder, c.MyCurioFoil);
             cache[c.Id] = v;
             return v;
+        }
+
+        /// <summary>Indica si la carta cuenta como obtenida para filtros y visualización a color.</summary>
+        public static bool HasCard(CardDef c)
+        {
+            if (c == null) return false;
+            if (!Enforced || (FreeBasicEnergy && c.IsBasicEnergy)) return true;
+            return ActualOwnedCount(c) > 0;
+        }
+
+        /// <summary>Cantidad numérica a mostrar en el contador superior derecho de la carta (x0, x3, x10).</summary>
+        public static int DisplayOwnedCount(CardDef c)
+        {
+            if (c == null) return 0;
+            int actual = ActualOwnedCount(c);
+            if (actual > 0) return actual;
+            if (!Enforced || (FreeBasicEnergy && c.IsBasicEnergy)) return 99;
+            return 0;
         }
 
         public static int ReadOwnedBySprite(string sprite, string borderName = "Base", bool isFoil = false)
@@ -244,7 +269,7 @@ namespace PokeTCGPlay
     /// <summary>Mazo guardado en BepInEx/config/PokeTCGPlay/decks/&lt;nombre&gt;.deck.json.</summary>
     public class DeckDef
     {
-        public string Name = "Nuevo mazo";
+        public string Name = "New Deck";
         public string Format = "unlimited";
         public List<DeckEntry> Cards = new List<DeckEntry>();
 
@@ -329,19 +354,27 @@ namespace PokeTCGPlay
         {
             try
             {
+                var existing = List();
+                if (existing.Any(n => string.Equals(n, "Mazo inicial", StringComparison.OrdinalIgnoreCase)) &&
+                    !existing.Any(n => string.Equals(n, "Starter Deck", StringComparison.OrdinalIgnoreCase)))
+                {
+                    bool wasActive = string.Equals(Plugin.ActiveDeck?.Value, "Mazo inicial", StringComparison.OrdinalIgnoreCase);
+                    if (Rename("Mazo inicial", "Starter Deck") && wasActive)
+                        SetActive("Starter Deck");
+                }
                 if (List().Count > 0) return;
                 string legacy = Path.Combine(dataDir, "decks", "player.txt");
                 if (!File.Exists(legacy)) return;
                 var warn = new List<string>();
                 var cards = DeckLoader.ParseText(File.ReadAllLines(legacy), warn);
                 if (cards.Count == 0) return;
-                var d = new DeckDef { Name = "Mazo inicial", Format = "base_era" };
+                var d = new DeckDef { Name = "Starter Deck", Format = "base_era" };
                 d.SetCards(cards);
                 Save(d);
                 SetActive(d.Name);
-                Plugin.Log?.LogInfo($"Mazo antiguo migrado a {Dir} ({cards.Count} cartas).");
+                Plugin.Log?.LogInfo($"Legacy deck migrated to {Dir} ({cards.Count} cards).");
             }
-            catch (Exception e) { Plugin.Log?.LogWarning("Migración de mazo: " + e.Message); }
+            catch (Exception e) { Plugin.Log?.LogWarning("Deck migration: " + e.Message); }
         }
     }
 
@@ -429,20 +462,20 @@ namespace PokeTCGPlay
         {
             var errors = new List<string>();
             format = format ?? FormatRegistry.Default;
-            if (deck.Count != format.DeckSize) errors.Add($"El mazo tiene {deck.Count}/{format.DeckSize} cartas.");
-            if (deck.Count(c => c.IsBasicPokemon) < format.MinBasicPokemon) errors.Add("Necesita al menos 1 Pokémon Básico.");
+            if (deck.Count != format.DeckSize) errors.Add($"Deck has {deck.Count}/{format.DeckSize} cards.");
+            if (deck.Count(c => c.IsBasicPokemon) < format.MinBasicPokemon) errors.Add("Needs at least 1 Basic Pokémon.");
             foreach (var g in deck.GroupBy(c => c.Name))
-                if (!g.First().IsBasicEnergy && g.Count() > format.MaxCopies) errors.Add($"Más de {format.MaxCopies} copias de {g.Key}.");
+                if (!g.First().IsBasicEnergy && g.Count() > format.MaxCopies) errors.Add($"More than {format.MaxCopies} copies of {g.Key}.");
             foreach (var c in deck.Distinct())
             {
-                if (!format.Allows(c)) errors.Add($"{c.Name} ({c.Id}) no está permitida en {format.Name}.");
+                if (!format.Allows(c)) errors.Add($"{c.Name} ({c.Id}) is not allowed in {format.Name}.");
                 if (!c.IsPlayable) errors.Add($"{c.Name}: {c.UnsupportedReason}.");
             }
             if (checkOwned && Collection.Enforced)
                 foreach (var g in deck.GroupBy(c => c.Id))
                 {
                     int owned = Collection.Owned(g.First());
-                    if (g.Count() > owned) errors.Add($"Solo tienes {owned} de {g.First().Name} ({g.Key}) y el mazo usa {g.Count()}.");
+                    if (g.Count() > owned) errors.Add($"You only own {owned} of {g.First().Name} ({g.Key}), deck uses {g.Count()}.");
                 }
             return errors;
         }
@@ -744,7 +777,7 @@ namespace PokeTCGPlay
                 string whereToFind;
                 if (matchedDef != null && matchedDef.IsBasicEnergy && Collection.FreeBasicEnergy)
                 {
-                    whereToFind = "Energía Básica (Incluida gratis por defecto)";
+                    whereToFind = "Basic Energy (Included free by default)";
                     inMyCurio = true;
                 }
                 else if (allMcEntries.Count > 0)
@@ -752,20 +785,20 @@ namespace PokeTCGPlay
                     var groupedByExp = allMcEntries
                         .GroupBy(e => e.ExpansionName)
                         .Select(g => $"{g.Key} ({string.Join(", ", g.Select(x => x.Sprite).Distinct())})");
-                    whereToFind = "Sobres MyCurio: " + string.Join(" | ", groupedByExp);
+                    whereToFind = "MyCurio Packs: " + string.Join(" | ", groupedByExp);
                 }
                 else
                 {
                     string origSetName = (!string.IsNullOrEmpty(setCode) && MyCurioIndex.PtcgoCodeNames.TryGetValue(setCode, out string sn))
                         ? $"{sn} [{setCode}]"
-                        : (!string.IsNullOrEmpty(setCode) ? setCode : "Expansión desconocida");
-                    whereToFind = $"No instalada en tus mods de MyCurio (Set original: {origSetName})";
+                        : (!string.IsNullOrEmpty(setCode) ? setCode : "Unknown Expansion");
+                    whereToFind = $"Not installed in MyCurio (Original Set: {origSetName})";
                 }
 
                 bool rulesReady = matchedDef != null && matchedDef.IsPlayable;
                 string note = "";
                 if (matchedDef == null)
-                    note = inMyCurio ? "Arte disponible en MyCurio (falta agregar sus datos de juego en Data/sets)" : "Expansión no instalada";
+                    note = inMyCurio ? "Art available in MyCurio (gameplay data pending in Data/sets)" : "Expansion not installed";
                 else if (!matchedDef.IsPlayable)
                     note = matchedDef.UnsupportedReason;
 
@@ -819,19 +852,19 @@ namespace PokeTCGPlay
                 string whereToFind;
                 if (c.IsBasicEnergy && Collection.FreeBasicEnergy)
                 {
-                    whereToFind = "Energía Básica (Incluida gratis)";
+                    whereToFind = "Basic Energy (Included free)";
                 }
                 else if (allMcEntries.Count > 0)
                 {
                     var groupedByExp = allMcEntries
                         .GroupBy(e => e.ExpansionName)
                         .Select(g => $"{g.Key} ({string.Join(", ", g.Select(x => x.Sprite).Distinct())})");
-                    whereToFind = "Sobres MyCurio: " + string.Join(" | ", groupedByExp);
+                    whereToFind = "MyCurio Packs: " + string.Join(" | ", groupedByExp);
                 }
                 else
                 {
                     var setDef = CardDatabase.GetSet(c.SetId);
-                    whereToFind = setDef != null ? $"Sobres MyCurio: {setDef.Name} ({c.Sprite})" : c.SetId;
+                    whereToFind = setDef != null ? $"MyCurio Packs: {setDef.Name} ({c.Sprite})" : c.SetId;
                 }
 
                 var item = new MissingCardReportItem
