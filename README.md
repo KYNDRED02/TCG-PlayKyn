@@ -1,59 +1,73 @@
-# 🎴 PokeTCG Play — Pokémon TCG 3D para *TCG Card Shop Simulator*
+# 🎴 PokeTCG Play — Pokémon TCG para *TCG Card Shop Simulator*
 
-**PokeTCG Play** es un mod para *TCG Card Shop Simulator* (BepInEx 5) que convierte las mesas de juego de tu tienda en partidas reales e interactivas de **Pokémon Trading Card Game en 3D**, utilizando las cartas que hayas conseguido abriendo sobres en tu partida y los paquetes de expansiones de **MyCurio**.
-
----
-
-## ✨ ¿Qué hace el mod y cuál es su objetivo?
-
-El objetivo de **PokeTCG Play** es integrar el juego físico de Pokémon TCG directamente dentro del ciclo de juego de tu tienda:
-
-1. **Juega solo con tu colección real:** Para armar un mazo necesitas poseer las cartas en tu partida (ya sea en tu **Álbum**, en **Cajas/Estanterías de Almacenamiento** o en **Estanterías de Exhibición**). Las Energías Básicas son ilimitadas como en los constructores oficiales.
-2. **Integración nativa con los mods de MyCurio:** Escanea automáticamente todas las expansiones de MyCurio instaladas en `BepInEx/plugins`, carga sus texturas en alta calidad y vincula cada carta con el sobre/expansión correspondiente dentro del juego.
-3. **Constructor de Mazos (Workbench) e Importador `.txt` en vivo:**
-   - En la **Mesa de Trabajo (Workbench)** puedes crear múltiples mazos de 60 cartas, elegir el **formato** (`Base Set`, `Unlimited`, etc.) y marcar tu mazo activo.
-   - **Importador PTCGO / PTCG Live en caliente:** Pega archivos `.txt` con listas de mazos en `BepInEx/config/PokeTCGPlay/import` (puedes abrir la carpeta desde el propio juego sin cerrarlo). Si te faltan cartas para completar el mazo importado, el mod te muestra un **reporte detallado de cartas faltantes** y **en qué expansión/sobre conseguirlas**.
-4. **Experiencia 3D sobre la mesa física:**
-   - Al sentarte frente a un cliente en una mesa de juego, se despliega un **tapete 3D** con cartas físicas (grosor real, cara frontal de MyCurio, reverso oficial, sombras dinámicas), pilas de mazo y descarte proporcionales, cartas de premio, energías asomando debajo de cada Pokémon y rotaciones físicas para estados alterados.
-5. **Recompensas y riesgo para tu tienda:**
-   - **Si ganas al NPC:** Obtienes **Experiencia (XP)** adicional y aumentas la **calificación/reputación** de tu tienda con reseñas de 5 estrellas (sin generar dinero directo de la nada).
-   - **Si el NPC te gana:** El cliente se lleva el costo de uso de la mesa en lugar de pagárselo a tu tienda.
+**PokeTCG Play** es un mod para *TCG Card Shop Simulator* (BepInEx 5) que convierte las mesas de juego de tu tienda en partidas reales e interactivas de **Pokémon Trading Card Game en 3D**, utilizando las cartas que vas abriendo en tus sobres y los paquetes de expansiones de **MyCurio**.
 
 ---
 
-## 🗺️ Hoja de Ruta (Roadmap)
+## 💡 Origen y Desarrollo del Proyecto
 
-El desarrollo está estructurado paso a paso de **F0 a F10**:
+El mod nació originalmente como un prototipo y simulador de reglas programado en **Python con Visual Studio Code**. Con el fin de integrarlo de manera nativa y con gráficos 3D dentro del motor Unity del juego, el proyecto fue trasladado, adaptado y optimizado a **C# (.NET / BepInEx)** con asistencia de **Inteligencia Artificial (IA)**. 
 
-| Fase | Nombre | Descripción | Estado |
-| :---: | :--- | :--- | :---: |
-| **F0** | **Datos, Expansiones, Colección y Formatos** | Lector universal de expansiones de MyCurio, validación contra la colección real del jugador (Álbum + Almacén + Estantes), soporte multi-mazo, formatos JSON e importador `.txt` estilo PTCGO en caliente con detector de cartas faltantes. | ✅ Completado |
-| **F1** | **Tapete y Anclas 3D en la Mesa** | Generación del tapete 3D (`PokeTCG_Playmat3D`) sobre las mesas de juego y sistema de coordenadas/anclas 3D para Activo, Banca (5), Premios (6), Mazo, Descarte, Estadio y Mano. | ✅ Completado |
-| **F2** | **Cartas 3D sobre la Mesa** | Renderizado de cartas 3D (`CardView`) con grosor físico, texturas de MyCurio, bloques de mazo escalables (`DeckStack3D`), apilado de energías/evoluciones y rotación por Condiciones Especiales. | ✅ Completado |
-| **F3** | **Animador 3D (`BoardAnimator`)** | Vuelos parabólicos en 3D con inclinación dinámica, giro de 180° al robar cartas o tomar premios, deslizamiento de energías, pulso de evolución, embestida de ataque y caída al descarte. | ✅ Completado |
-| **F4** | **Mano e Input 3D** | Abanico 3D de la mano del jugador y del NPC, detección por raycast 3D (hover/elevación), selección y arrastre de cartas hacia zonas válidas de la mesa e inspección con clic derecho. | ✅ Completado |
-| **F5** | **Inspección 3D, Mazo Realista y Robo a Pantalla** | Pila 3D de Mazo realista en capas escalonadas, animación de robo hacia la pantalla viéndose por detrás con vuelta de 180° y pausa de `0.5s`, abanico bajo sin tapar la Banca e inspección 3D con giro interactivo e iconos de energía. | ✅ Completado |
-| **F6** | **HUD de Estado y Contadores 3D** | Fichas 3D acrílicas de daño (`10`, `50`, `100`) y estado (`VEN`, `DEF`, `+10`), números flotantes 3D, iconos animados con pulso y duración, tinte pulsante y rotación física suavizada por condición especial. | ✅ Completado |
-| **F7** | **Moneda 3D** | Moneda cilíndrica 3D con caras Pikachu/Pokéball, canto estriado dorado/grafito, vista previa flotante al inicio, lanzamiento parabólico con doble rebote, vibración de canto, anillo de aterrizaje y cola 3D secuencial en ataques/estados. | ✅ Completado |
-| **F8** | **Flujo de Partida, IA y Recompensas** | Flujo completo de partida, IA del NPC y recompensas de tienda (XP + reseñas positivas al ganar, o pérdida de la tarifa de mesa si gana el NPC). | 🔜 Siguiente |
-| **F9** | **Deck Builder 3D** | Constructor de mazos 3D en la Workbench con filtros, validación por formato y colección real del jugador. | ⏳ Pendiente |
-| **F10** | **Audio, Pulido y Herramientas de Expansión** | Efectos de sonido en mesa (barajar, robar, moneda, impacto), sacudida de cámara en KO y opciones de configuración. | ⏳ Pendiente |
-| **F10.5** | **Refactor de Legibilidad y `VisualSettings`** | Reestructuración modular limpia (150–250 líneas por archivo) y archivo único `VisualSettings.cs` + `PokeTCGPlay.cfg` para editar alturas, cámaras y animaciones fácilmente. | ⏳ Pendiente |
+El código está organizado de forma limpia, modular y con comentarios claros en español para que cualquier miembro de la comunidad pueda leerlo, ajustarlo o expandirlo con facilidad.
 
 ---
 
-## 🛠️ Cómo agregar nuevas expansiones o cartas manualmente
+## ✨ ¿Qué ofrece el mod?
 
-El mod está diseñado para que puedas ampliar el catálogo sin necesidad de recompilar el código:
+1. **Juega con tu colección real:**
+   - Para armar tu mazo necesitas poseer las cartas en tu partida (ya sea que las tengas guardadas en tu **Álbum**, en **Cajas de Almacenamiento** o exhibidas en tus **Estanterías**).
+   - Las Energías Básicas son ilimitadas, igual que en los juegos y torneos oficiales.
 
-- **Cartas (`Data/cards/<set>.json`):** Puedes definir o editar cualquier carta (PS, tipo, coste de retirada, ataques y efectos) en archivos JSON dentro de `BepInEx/plugins/PokeTCGPlay/Data/cards/`. Si una carta de MyCurio aún no tiene archivo JSON manual, el mod la indexa igualmente para que puedas verla, coleccionarla y diagnosticar qué te falta.
-- **Formatos (`Data/formats/<formato>.json`):** Define qué sets están permitidos, tamaño del mazo (60), límite de copias (4) y reglas del formato.
-- **Importar Mazos (`BepInEx/config/PokeTCGPlay/import/*.txt`):** Coloca cualquier archivo `.txt` exportado de PTCGO / Pokémon TCG Live y presiona **`📥 Importar .txt`** en la Mesa de Trabajo sin reiniciar el juego.
+2. **Compatibilidad con las expansiones de MyCurio:**
+   - Reconoce automáticamente todas las expansiones de cartas de Pokémon instaladas en tu juego (`Base Set`, `Jungle`, `Fossil`, `Base Set 2`, `Team Rocket`, `Gym Heroes`, `Gym Challenge` y paquetes promocionales).
+   - Muestra las cartas con su arte en alta calidad, sus bordes y acabados holográficos originales.
+
+3. **Constructor de Mazos 3D e Importador de listas `.txt`:**
+   - Puedes crear y gestionar varios mazos de 60 cartas directamente desde la **Mesa de Trabajo (Workbench)** de tu tienda.
+   - **Importador rápido:** Puedes exportar una lista de mazo desde *Pokémon TCG Live* o *PTCGO* en formato texto (`.txt`), pegarla en la carpeta del mod y cargarla al instante. Si te falta alguna carta, el juego te indicará con precisión cuál es y en qué sobre conseguirla.
+
+4. **Partidas en 3D sobre la mesa de la tienda:**
+   - Al sentarte a jugar frente a un cliente, se despliega un **tapete de juego** físico con cartas en relieve, sombras, animaciones de robo hacia la pantalla y vista en abanico de tu mano.
+   - **Moneda 3D con físicas reales:** Lanzamientos parabólicos de moneda (con caras de Pikachu y Pokéball) para decidir turnos, ataques y efectos especiales.
+   - **Contadores y fichas 3D:** Fichas de daño y marcadores de estado (Dormido, Confuso, Paralizado, Envenenado) que rotan físicamente la carta sobre el tapete.
+   - **Estadio 3D:** Las cartas de Estadio se colocan físicamente en el lateral del tapete y aplican sus reglas a ambos jugadores.
+
+5. **Mecánicas completas de la Era Base:**
+   - Ataques, cartas de Entrenador, Partidarios y Estadios totalmente funcionales.
+   - **Habilidades de Pokémon (*Poké-Powers*):** Habilidades manuales como *Rain Dance*, *Damage Swap*, *Energy Trans*, *Shift*, *Heal* o *Step In* cuentan con un botón interactivo a su lado en la interfaz para activarlas cómodamente durante tu turno.
+
+6. **Impacto directo en tu negocio:**
+   - **Si ganas:** Ganas experiencia (XP) para tu personaje y mejoras la reputación de tu tienda con reseñas positivas de 5 estrellas.
+   - **Si pierdes:** El cliente se marcha contento y no paga la tarifa de alquiler de la mesa.
 
 ---
 
-## 📦 Requisitos e Instalación
+## 🗺️ Estado del Desarrollo (Roadmap)
 
-1. Tener instalado **BepInEx 5** en *TCG Card Shop Simulator*.
-2. Tener instalados los paquetes de expansiones de **MyCurio** en `BepInEx/plugins/`.
-3. Copiar la carpeta compilada de `PokeTCGPlay` (`PokeTCGPlay.dll` y la carpeta `Data/`) dentro de `BepInEx/plugins/PokeTCGPlay/`.
+| Fase | Contenido | Estado |
+| :---: | :--- | :---: |
+| **F0** | **Base de Datos y Formatos:** Lector de expansiones de MyCurio, validación de cartas en posesión e importador `.txt`. | ✅ Completado |
+| **F1** | **Mesa y Tapete 3D:** Colocación del tapete de neopreno y cálculo de casillas (Banca, Activo, Premios, Mazo, Descarte, Estadio). | ✅ Completado |
+| **F2** | **Cartas Físicas 3D:** Grosor del cartón, texturas oficiales, mazo apilado y giro por estados alterados. | ✅ Completado |
+| **F3** | **Animaciones de Mesa:** Vuelos de cartas, deslizamiento de energías, pulso de evolución y embestidas de ataque. | ✅ Completado |
+| **F4** | **Mano en Abanico e Interacción:** Detección con el ratón, arrastrar y soltar cartas en la mesa (*drag & drop*). | ✅ Completado |
+| **F5** | **Inspección Elevada y Robo Realista:** Animación de robo a pantalla, giro de 180° e inspección detallada de cartas. | ✅ Completado |
+| **F6** | **Contadores de Daño y Estados 3D:** Fichas acrílicas de daño, números flotantes y marcadores de condición especial. | ✅ Completado |
+| **F7** | **Moneda 3D:** Moneda metálica con físicas de lanzamiento parabólico, doble rebote y canto estriado. | ✅ Completado |
+| **F8** | **Partidas Completas e IA:** Flujo de turnos, oponente NPC inteligente y recompensas de reputación/XP para la tienda. | ✅ Completado |
+| **F9** | **Constructor de Mazos 3D:** Interfaz interactiva en la mesa de crafteo con filtros por tipo, búsqueda y formatos. | ✅ Completado |
+| **F10** | **Audio y Efectos Visuales:** Sonidos de cartas, barajado, monedas, impactos y sacudida de pantalla al noquear. | ✅ Completado |
+| **F10.5** | **Código Modular y Ajustes:** Separación limpia de archivos y configuración visual centralizada (`VisualSettings.cs`). | ✅ Completado |
+| **Extra** | **Habilidades Pokémon y Expansiones:** Las 26 habilidades activas con botones dedicados y vista previa de expansiones modernas. | ✅ Completado |
+
+---
+
+## 📦 Instalación
+
+1. Asegúrate de tener instalado **BepInEx 5** en tu juego *TCG Card Shop Simulator*.
+2. Ten instalados los paquetes de cartas de Pokémon de **MyCurio** dentro de `BepInEx/plugins/`.
+3. Copia la carpeta `PokeTCGPlay` (que contiene `PokeTCGPlay.dll` y la carpeta `Data/`) dentro del directorio:
+   ```text
+   TCG Card Shop Simulator/BepInEx/plugins/
+   ```
+4. Inicia el juego. ¡Al interactuar con una mesa de trabajo o sentarte en una mesa de juego podrás empezar a jugar!
