@@ -1,3 +1,4 @@
+// PokeTCGPlay: 3D physical card mesh instance with depth, shadows and condition tilting
 using System;
 using System.Collections.Generic;
 using UnityEngine;
