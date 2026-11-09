@@ -1,3 +1,4 @@
+// PokeTCGPlay: Pokemon card schema, sets loader, MyCurio textures atlas & collection resolver
 using System;
 using System.Collections.Generic;
 using System.IO;
