@@ -1,3 +1,4 @@
+// PokeTCGPlay: 3D workbench scene manager for deck building with physical slots
 using System;
 using System.Collections.Generic;
 using UnityEngine;
