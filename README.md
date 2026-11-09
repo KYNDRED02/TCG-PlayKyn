@@ -1,18 +1,16 @@
-# 🎴 PokeTCG Play — Pokémon TCG para *TCG Card Shop Simulator*
+# PokeTCG Play — Pokémon TCG para *TCG Card Shop Simulator*
 
 **PokeTCG Play** es un mod para *TCG Card Shop Simulator* (BepInEx 5) que convierte las mesas de juego de tu tienda en partidas reales e interactivas de **Pokémon Trading Card Game en 3D**, utilizando las cartas que vas abriendo en tus sobres y los paquetes de expansiones de **MyCurio**.
 
 ---
 
-## 💡 Origen y Desarrollo del Proyecto
+## Origen y Desarrollo del Proyecto
 
-El mod nació originalmente como un prototipo y simulador de reglas programado en **Python con Visual Studio Code**. Con el fin de integrarlo de manera nativa y con gráficos 3D dentro del motor Unity del juego, el proyecto fue trasladado, adaptado y optimizado a **C# (.NET / BepInEx)** con asistencia de **Inteligencia Artificial (IA)**. 
-
-El código está organizado de forma limpia, modular y con comentarios claros en español para que cualquier miembro de la comunidad pueda leerlo, ajustarlo o expandirlo con facilidad.
+El mod nació originalmente como un prototipo y simulador de reglas programado en **Python con Visual Studio Code**. Con el fin de integrarlo de manera nativa y con gráficos 3D dentro del motor Unity del juego, el proyecto fue trasladado, adaptado y optimizado a **C# (.NET / BepInEx)** con asistencia parcial de **(IA)** (Aún estoy aprendiendo a utilizar C#, tenganme paciencia :S). 
 
 ---
 
-## ✨ ¿Qué ofrece el mod?
+## ¿Qué ofrece el mod?
 
 1. **Juega con tu colección real:**
    - Para armar tu mazo necesitas poseer las cartas en tu partida (ya sea que las tengas guardadas en tu **Álbum**, en **Cajas de Almacenamiento** o exhibidas en tus **Estanterías**).
@@ -42,7 +40,7 @@ El código está organizado de forma limpia, modular y con comentarios claros en
 
 ---
 
-## 🗺️ Estado del Desarrollo (Roadmap)
+## Estado del Desarrollo (Roadmap)
 
 | Fase | Contenido | Estado |
 | :---: | :--- | :---: |
@@ -59,10 +57,10 @@ El código está organizado de forma limpia, modular y con comentarios claros en
 | **F10** | **Audio y Efectos Visuales:** Sonidos de cartas, barajado, monedas, impactos y sacudida de pantalla al noquear. | ✅ Completado |
 | **F10.5** | **Código Modular y Ajustes:** Separación limpia de archivos y configuración visual centralizada (`VisualSettings.cs`). | ✅ Completado |
 | **Extra** | **Habilidades Pokémon y Expansiones:** Las 26 habilidades activas con botones dedicados y vista previa de expansiones modernas. | ✅ Completado |
-
+| **Proximo** | **Implementación de mecánicas de NEO Era** Implementación de todas las cartas respectivas a la era NEO del TCG, incluyendo sus mecánicas nuevas y habilidades. | ⌛ Siguiente meta | 
 ---
 
-## 📦 Instalación
+## Instalación
 
 1. Asegúrate de tener instalado **BepInEx 5** en tu juego *TCG Card Shop Simulator*.
 2. Ten instalados los paquetes de cartas de Pokémon de **MyCurio** dentro de `BepInEx/plugins/`.
