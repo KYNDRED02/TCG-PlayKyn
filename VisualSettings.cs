@@ -1,3 +1,4 @@
+// PokeTCGPlay: Centralized tweakable 3D visual scales, card heights and animation timings
 using System;
 using UnityEngine;
 
