@@ -1,3 +1,4 @@
+// PokeTCGPlay: Core match state, player data structures, coin manager and action logs
 using System;
 using System.Collections.Generic;
 using System.Linq;
