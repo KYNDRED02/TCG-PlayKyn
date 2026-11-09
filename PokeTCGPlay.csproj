@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- PokeTCGPlay: C# netstandard2.1 project definition and game deployment targets -->
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>PokeTCGPlay</AssemblyName>
