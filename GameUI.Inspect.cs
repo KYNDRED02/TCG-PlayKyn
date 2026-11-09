@@ -1,3 +1,4 @@
+// PokeTCGPlay: Elevated card inspection overlay, stats display and power activation buttons
 using System;
 using System.Collections.Generic;
 using System.Linq;
