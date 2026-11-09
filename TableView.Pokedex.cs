@@ -1,3 +1,4 @@
+// PokeTCGPlay: 3D Pokedex card flight arc animation from deck to camera
 using System;
 using System.Collections.Generic;
 using System.Linq;
