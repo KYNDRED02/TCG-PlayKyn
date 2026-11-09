@@ -1,3 +1,4 @@
+// PokeTCGPlay: 3D status counters, audio SFX triggers, localization and settings modal
 using System;
 using System.Collections.Generic;
 using TMPro;
