@@ -1,3 +1,4 @@
+// PokeTCGPlay: Table interaction lifecycle, seated match trigger and camera POV
 using System;
 using System.Reflection;
 using HarmonyLib;
