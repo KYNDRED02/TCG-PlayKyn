@@ -1,3 +1,4 @@
+// PokeTCGPlay: Attack entry point, damage calculation and status application helpers
 using System;
 using System.Collections.Generic;
 using System.Linq;
