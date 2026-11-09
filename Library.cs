@@ -1,3 +1,4 @@
+// PokeTCGPlay: Collection scanner across binder, store shelves and storage boxes
 using System;
 using System.Collections.Generic;
 using System.IO;
