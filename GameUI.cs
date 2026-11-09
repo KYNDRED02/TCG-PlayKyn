@@ -1,3 +1,4 @@
+// PokeTCGPlay: Main in-game match HUD, action controls panel, IMGUI and native Canvas overlay
 using System;
 using System.Collections.Generic;
 using System.IO;
