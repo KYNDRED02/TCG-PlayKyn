@@ -1,3 +1,4 @@
+// PokeTCGPlay: Resolution logic for Trainer, Supporter and Stadium cards
 using System;
 using System.Collections.Generic;
 using System.Linq;
