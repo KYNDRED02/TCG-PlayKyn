@@ -1,3 +1,4 @@
+// PokeTCGPlay: Rule-based heuristic decision maker for NPC turns and deck setup
 using System.Linq;
 
 namespace PokeTCGPlay
