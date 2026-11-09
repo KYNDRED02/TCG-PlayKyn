@@ -1,3 +1,4 @@
+// PokeTCGPlay: Deck builder GUI with collection filtering, format checks and live search
 using System;
 using System.Collections.Generic;
 using System.IO;
