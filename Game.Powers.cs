@@ -1,3 +1,4 @@
+// PokeTCGPlay: Activated Pokemon Powers resolution and on-play card triggers
 using System;
 using System.Collections.Generic;
 using System.Linq;
