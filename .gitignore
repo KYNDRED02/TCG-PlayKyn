@@ -1,3 +1,4 @@
+# PokeTCGPlay: Build artifacts and user preference ignore rules
 bin/
 obj/
 *.user
