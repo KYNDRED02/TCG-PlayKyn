@@ -1,3 +1,4 @@
+// PokeTCGPlay: Attack damage resolution, coin toss triggers and status condition parser
 using System;
 using System.Collections.Generic;
 using System.Linq;
