@@ -1,4 +1,4 @@
-# PokeTCGPlay: Build artifacts and user preference ignore rules
+# TCG-PlayKyn: Build artifacts and user preference ignore rules
 bin/
 obj/
 *.user
