@@ -1,10 +1,10 @@
-// PokeTCGPlay: Table interaction lifecycle, seated match trigger and camera POV
+// TCG-PlayKyn: Table interaction lifecycle, seated match trigger and camera POV
 using System;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     public class MatchRewardSummary
     {
