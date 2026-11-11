@@ -1,6 +1,6 @@
-# PokeTCG Play — Pokémon TCG for *TCG Card Shop Simulator*
+# TCG-PlayKyn — Pokémon TCG for *TCG Card Shop Simulator*
 
-**PokeTCG Play** is a mod for *TCG Card Shop Simulator* (using BepInEx 5) that transforms the gaming tables in your shop into fully interactive, 3D matches of the **Pokémon Trading Card Game**, using the cards you’ve pulled from booster packs and expansion sets—including those from **MyCurio**.
+**TCG-PlayKyn** is a mod for *TCG Card Shop Simulator* (using BepInEx 5) that transforms the gaming tables in your shop into fully interactive, 3D matches of the **Pokémon Trading Card Game**, using the cards you’ve pulled from booster packs and expansion sets—including those from **MyCurio**.
 
 ---
 
@@ -63,7 +63,7 @@ The mod began as a prototype and rules simulator programmed in **Python using Vi
 
 1. Ensure that **BepInEx 5** is installed for your copy of *TCG Card Shop Simulator*.
 2. Make sure the Pokémon card packs by **MyCurio** are installed within the `BepInEx/plugins/` directory.
-3. Copy the `PokeTCGPlay` folder (which contains `PokeTCGPlay.dll` and the `Data/` folder) into the following directory:
+3. Copy the `TCG-PlayKyn` folder (which contains `TCG-PlayKyn.dll` and the `Data/` folder) into the following directory:
 ```text
 TCG Card Shop Simulator/BepInEx/plugins/
 ```
