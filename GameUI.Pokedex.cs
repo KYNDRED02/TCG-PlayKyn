@@ -1,10 +1,10 @@
-// PokeTCGPlay: Pokedex 2D interactive UI overlay for reordering top deck cards
+// TCG-PlayKyn: Pokedex 2D interactive UI overlay for reordering top deck cards
 using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de interfaz de usuario para el efecto interactivo de la carta Pokédex.
