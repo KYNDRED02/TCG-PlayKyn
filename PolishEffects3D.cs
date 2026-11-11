@@ -1,10 +1,10 @@
-// PokeTCGPlay: 3D status counters, audio SFX triggers, localization and settings modal
+// TCG-PlayKyn: 3D status counters, audio SFX triggers, localization and settings modal
 using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// F10: Opciones globales de pulido (Velocidad de Animación, Idioma ES/EN, Volumen SFX y Sacudida de Cámara).
