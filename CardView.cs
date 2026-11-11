@@ -1,9 +1,9 @@
-// PokeTCGPlay: 3D physical card mesh instance with depth, shadows and condition tilting
+// TCG-PlayKyn: 3D physical card mesh instance with depth, shadows and condition tilting
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// F2: Representación física 3D de una carta Pokémon sobre la mesa.
