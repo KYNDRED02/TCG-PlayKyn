@@ -1,4 +1,4 @@
-// PokeTCGPlay: Pokemon card schema, sets loader, MyCurio textures atlas & collection resolver
+// TCG-PlayKyn: Pokemon card schema, sets loader, MyCurio textures atlas & collection resolver
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +7,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     public enum Supertype { Pokemon, Trainer, Energy }
 
@@ -247,7 +247,7 @@ namespace PokeTCGPlay
                 {
                     var fi = new FileInfo(file);
                     if (fi.Length > 8 * 1024 * 1024) continue;
-                    if (file.IndexOf(Path.DirectorySeparatorChar + "PokeTCGPlay" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                    if (file.IndexOf(Path.DirectorySeparatorChar + "TCG-PlayKyn" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0 || file.IndexOf(Path.DirectorySeparatorChar + "PokeTCGPlay" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) >= 0) continue;
                     if (!IsPokemonExpansion("check", file)) continue;
                     string text = File.ReadAllText(file, Encoding.UTF8);
                     if (text.IndexOf("\"CardExpansions\"", StringComparison.Ordinal) < 0) continue;
