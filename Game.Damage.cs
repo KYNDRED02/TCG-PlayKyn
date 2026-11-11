@@ -1,9 +1,9 @@
-// PokeTCGPlay: Damage formula, weakness/resistance, protective powers and knockout checks
+// TCG-PlayKyn: Damage formula, weakness/resistance, protective powers and knockout checks
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de cálculo de daño, debilidad, resistencia, efectos de protección y resolución de noqueos.
