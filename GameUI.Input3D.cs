@@ -1,10 +1,10 @@
-// PokeTCGPlay: Mouse raycast, card drag-and-drop targeting and board click handlers
+// TCG-PlayKyn: Mouse raycast, card drag-and-drop targeting and board click handlers
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de interactividad con ratón y arrastre (Drag & Drop) sobre el tapete 3D.
