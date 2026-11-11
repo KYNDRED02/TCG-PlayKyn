@@ -1,7 +1,7 @@
-# Cómo agregar una expansión a PokeTCGPlay
+# Cómo agregar una expansión a TCG-PlayKyn
 
 Las **imágenes** salen siempre del mod de **MyCurio** instalado (`BepInEx/plugins/MyCurioCardSets_prefabLoader`).
-PokeTCGPlay solo necesita las **reglas de juego** de cada carta.
+TCG-PlayKyn solo necesita las **reglas de juego** de cada carta.
 
 ## 1. Crea una carpeta
 `Data/sets/<id>/` (por ejemplo `Data/sets/me01/`) con estos archivos:
@@ -52,7 +52,7 @@ Para **corregir** o **agregar a mano** cartas. Solo escribe los campos que cambi
 `"Sets": ["*"]` = todas.
 
 ## 3. Mazos
-Tus mazos se guardan en `BepInEx/config/PokeTCGPlay/decks/*.deck.json` (se conservan al actualizar el mod).
+Tus mazos se guardan en `BepInEx/config/TCG-PlayKyn/decks/*.deck.json` (se conservan al actualizar el mod).
 
 ## Mecánicas futuras
 Las cartas con subtipos `EX`, `ex`, `MEGA`, `V`, `VMAX`, `VSTAR`, `GX`... se cargan pero quedan marcadas como **no jugables** hasta que se implemente su mecánica.
