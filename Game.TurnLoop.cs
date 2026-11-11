@@ -1,9 +1,9 @@
-// PokeTCGPlay: Core turn flow, draw phase, bench placement, evolution, energy and retreat
+// TCG-PlayKyn: Core turn flow, draw phase, bench placement, evolution, energy and retreat
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de gestión del flujo de turnos y acciones del jugador durante la partida.
