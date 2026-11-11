@@ -1,4 +1,4 @@
-// PokeTCGPlay: Collection scanner across binder, store shelves and storage boxes
+// TCG-PlayKyn: Collection scanner across binder, store shelves and storage boxes
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,7 +8,7 @@ using EnhancedPrefabLoader.API;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     // ───────────────────────────── Formatos ─────────────────────────────
 
@@ -291,7 +291,8 @@ namespace PokeTCGPlay
 
     public static class DeckStore
     {
-        public static string Dir => Path.Combine(BepInEx.Paths.ConfigPath, "PokeTCGPlay", "decks");
+        public static string Dir => Path.Combine(BepInEx.Paths.ConfigPath, "TCG-PlayKyn", "decks");
+        public static string LegacyDir => Path.Combine(BepInEx.Paths.ConfigPath, "PokeTCGPlay", "decks");
 
         static string FileFor(string name)
         {
@@ -301,16 +302,23 @@ namespace PokeTCGPlay
 
         public static List<string> List()
         {
-            if (!Directory.Exists(Dir)) return new List<string>();
-            return Directory.GetFiles(Dir, "*.deck.json")
+            var files = new List<string>();
+            if (Directory.Exists(Dir)) files.AddRange(Directory.GetFiles(Dir, "*.deck.json"));
+            if (Directory.Exists(LegacyDir)) files.AddRange(Directory.GetFiles(LegacyDir, "*.deck.json"));
+            return files
                 .Select(f => { try { return JObject.Parse(File.ReadAllText(f, Encoding.UTF8))["Name"]?.ToString(); } catch { return null; } })
-                .Where(n => !string.IsNullOrEmpty(n)).OrderBy(n => n).ToList();
+                .Where(n => !string.IsNullOrEmpty(n)).Distinct().OrderBy(n => n).ToList();
         }
 
         public static DeckDef Load(string name)
         {
             string f = FileFor(name ?? "");
-            if (!File.Exists(f)) return null;
+            if (!File.Exists(f))
+            {
+                string legF = Path.Combine(LegacyDir, (name ?? "").Trim() + ".deck.json");
+                if (File.Exists(legF)) f = legF;
+                else return null;
+            }
             try { return JsonConvert.DeserializeObject<DeckDef>(File.ReadAllText(f, Encoding.UTF8)); }
             catch (Exception e) { Plugin.Log?.LogWarning($"Mazo inválido {name}: {e.Message}"); return null; }
         }
@@ -527,7 +535,8 @@ namespace PokeTCGPlay
     /// </summary>
     public static class PtcgoImporter
     {
-        public static string ImportDir => Path.Combine(BepInEx.Paths.ConfigPath, "PokeTCGPlay", "import");
+        public static string ImportDir => Path.Combine(BepInEx.Paths.ConfigPath, "TCG-PlayKyn", "import");
+        public static string LegacyImportDir => Path.Combine(BepInEx.Paths.ConfigPath, "PokeTCGPlay", "import");
 
         public static void EnsureFolderExists()
         {
@@ -559,8 +568,10 @@ namespace PokeTCGPlay
         public static List<string> ListTxtFiles()
         {
             EnsureFolderExists();
-            if (!Directory.Exists(ImportDir)) return new List<string>();
-            return Directory.GetFiles(ImportDir, "*.txt", SearchOption.TopDirectoryOnly)
+            var files = new List<string>();
+            if (Directory.Exists(ImportDir)) files.AddRange(Directory.GetFiles(ImportDir, "*.txt", SearchOption.TopDirectoryOnly));
+            if (Directory.Exists(LegacyImportDir)) files.AddRange(Directory.GetFiles(LegacyImportDir, "*.txt", SearchOption.TopDirectoryOnly));
+            return files
                 .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
