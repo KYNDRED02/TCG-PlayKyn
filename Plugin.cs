@@ -1,4 +1,4 @@
-// PokeTCGPlay: BepInEx 5 plugin entry point, Harmony hooks, assets and config bindings
+// TCG-PlayKyn: BepInEx 5 plugin entry point, Harmony hooks, assets and config bindings
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,13 +13,13 @@ using HarmonyLib;
 using Newtonsoft.Json;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
-    [BepInPlugin(GUID, "PokeTCG Play", "0.4.0")]
+    [BepInPlugin(GUID, "TCG-PlayKyn", "0.4.0")]
     [BepInDependency("EnhancedPrefabLoader.API", BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {
-        public const string GUID = "duck2.poketcgplay";
+        public const string GUID = "duck2.tcgplaykyn";
         public static ManualLogSource Log;
         public static string DataDir;
         internal static ConfigEntry<KeyboardShortcut> ToggleKey;
