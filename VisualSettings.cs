@@ -1,8 +1,8 @@
-// PokeTCGPlay: Centralized tweakable 3D visual scales, card heights and animation timings
+// TCG-PlayKyn: Centralized tweakable 3D visual scales, card heights and animation timings
 using System;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Configuración central de ajustes visuales, escalas y posiciones 3D del mod.
