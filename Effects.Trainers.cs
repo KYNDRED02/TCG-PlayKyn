@@ -1,9 +1,9 @@
-// PokeTCGPlay: Resolution logic for Trainer, Supporter and Stadium cards
+// TCG-PlayKyn: Resolution logic for Trainer, Supporter and Stadium cards
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// SubmÃ³dulo de resoluciÃ³n de cartas de Entrenador, Partidarios y Estadios.
