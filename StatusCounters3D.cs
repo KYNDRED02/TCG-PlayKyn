@@ -1,9 +1,9 @@
-// PokeTCGPlay: 3D acrylic damage counter tokens and condition markers pooling
+// TCG-PlayKyn: 3D acrylic damage counter tokens and condition markers pooling
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// F6: Sistema 3D de Fichas de Daño (10, 50, 100), Marcadores 3D de Estado (Veneno, Escudo Defender, PlusPower)
