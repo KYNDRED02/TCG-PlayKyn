@@ -1,10 +1,10 @@
-// PokeTCGPlay: 3D playmat model, card view pooling and board state synchronization
+// TCG-PlayKyn: 3D playmat model, card view pooling and board state synchronization
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     public enum TableSlotKind
     {
