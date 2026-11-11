@@ -1,8 +1,8 @@
-# PokeTCG Play — Pokémon TCG para *TCG Card Shop Simulator*
+# TCG-PlayKyn — Pokemon TCG para *TCG Card Shop Simulator*
 
 Para la info en ingles, chequea: [README_EN.md](README_EN.md) 
 
-**PokeTCG Play** es un mod para *TCG Card Shop Simulator* (BepInEx 5) que convierte las mesas de juego de tu tienda en partidas reales e interactivas de **Pokémon Trading Card Game en 3D**, utilizando las cartas que vas abriendo en tus sobres y los paquetes de expansiones de **MyCurio**.
+**TCG-PlayKyn** es un mod para *TCG Card Shop Simulator* (BepInEx 5) que convierte las mesas de juego de tu tienda en partidas reales e interactivas de **Pokémon Trading Card Game en 3D**, utilizando las cartas que vas abriendo en tus sobres y los paquetes de expansiones de **MyCurio**.
 
 ---
 
