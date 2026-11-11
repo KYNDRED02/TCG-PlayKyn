@@ -1,9 +1,9 @@
-// PokeTCGPlay: 3D board card flight arcs, evolution pulses and attack lunges
+// TCG-PlayKyn: 3D board card flight arcs, evolution pulses and attack lunges
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// F3: Animator 3D de Cartas sobre el Playmat físico.
