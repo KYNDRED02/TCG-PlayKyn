@@ -1,10 +1,10 @@
-// PokeTCGPlay: Attack entry point, damage calculation and status application helpers
+// TCG-PlayKyn: Attack entry point, damage calculation and status application helpers
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Controlador principal de efectos de cartas (ataques, entrenadores y condiciones de estado).
