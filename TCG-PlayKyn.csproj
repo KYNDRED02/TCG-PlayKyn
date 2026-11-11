@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- PokeTCGPlay: C# netstandard2.1 project definition and game deployment targets -->
+  <!-- TCG-PlayKyn: C# netstandard2.1 project definition and game deployment targets -->
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <AssemblyName>PokeTCGPlay</AssemblyName>
+    <AssemblyName>TCG-PlayKyn</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <GameDir>F:\SteamLibrary\steamapps\common\TCG Card Shop Simulator</GameDir>
     <Managed>$(GameDir)\Card Shop Simulator_Data\Managed</Managed>
-    <PluginOut>$(GameDir)\BepInEx\plugins\PokeTCGPlay</PluginOut>
+    <PluginOut>$(GameDir)\BepInEx\plugins\TCG-PlayKyn</PluginOut>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
@@ -37,11 +37,10 @@
 
   <Target Name="DeployToGame" AfterTargets="Build">
     <ItemGroup>
-      <DeployFiles Include="$(OutputPath)PokeTCGPlay.dll" />
+      <DeployFiles Include="$(OutputPath)TCG-PlayKyn.dll" />
       <DeployData Include="$(OutputPath)Data\**\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(DeployFiles)" DestinationFolder="$(PluginOut)" />
     <Copy SourceFiles="@(DeployData)" DestinationFiles="@(DeployData->'$(PluginOut)\Data\%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
 </Project>
-
