@@ -1,9 +1,9 @@
-// PokeTCGPlay: Core match state, player data structures, coin manager and action logs
+// TCG-PlayKyn: Core match state, player data structures, coin manager and action logs
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     public enum Status { None, Asleep, Confused, Paralyzed }
     public enum Phase { CoinToss, Setup, Main, ChoosePromotion, GameOver }
