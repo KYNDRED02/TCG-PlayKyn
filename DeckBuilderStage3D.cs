@@ -1,9 +1,9 @@
-// PokeTCGPlay: 3D workbench scene manager for deck building with physical slots
+// TCG-PlayKyn: 3D workbench scene manager for deck building with physical slots
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// F9: Escenario 3D dedicado para el Constructor de Mazos (Workbench).
