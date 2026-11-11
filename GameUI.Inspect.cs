@@ -1,11 +1,11 @@
-// PokeTCGPlay: Elevated card inspection overlay, stats display and power activation buttons
+// TCG-PlayKyn: Elevated card inspection overlay, stats display and power activation buttons
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de inspección visual de cartas (Zoom elevado al hacer clic derecho o mantener cursor).
