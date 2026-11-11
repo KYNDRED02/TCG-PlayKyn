@@ -1,9 +1,9 @@
-// PokeTCGPlay: 3D playmat zone anchors, slot colliders and drop target highlights
+// TCG-PlayKyn: 3D playmat zone anchors, slot colliders and drop target highlights
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de anclajes físicos y casillas 3D sobre el tapete de juego (Playmat).
