@@ -1,4 +1,4 @@
-# TCG-PlayKyn — Pokemon TCG para *TCG Card Shop Simulator*
+# TCG-PlayKyn — Pokémon TCG para *TCG Card Shop Simulator*
 
 Para la info en ingles, chequea: [README_EN.md](README_EN.md) 
 
@@ -66,7 +66,7 @@ El mod nació originalmente como un prototipo y simulador de reglas programado e
 
 1. Asegúrate de tener instalado **BepInEx 5** en tu juego *TCG Card Shop Simulator*.
 2. Ten instalados los paquetes de cartas de Pokémon de **MyCurio** dentro de `BepInEx/plugins/`.
-3. Copia la carpeta `PokeTCGPlay` (que contiene `PokeTCGPlay.dll` y la carpeta `Data/`) dentro del directorio:
+3. Copia la carpeta `TCG-PlayKyn` (que contiene `TCG-PlayKyn.dll` y la carpeta `Data/`) dentro del directorio:
    ```text
    TCG Card Shop Simulator/BepInEx/plugins/
    ```
