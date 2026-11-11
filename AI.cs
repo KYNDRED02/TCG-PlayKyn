@@ -1,7 +1,7 @@
-// PokeTCGPlay: Rule-based heuristic decision maker for NPC turns and deck setup
+// TCG-PlayKyn: Rule-based heuristic decision maker for NPC turns and deck setup
 using System.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>IA sencilla: baja básicos, evoluciona, une energía al Activo y ataca con el mejor ataque disponible.</summary>
     public static class AI
