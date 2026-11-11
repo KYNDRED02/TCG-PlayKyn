@@ -1,9 +1,9 @@
-// PokeTCGPlay: Activated Pokemon Powers resolution and on-play card triggers
+// TCG-PlayKyn: Activated Pokemon Powers resolution and on-play card triggers
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de Poderes Pokémon (Poké-Powers / Habilidades) de la Era Base de MyCurio.
