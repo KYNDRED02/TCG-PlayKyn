@@ -1,8 +1,8 @@
-// PokeTCGPlay: 3D metallic coin physics, parabolic launch, bounce and landing settles
+// TCG-PlayKyn: 3D metallic coin physics, parabolic launch, bounce and landing settles
 using System;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// F7: Moneda 3D física sobre el tapete con caras Pikachu (Cara / Heads) y Pokéball (Cruz / Tails),
