@@ -1,10 +1,10 @@
-// PokeTCGPlay: 3D Pokedex card flight arc animation from deck to camera
+// TCG-PlayKyn: 3D Pokedex card flight arc animation from deck to camera
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Submódulo de inspección 3D para la carta Pokédex y efectos de ordenamiento superior de la baraja.
