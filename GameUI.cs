@@ -1,4 +1,4 @@
-// PokeTCGPlay: Main in-game match HUD, action controls panel, IMGUI and native Canvas overlay
+// TCG-PlayKyn: Main in-game match HUD, action controls panel, IMGUI and native Canvas overlay
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +7,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// Tablero de Pokémon TCG sobre la mesa física con vista cenital (top-down),
