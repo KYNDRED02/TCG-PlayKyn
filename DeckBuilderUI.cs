@@ -1,4 +1,4 @@
-// PokeTCGPlay: Deck builder GUI with collection filtering, format checks and live search
+// TCG-PlayKyn: Deck builder GUI with collection filtering, format checks and live search
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,7 +6,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// F9 / F9.5 (Plan Menor): PokeDeck Builder 3D independiente en la Mesa de Creación (InteractableWorkbench).
