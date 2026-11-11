@@ -1,10 +1,10 @@
-// PokeTCGPlay: Attack damage resolution, coin toss triggers and status condition parser
+// TCG-PlayKyn: Attack damage resolution, coin toss triggers and status condition parser
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace PokeTCGPlay
+namespace TCGPlayKyn
 {
     /// <summary>
     /// SubmÃ³dulo de resoluciÃ³n de ataques, daÃ±o y monedas en combate.
