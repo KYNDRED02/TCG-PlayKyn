@@ -59,6 +59,7 @@ El mod nació originalmente como un prototipo y simulador de reglas programado e
 | **F10** | **Audio y Efectos Visuales:** Sonidos de cartas, barajado, monedas, impactos y sacudida de pantalla al noquear. | ✅ Completado |
 | **F10.5** | **Código Modular y Ajustes:** Separación limpia de archivos y configuración visual centralizada (`VisualSettings.cs`). | ✅ Completado |
 | **Extra** | **Habilidades Pokémon y Expansiones:** Las 26 habilidades activas con botones dedicados y vista previa de expansiones modernas. | ✅ Completado |
+| **F10.6** | **Implementación de MyCurioHolo y Holographic Overhaul como requisitos opcionales | Visualización de cartas foil y no foil en la mesa | ✅ Completado |
 | **Proximo** | **Implementación de mecánicas de NEO Era** Implementación de todas las cartas respectivas a la era NEO del TCG, incluyendo sus mecánicas nuevas y habilidades. | ⌛ Siguiente meta | 
 ---
 
