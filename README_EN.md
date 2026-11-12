@@ -56,6 +56,7 @@ The mod began as a prototype and rules simulator programmed in **Python using Vi
 | **F10** | **Audio and Visual Effects:** Sounds for cards, shuffling, coins, and impacts, plus screen shake upon a knockout. | ✅ Completed |
 | **F10.5** | **Modular Code and Settings:** SeparClean file organization and centralized visual configuration (`VisualSettings.cs`). | ✅ Completed |
 | **Extra** | **Pokémon Abilities and Expansions:** All 26 active abilities with dedicated buttons, plus a preview of modern expansions. | ✅ Completed |
+| **F10.6** | **Implementation of MyCurioHolo and Holographic Overhaul as optional requirements | Display of foil and non-foil cards on the deck table | ✅ Completed |
 | **Next Up** | **NEO Era Mechanics Implementation:** Adding all cards from the TCG’s NEO era, including their unique mechanics and abilities. | ⌛ Next goal |
 ---
 
