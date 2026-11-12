@@ -134,23 +134,37 @@ namespace TCGPlayKyn
         }
 
         /// <summary>Copias que posee el jugador (int.MaxValue si no aplica la restricción).</summary>
-        public static int Owned(CardDef c)
+        public static int Owned(CardDef c, bool? requireFoil = null)
         {
             if (c == null) return 0;
             if (!Enforced || (FreeBasicEnergy && c.IsBasicEnergy)) return int.MaxValue;
-            return ActualOwnedCount(c);
+            return ActualOwnedCount(c, requireFoil);
         }
 
-        /// <summary>Cantidad real de copias físicas en el álbum y estantes del jugador.</summary>
-        public static int ActualOwnedCount(CardDef c)
+        /// <summary>Cantidad real de copias físicas en el álbum y estantes del jugador (admite filtrar por Foil / No-Foil).</summary>
+        public static int ActualOwnedCount(CardDef c, bool? requireFoil = null)
         {
             if (c == null) return 0;
+            string cacheKey = requireFoil == null ? c.Id : (requireFoil.Value ? c.Id + "_foil" : c.Id + "_nofoil");
             float now = UnityEngine.Time.realtimeSinceStartup;
             if (now - cacheTime > 3f) { cache.Clear(); cacheTime = now; }
-            if (cache.TryGetValue(c.Id, out int v)) return v;
-            v = ReadOwnedBySprite(c.Sprite, c.MyCurioBorder, c.MyCurioFoil);
-            cache[c.Id] = v;
+            if (cache.TryGetValue(cacheKey, out int v)) return v;
+            v = ReadOwnedBySprite(c.Sprite, c.MyCurioBorder, requireFoil);
+            cache[cacheKey] = v;
             return v;
+        }
+
+        public static int OwnedNonFoil(CardDef c) => ActualOwnedCount(c, false);
+        public static int OwnedFoil(CardDef c) => ActualOwnedCount(c, true);
+        public static bool HasNonFoil(CardDef c) => (!Enforced || (FreeBasicEnergy && c.IsBasicEnergy)) || OwnedNonFoil(c) > 0;
+        public static bool HasFoil(CardDef c) => (!Enforced || (FreeBasicEnergy && c.IsBasicEnergy)) || OwnedFoil(c) > 0;
+
+        /// <summary>Indica si el jugador posee al menos 1 copia regular (No Foil) y 1 copia Foil de la misma carta.</summary>
+        public static bool HasBothVariants(CardDef c)
+        {
+            if (c == null) return false;
+            if (!Enforced || (FreeBasicEnergy && c.IsBasicEnergy)) return true;
+            return OwnedNonFoil(c) > 0 && OwnedFoil(c) > 0;
         }
 
         /// <summary>Indica si la carta cuenta como obtenida para filtros y visualización a color.</summary>
@@ -171,7 +185,7 @@ namespace TCGPlayKyn
             return 0;
         }
 
-        public static int ReadOwnedBySprite(string sprite, string borderName = "Base", bool isFoil = false)
+        public static int ReadOwnedBySprite(string sprite, string borderName = "Base", bool? filterFoil = null)
         {
             try
             {
@@ -184,16 +198,19 @@ namespace TCGPlayKyn
                 var storageShelves = ShelfManager.GetCardStorageShelfList();
                 var cardShelves = ShelfManager.GetCardShelfList();
 
+                int startF = filterFoil.HasValue ? (filterFoil.Value ? 1 : 0) : 0;
+                int endF = filterFoil.HasValue ? startF : 1;
+
                 for (int eIdx = 0; eIdx < entries.Count; eIdx++)
                 {
                     var key = entries[eIdx];
                     var collectedList = CPlayerData.GetCardCollectedList(key.Key, false);
 
-                    // Contar todas las variantes de borde (Base, FirstEdition, Silver, Gold, EX, FullArt) y foil/no-foil
+                    // Contar variantes de borde y según el filtro de foil (0 = no-foil, 1 = foil)
                     for (int bIdx = 0; bIdx < allBorderTypes.Length; bIdx++)
                     {
                         var border = allBorderTypes[bIdx];
-                        for (int f = 0; f < 2; f++)
+                        for (int f = startF; f <= endF; f++)
                         {
                             var variant = new CardData
                             {
@@ -246,7 +263,10 @@ namespace TCGPlayKyn
                                 {
                                     var d = stored[k]?.m_Card3dUI?.m_CardUI?.GetCardData();
                                     if (d != null && d.expansionType == key.Key && d.monsterType == key.Value)
-                                        total++;
+                                    {
+                                        if (!filterFoil.HasValue || d.isFoil == filterFoil.Value)
+                                            total++;
+                                    }
                                 }
                             }
                         }
@@ -265,7 +285,13 @@ namespace TCGPlayKyn
 
     // ───────────────────────────── Mazos ─────────────────────────────
 
-    public class DeckEntry { public string Id; public string Name; public int Count; }
+    public class DeckEntry
+    {
+        public string Id;
+        public string Name;
+        public int Count;
+        public int FoilCount;
+    }
 
     /// <summary>Mazo guardado en BepInEx/config/PokeTCGPlay/decks/&lt;nombre&gt;.deck.json.</summary>
     public class DeckDef
@@ -280,13 +306,22 @@ namespace TCGPlayKyn
             foreach (var e in Cards)
             {
                 if (!CardDatabase.ById.TryGetValue(e.Id ?? "", out var c)) { missing?.Add(e.Id); continue; }
-                for (int i = 0; i < e.Count; i++) list.Add(c);
+                for (int i = 0; i < e.Count; i++)
+                {
+                    bool isFoil = (i < e.FoilCount);
+                    list.Add(c.Clone(isFoil));
+                }
             }
             return list;
         }
 
         public void SetCards(IEnumerable<CardDef> cards) =>
-            Cards = cards.GroupBy(c => c.Id).Select(g => new DeckEntry { Id = g.Key, Count = g.Count() }).ToList();
+            Cards = cards.GroupBy(c => c.Id).Select(g => new DeckEntry
+            {
+                Id = g.Key,
+                Count = g.Count(),
+                FoilCount = g.Count(c => c.IsFoil)
+            }).ToList();
     }
 
     public static class DeckStore

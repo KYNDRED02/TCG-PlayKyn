@@ -69,6 +69,17 @@ namespace TCGPlayKyn
         public bool MyCurioFoil;
         public bool HasMyCurioArt;
 
+        /// <summary>Indica si esta copia específica de la carta es Foil / Holográfica.</summary>
+        public bool IsFoil;
+
+        /// <summary>Crea una copia de la definición de carta asignándole el estado Foil deseado.</summary>
+        public CardDef Clone(bool isFoil = false)
+        {
+            var copy = (CardDef)this.MemberwiseClone();
+            copy.IsFoil = isFoil;
+            return copy;
+        }
+
         /// <summary>Motivo por el que no se puede usar aún (mecánica futura, efectos sin programar...). Vacío = jugable.</summary>
         public string UnsupportedReason = "";
         public bool IsPlayable => string.IsNullOrEmpty(UnsupportedReason);

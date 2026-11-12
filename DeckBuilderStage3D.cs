@@ -65,6 +65,32 @@ namespace TCGPlayKyn
         float deckBounceTimer;
         float inspectFlipAngle; // 0 = frente, 180 = reverso
         bool inspectShowBack;
+        float inspectFoilSpinTimer;
+        const float inspectFoilSpinDuration = 0.50f;
+        bool inspectFoilSpinActive;
+        bool inspectFoilSpinHalfwayCalled;
+        Action onInspectFoilSpinHalfway;
+        bool currentInspectFoil;
+
+        public bool IsInspectFoilSpinning => inspectFoilSpinActive;
+        public bool CurrentInspectFoil => currentInspectFoil;
+
+        public void SetInspectFoil(bool foil)
+        {
+            currentInspectFoil = foil;
+            if (inspectCardView != null)
+                inspectCardView.SetFoil(foil);
+        }
+
+        public void TriggerFoilFlip(Action onHalfway)
+        {
+            if (inspectFoilSpinActive) return;
+            inspectFoilSpinActive = true;
+            inspectFoilSpinTimer = 0f;
+            inspectFoilSpinHalfwayCalled = false;
+            onInspectFoilSpinHalfway = onHalfway;
+            TcgAudio.PlayCardDraw();
+        }
 
         static Texture2D sWoodTex;
         static Texture2D sFeltMatTex;
@@ -187,6 +213,7 @@ namespace TCGPlayKyn
         {
             inspectShowBack = false;
             inspectFlipAngle = 0f;
+            inspectFoilSpinActive = false;
         }
 
         public void SpawnAddFlight(int slotIndex, CardDef card)
@@ -291,8 +318,28 @@ namespace TCGPlayKyn
             if (deckBounceTimer > 0f)
                 deckBounceTimer = Mathf.Max(0f, deckBounceTimer - dt);
 
-            float targetFlip = inspectShowBack ? 180f : 0f;
-            inspectFlipAngle = Mathf.MoveTowards(inspectFlipAngle, targetFlip, dt * 520f);
+            if (inspectFoilSpinActive)
+            {
+                inspectFoilSpinTimer += dt;
+                float progress = inspectFoilSpinTimer / inspectFoilSpinDuration;
+                if (progress >= 0.5f && !inspectFoilSpinHalfwayCalled)
+                {
+                    inspectFoilSpinHalfwayCalled = true;
+                    onInspectFoilSpinHalfway?.Invoke();
+                }
+                // Volteo de 0° a 360° en 0.5 segundos (a los 0.25s / 50% muestra el reverso oficial)
+                inspectFlipAngle = progress * 360f;
+                if (progress >= 1f)
+                {
+                    inspectFlipAngle = inspectShowBack ? 180f : 0f;
+                    inspectFoilSpinActive = false;
+                }
+            }
+            else
+            {
+                float targetFlip = inspectShowBack ? 180f : 0f;
+                inspectFlipAngle = Mathf.MoveTowards(inspectFlipAngle, targetFlip, dt * 520f);
+            }
 
             cardPool.BeginFrame();
             currentScreenSlots.Clear();
@@ -592,7 +639,11 @@ namespace TCGPlayKyn
             Quaternion curRot = Quaternion.Slerp(startRot, targetRot, smooth);
             float curScale = Mathf.Lerp(Mathf.Max(0.75f, originScale), 1.32f, smooth);
 
-            inspectCardView.Setup(zoomCard, false, curScale, false, 0f);
+            if (inspectCardView.Card != zoomCard || inspectCardView.IsFoil != currentInspectFoil)
+            {
+                inspectCardView.Setup(zoomCard, false, curScale, false, 0f, 0f, overrideFoil: currentInspectFoil);
+            }
+            inspectCardView.transform.localScale = new Vector3(curScale, 1f, curScale);
             inspectCardView.SetFlipRoll(inspectFlipAngle, 0f, 0f);
             inspectCardView.SetShadowEnabled(false);
             inspectCardView.SetRaycastEnabled(false);

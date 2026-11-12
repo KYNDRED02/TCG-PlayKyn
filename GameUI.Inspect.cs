@@ -226,7 +226,7 @@ public static bool DrawElevatedZoomOverlay(CardDef card, PokemonInPlay pip, Rect
                     }
 
                     // Franja de Debilidad, Resistencia y Retirada
-                    float statsY = nativeFooterDrawer != null ? (infoBox.yMax - 140f) : (infoBox.yMax - 68f);
+                    float statsY = nativeFooterDrawer != null ? (infoBox.yMax - 140f) : (infoBox.yMax - 114f);
                     Rect statsBox = new Rect(ix, statsY, iw, 34f);
                     ui.DrawNativeBox(statsBox, sSubPanelSprite, new Color(1f, 1f, 1f, panelAlpha));
 
@@ -292,6 +292,42 @@ public static bool DrawElevatedZoomOverlay(CardDef card, PokemonInPlay pip, Rect
                 {
                     Rect footerRect = new Rect(ix, infoBox.yMax - 98f, iw, 68f);
                     nativeFooterDrawer.Invoke(footerRect);
+                }
+                else if (TableView.Instance != null && TableView.Instance.IsBoard3DReady)
+                {
+                    // En inspección de mesa 3D durante partida: botón de alternar Foil / No Foil
+                    bool curInspectFoil = TableView.Instance.CurrentInspectFoil;
+                    string foilLabel = curInspectFoil ? "No Foil" : "Foil";
+                    bool canToggleFoil = curInspectFoil ? Collection.HasNonFoil(card) : Collection.HasFoil(card);
+
+                    float btnW = 120f;
+                    float btnH = 30f;
+                    float btnX = ix + (iw - btnW) * 0.5f;
+                    float btnY = infoBox.yMax - 70f;
+
+                    var foilBtnN = curInspectFoil ? sBtnBlueN : sBtnGoldN;
+                    var foilBtnH = curInspectFoil ? sBtnBlueH : sBtnGoldH;
+                    var foilBtnA = curInspectFoil ? sBtnBlueA : sBtnGoldA;
+
+                    if (canToggleFoil)
+                    {
+                        if (ui.DrawNativeButton(new Rect(btnX, btnY, btnW, btnH), foilLabel, 13f, foilBtnN, foilBtnH, foilBtnA))
+                        {
+                            if (!TableView.Instance.IsInspectFoilSpinning)
+                            {
+                                PlayClickSound(0);
+                                TableView.Instance.TriggerFoilFlip(() =>
+                                {
+                                    TableView.Instance.SetInspectFoil(!curInspectFoil);
+                                });
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ui.DrawNativeBox(new Rect(btnX, btnY, btnW, btnH), sBtnBlueN, new Color(0.18f, 0.22f, 0.32f, 0.45f));
+                        ui.DrawNativeLabel(new Rect(btnX, btnY + 3f, btnW, btnH - 6f), foilLabel, 12f, TextAlignmentOptions.Center, new Color(0.6f, 0.65f, 0.75f, 0.6f));
+                    }
                 }
 
                 ui.DrawNativeLabel(

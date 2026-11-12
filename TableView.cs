@@ -1107,6 +1107,32 @@ namespace TCGPlayKyn
             return HandAnchor[p].rotation * Quaternion.Euler(0f, yawDeg, 0f);
         }
 
+        float inspectFoilSpinTimer;
+        const float inspectFoilSpinDuration = 0.50f;
+        bool inspectFoilSpinActive;
+        bool inspectFoilSpinHalfwayCalled;
+        Action onInspectFoilSpinHalfway;
+        bool? currentInspectFoilOverride;
+
+        public bool IsInspectFoilSpinning => inspectFoilSpinActive;
+        public bool CurrentInspectFoil => currentInspectFoilOverride ?? (inspectCardView != null && inspectCardView.IsFoil);
+
+        public void SetInspectFoil(bool foil)
+        {
+            currentInspectFoilOverride = foil;
+            if (inspectCardView != null) inspectCardView.SetFoil(foil);
+        }
+
+        public void TriggerFoilFlip(Action onHalfway)
+        {
+            if (inspectFoilSpinActive) return;
+            inspectFoilSpinActive = true;
+            inspectFoilSpinTimer = 0f;
+            inspectFoilSpinHalfwayCalled = false;
+            onInspectFoilSpinHalfway = onHalfway;
+            TcgAudio.PlayCardDraw();
+        }
+
         /// <summary>
         /// F5: Eleva en 3D la carta inspeccionada desde su posición en la mesa o mano hacia la cámara con giro interactivo,
         /// oscureciendo el fondo 3D detrás de la carta y devolviéndola a su sitio al cerrar.
@@ -1122,6 +1148,8 @@ namespace TCGPlayKyn
             var cam = GetActiveCamera();
             if (zoomedCard == null || zoomAnim <= 0.005f || cam == null)
             {
+                currentInspectFoilOverride = null;
+                inspectFoilSpinActive = false;
                 if (inspectCardView.gameObject.activeSelf)
                     inspectCardView.gameObject.SetActive(false);
                 if (inspectBackdropGo.activeSelf)
@@ -1135,6 +1163,24 @@ namespace TCGPlayKyn
                 inspectBackdropGo.SetActive(true);
 
             float smooth = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(zoomAnim));
+
+            float flipAngle = 0f;
+            if (inspectFoilSpinActive)
+            {
+                inspectFoilSpinTimer += Time.deltaTime;
+                float progress = inspectFoilSpinTimer / inspectFoilSpinDuration;
+                if (progress >= 0.5f && !inspectFoilSpinHalfwayCalled)
+                {
+                    inspectFoilSpinHalfwayCalled = true;
+                    onInspectFoilSpinHalfway?.Invoke();
+                }
+                flipAngle = progress * 360f;
+                if (progress >= 1f)
+                {
+                    flipAngle = 0f;
+                    inspectFoilSpinActive = false;
+                }
+            }
 
             // 1) Telón 3D oscurecido colocado entre la mesa y la carta inspeccionada para que la carta 3D brille al frente
             inspectBackdropGo.transform.position = cam.transform.position + cam.transform.forward * 0.37f;
@@ -1169,7 +1215,13 @@ namespace TCGPlayKyn
             Quaternion curRot = Quaternion.Slerp(startRot, targetRot, smooth);
             float curScale = Mathf.Lerp(Mathf.Max(0.75f, originScale), 1.30f, smooth);
 
-            inspectCardView.Setup(zoomedCard, false, curScale, true, 0f);
+            bool targetFoil = currentInspectFoilOverride ?? (zoomedCard != null && zoomedCard.IsFoil);
+            if (inspectCardView.Card != zoomedCard || inspectCardView.IsFoil != targetFoil)
+            {
+                inspectCardView.Setup(zoomedCard, false, curScale, true, 0f, 0f, overrideFoil: currentInspectFoilOverride);
+            }
+            inspectCardView.transform.localScale = new Vector3(curScale, 1f, curScale);
+            inspectCardView.SetFlipRoll(flipAngle, 0f, 0f);
             inspectCardView.SetShadowEnabled(false);
             inspectCardView.SetRaycastEnabled(false);
             inspectCardView.SetHighlight(true, new Color(1f, 0.88f, 0.26f, 0.88f * smooth));

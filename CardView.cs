@@ -16,6 +16,7 @@ namespace TCGPlayKyn
 
         public CardDef Card { get; private set; }
         public bool FaceDown { get; private set; }
+        public bool IsFoil { get; private set; }
 
         // F4: Metadatos de interacción 3D para Raycast (Mano 3D, Pokémon en mesa, Descarte)
         public int HandIndex { get; set; } = -1;
@@ -31,6 +32,7 @@ namespace TCGPlayKyn
         Transform visualRoot;
         MeshRenderer coreRenderer;
         MeshRenderer frontRenderer;
+        MeshRenderer holoRenderer;
         MeshRenderer backRenderer;
         MeshRenderer shadowRenderer;
         MeshRenderer highlightRenderer;
@@ -145,6 +147,17 @@ namespace TCGPlayKyn
             frontMat = CreateUnlitMaterial(Color.white, sFallbackFrontTex, false);
             frontRenderer.sharedMaterial = frontMat;
 
+            // Capa holográfica / Foil opcional (se activa cuando la carta es Foil y hay mods/shaders disponibles)
+            var holoGo = new GameObject("HoloOverlay");
+            holoGo.transform.SetParent(visualRoot, false);
+            holoGo.transform.localPosition = new Vector3(0f, CardThickness * 0.5f + 0.00018f, 0f);
+            holoGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            holoGo.transform.localScale = new Vector3(w, l, 1f);
+            holoGo.AddComponent<MeshFilter>().sharedMesh = sQuadMesh;
+            holoRenderer = holoGo.AddComponent<MeshRenderer>();
+            holoRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            holoRenderer.enabled = false;
+
             // F6: Capa de tinte animado para estados alterados (Dormido, Paralizado, Confundido, Veneno) y destello de golpe
             var tintGo = new GameObject("StatusTintOverlay");
             tintGo.transform.SetParent(visualRoot, false);
@@ -172,12 +185,13 @@ namespace TCGPlayKyn
         }
 
         /// <summary>
-        /// Configura la carta 3D (frente/reverso, escala, resaltado y rotación en mesa).
+        /// Configura la carta 3D (frente/reverso, escala, resaltado, rotación en mesa y acabado Foil opcional).
         /// </summary>
-        public void Setup(CardDef card, bool faceDown, float scale = 1f, bool highlight = false, float yawDegrees = 0f, float pitchDegrees = 0f)
+        public void Setup(CardDef card, bool faceDown, float scale = 1f, bool highlight = false, float yawDegrees = 0f, float pitchDegrees = 0f, bool? overrideFoil = null)
         {
             Card = card;
             FaceDown = faceDown;
+            IsFoil = overrideFoil ?? (card != null && card.IsFoil);
             HandIndex = -1;
             OwnerIndex = -1;
             BoundPip = null;
@@ -207,6 +221,17 @@ namespace TCGPlayKyn
                 tintRenderer.enabled = false;
             }
 
+            RefreshTextures();
+        }
+
+        /// <summary>
+        /// Modifica dinámicamente si la carta se renderiza con acabado Foil o regular, actualizando sus shaders.
+        /// </summary>
+        public void SetFoil(bool foil)
+        {
+            IsFoil = foil;
+            if (Card != null)
+                Card.IsFoil = foil;
             RefreshTextures();
         }
 
@@ -291,6 +316,31 @@ namespace TCGPlayKyn
                     frontMat.mainTexture = sFallbackFrontTex;
                     frontMat.color = IsGrayscale ? new Color(0.28f, 0.28f, 0.30f, 1f) : new Color(0.22f, 0.32f, 0.48f, 1f);
                 }
+
+                // Renderizado Foil / Holográfico opcional (MyCurioHolo, Holographic Overhaul o shader estándar)
+                if (IsFoil && !IsGrayscale && holoRenderer != null)
+                {
+                    var cardSp = sp ?? SpriteCache.Get(Card.Sprite);
+                    var holoMat = HoloHelper.GetHoloMaterial(Card, cardSp);
+                    if (holoMat != null)
+                    {
+                        HoloHelper.ApplySpriteProperties(holoMat, cardSp);
+                        holoRenderer.sharedMaterial = holoMat;
+                        holoRenderer.enabled = true;
+                    }
+                    else
+                    {
+                        holoRenderer.enabled = false;
+                    }
+                }
+                else if (holoRenderer != null)
+                {
+                    holoRenderer.enabled = false;
+                }
+            }
+            else if (holoRenderer != null)
+            {
+                holoRenderer.enabled = false;
             }
         }
 

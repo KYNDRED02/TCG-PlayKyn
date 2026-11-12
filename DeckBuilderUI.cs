@@ -84,6 +84,11 @@ namespace TCGPlayKyn
         float zoomAnim;
         bool zoomClosing;
 
+        // Selector contextual de variantes (No Foil / Foil)
+        CardDef variantPopupCard;
+        int variantPopupSlotIndex;
+        Rect variantPopupRect;
+
         // Native modals (Import .txt / Official Decks / Settings)
         bool showImportModal;
         List<string> importTxtFiles = new List<string>();
@@ -319,7 +324,7 @@ namespace TCGPlayKyn
             renamingDeckName = "";
         }
 
-        bool AddCardToDeck(CardDef c, int sourceSlotIndex = -1)
+        bool AddCardToDeck(CardDef c, int sourceSlotIndex = -1, bool isFoil = false)
         {
             if (c == null) return false;
             if (!c.IsPlayable)
@@ -328,7 +333,7 @@ namespace TCGPlayKyn
                 TcgAudio.PlayCardPlace();
                 return false;
             }
-            if ( !format.Allows(c) )
+            if (!format.Allows(c))
             {
                 var unlim = FormatRegistry.Get("unlimited") ?? FormatRegistry.Default;
                 if (unlim != null && unlim.Allows(c))
@@ -347,21 +352,43 @@ namespace TCGPlayKyn
                 statusMsg = $"<color=#ffd166>{why}</color>";
                 return false;
             }
-            currentDeck.Add(c);
-            stage3D.SpawnAddFlight(sourceSlotIndex, c);
-            statusMsg = $"<color=#80ed99>+ Added:</color> {c.Name} ({currentDeck.Count}/{format.DeckSize})";
+
+            // Comprobar disponibilidad de la variante específica (Foil o No Foil) en la colección
+            if (Collection.Enforced && (!Collection.FreeBasicEnergy || !c.IsBasicEnergy))
+            {
+                int ownedVariant = isFoil ? Collection.OwnedFoil(c) : Collection.OwnedNonFoil(c);
+                int inDeckVariant = currentDeck.Count(x => x.Id == c.Id && x.IsFoil == isFoil);
+                if (inDeckVariant >= ownedVariant)
+                {
+                    string vName = isFoil ? "Foil" : "No Foil";
+                    statusMsg = $"<color=#ffd166>You already have all your {vName} copies of {c.Name} in the deck ({inDeckVariant}/{ownedVariant}).</color>";
+                    return false;
+                }
+            }
+
+            var cardToAdd = c.Clone(isFoil);
+            currentDeck.Add(cardToAdd);
+            stage3D.SpawnAddFlight(sourceSlotIndex, cardToAdd);
+            string foilTag = isFoil ? " <color=#ffe066>[Foil]</color>" : "";
+            statusMsg = $"<color=#80ed99>+ Added:</color> {c.Name}{foilTag} ({currentDeck.Count}/{format.DeckSize})";
             return true;
         }
 
-        bool RemoveCardFromDeck(CardDef c)
+        bool RemoveCardFromDeck(CardDef c, bool? preferFoil = null)
         {
             if (c == null) return false;
-            int idx = currentDeck.FindLastIndex(x => x.Id == c.Id);
+            int idx = -1;
+            if (preferFoil.HasValue)
+                idx = currentDeck.FindLastIndex(x => x.Id == c.Id && x.IsFoil == preferFoil.Value);
+            if (idx < 0)
+                idx = currentDeck.FindLastIndex(x => x.Id == c.Id);
             if (idx >= 0)
             {
+                var removed = currentDeck[idx];
                 currentDeck.RemoveAt(idx);
-                stage3D.SpawnRemoveFlight(c);
-                statusMsg = $"<color=#ffd166>- Removed:</color> {c.Name} ({currentDeck.Count}/{format.DeckSize})";
+                stage3D.SpawnRemoveFlight(removed);
+                string foilTag = removed.IsFoil ? " [Foil]" : "";
+                statusMsg = $"<color=#ffd166>- Removed:</color> {c.Name}{foilTag} ({currentDeck.Count}/{format.DeckSize})";
                 return true;
             }
             return false;
@@ -371,6 +398,8 @@ namespace TCGPlayKyn
         {
             if (card == null) return;
             stage3D.ResetInspectFlip();
+            bool startFoil = card.IsFoil || (Collection.HasFoil(card) && !Collection.HasNonFoil(card));
+            stage3D.SetInspectFoil(startFoil);
             zoomCard = card;
             zoomOriginRect = approxRect;
             zoomOriginWorldPos = originWorldPos;
@@ -378,10 +407,12 @@ namespace TCGPlayKyn
             zoomOriginScale = originScale;
             zoomAnim = 0f;
             zoomClosing = false;
+            variantPopupCard = null;
         }
 
         void ChangePage(int delta)
         {
+            variantPopupCard = null;
             int next = Mathf.Clamp(currentPage + delta, 0, Mathf.Max(0, lastTotalPages - 1));
             if (next != currentPage)
             {
@@ -653,6 +684,9 @@ namespace TCGPlayKyn
                     DrawCardsTopFilterBar(ui, new Rect(contentX, 14f, Screen.width - contentX - 14f, topBarH));
                     DrawCatalogOverlay(ui, new Rect(contentX, bodyY, centerW, bodyH), filtered.Count, startIdx);
 
+                    if (variantPopupCard != null)
+                        DrawVariantPopup(ui);
+
                     if (showAdvancedFilters)
                         DrawAdvancedFilterDrawer(ui, rightPanelRect);
                     else
@@ -675,14 +709,26 @@ namespace TCGPlayKyn
                     var slot = stage3D.ScreenSlots[hovIdx];
                     if (btn == 0)
                     {
-                        if (AddCardToDeck(slot.Card, slot.SlotIndex))
-                            GameUI.PlayClickSound(0);
+                        if (Collection.HasBothVariants(slot.Card))
+                        {
+                            variantPopupCard = slot.Card;
+                            variantPopupSlotIndex = slot.SlotIndex;
+                            variantPopupRect = slot.ApproxGuiRect;
+                            GameUI.PlayClickSound(1);
+                        }
                         else
-                            GameUI.PlayClickSound(2);
+                        {
+                            bool useFoil = Collection.HasFoil(slot.Card) && !Collection.HasNonFoil(slot.Card);
+                            if (AddCardToDeck(slot.Card, slot.SlotIndex, useFoil))
+                                GameUI.PlayClickSound(0);
+                            else
+                                GameUI.PlayClickSound(2);
+                        }
                         Event.current.Use();
                     }
                     else if (btn == 1)
                     {
+                        variantPopupCard = null;
                         GameUI.PlayClickSound(1);
                         OpenInspect3D(slot.Card, slot.ApproxGuiRect, slot.WorldPos, slot.WorldRot, slot.Scale);
                         Event.current.Use();
@@ -716,40 +762,85 @@ namespace TCGPlayKyn
                     force3DCard: true,
                     nativeFooterDrawer: footerRect =>
                     {
-                        int inDeck = currentDeck.Count(x => x.Id == inspected.Id);
-                        int owned = Collection.DisplayOwnedCount(inspected);
+                        int inDeckTotal = currentDeck.Count(x => x.Id == inspected.Id);
+                        int inDeckFoil = currentDeck.Count(x => x.Id == inspected.Id && x.IsFoil);
+                        int inDeckNonFoil = inDeckTotal - inDeckFoil;
+                        int ownedTotal = Collection.DisplayOwnedCount(inspected);
+                        int ownedFoil = Collection.OwnedFoil(inspected);
+                        int ownedNonFoil = Collection.OwnedNonFoil(inspected);
                         string flipLabel = stage3D.InspectShowingBack
-                            ? "View Front (F)"
-                            : "View Back (F)";
+                            ? "Front (F)"
+                            : "Back (F)";
 
                         ui.DrawNativeBox(footerRect, GameUI.sSubPanelSprite, new Color(0.10f, 0.15f, 0.24f, 0.96f));
+                        string countStr = $"In deck: <color=#80ed99>{inDeckTotal}</color> (<color=#80ed99>{inDeckNonFoil}</color> reg, <color=#ffe066>{inDeckFoil}★</color>)  |  Collection: <color=#ffe066>x{ownedTotal}</color> (<color=#80ed99>{ownedNonFoil}</color> reg, <color=#ffe066>{ownedFoil}★</color>)";
                         ui.DrawNativeLabel(
                             new Rect(footerRect.x + 12f, footerRect.y + 6f, footerRect.width - 24f, 24f),
-                            $"In this deck: <color=#80ed99>{inDeck}</color>   |   In collection: <color=#ffe066>x{owned}</color>",
-                            15f,
+                            countStr,
+                            13.5f,
                             TextAlignmentOptions.Center,
                             Color.white,
                             autoSize: true);
 
+                        bool curInspectFoil = stage3D.CurrentInspectFoil;
+                        string foilLabel = curInspectFoil ? "No Foil" : "Foil";
+                        bool canToggleFoil = curInspectFoil ? Collection.HasNonFoil(inspected) : Collection.HasFoil(inspected);
+
                         float btnY = footerRect.y + 34f;
                         float btnH = 32f;
                         float totalW = footerRect.width - 24f;
-                        float wFlip = totalW * 0.42f;
-                        float wSub = (totalW - wFlip - 16f) * 0.5f;
+                        float wFoil = 76f;
+                        float wFlip = totalW * 0.26f;
+                        float remW = totalW - wFlip - wFoil - 24f;
+                        float wSub = remW * 0.5f;
 
-                        if (ui.DrawNativeButton(new Rect(footerRect.x + 12f, btnY, wFlip, btnH), flipLabel, 14f, GameUI.sBtnGoldN, GameUI.sBtnGoldH, GameUI.sBtnGoldA))
+                        float curBtnX = footerRect.x + 12f;
+
+                        // 1. Botón Flip Front/Back
+                        if (ui.DrawNativeButton(new Rect(curBtnX, btnY, wFlip, btnH), flipLabel, 13f, GameUI.sBtnBlueN, GameUI.sBtnBlueH, GameUI.sBtnBlueA))
                         {
                             GameUI.PlayClickSound(0);
                             stage3D.ToggleInspectFlip();
                         }
-                        if (ui.DrawNativeButton(new Rect(footerRect.x + 12f + wFlip + 8f, btnY, wSub, btnH), "- Remove", 14f, GameUI.sBtnRedN, GameUI.sBtnRedH, GameUI.sBtnRedA))
+                        curBtnX += wFlip + 8f;
+
+                        // 2. Botón Foil / No Foil con giro de 0.5s mostrando el reverso oficial
+                        var foilBtnN = curInspectFoil ? GameUI.sBtnBlueN : GameUI.sBtnGoldN;
+                        var foilBtnH = curInspectFoil ? GameUI.sBtnBlueH : GameUI.sBtnGoldH;
+                        var foilBtnA = curInspectFoil ? GameUI.sBtnBlueA : GameUI.sBtnGoldA;
+                        if (canToggleFoil)
                         {
-                            if (RemoveCardFromDeck(inspected)) GameUI.PlayClickSound(0);
+                            if (ui.DrawNativeButton(new Rect(curBtnX, btnY, wFoil, btnH), foilLabel, 13f, foilBtnN, foilBtnH, foilBtnA))
+                            {
+                                if (!stage3D.IsInspectFoilSpinning)
+                                {
+                                    GameUI.PlayClickSound(0);
+                                    stage3D.TriggerFoilFlip(() =>
+                                    {
+                                        stage3D.SetInspectFoil(!curInspectFoil);
+                                    });
+                                }
+                            }
+                        }
+                        else
+                        {
+                            ui.DrawNativeBox(new Rect(curBtnX, btnY, wFoil, btnH), GameUI.sBtnBlueN, new Color(0.18f, 0.22f, 0.32f, 0.45f));
+                            ui.DrawNativeLabel(new Rect(curBtnX, btnY + 4f, wFoil, btnH - 8f), foilLabel, 12f, TextAlignmentOptions.Center, new Color(0.6f, 0.65f, 0.75f, 0.6f));
+                        }
+                        curBtnX += wFoil + 8f;
+
+                        // 3. Botón - Remove
+                        if (ui.DrawNativeButton(new Rect(curBtnX, btnY, wSub, btnH), "- Remove", 13.5f, GameUI.sBtnRedN, GameUI.sBtnRedH, GameUI.sBtnRedA))
+                        {
+                            if (RemoveCardFromDeck(inspected, preferFoil: stage3D.CurrentInspectFoil)) GameUI.PlayClickSound(0);
                             else GameUI.PlayClickSound(2);
                         }
-                        if (ui.DrawNativeButton(new Rect(footerRect.x + 12f + wFlip + 8f + wSub + 8f, btnY, wSub, btnH), "+ Add", 14f, GameUI.sBtnGreenN, GameUI.sBtnGreenH, GameUI.sBtnGreenA))
+                        curBtnX += wSub + 8f;
+
+                        // 4. Botón + Add
+                        if (ui.DrawNativeButton(new Rect(curBtnX, btnY, wSub, btnH), "+ Add", 13.5f, GameUI.sBtnGreenN, GameUI.sBtnGreenH, GameUI.sBtnGreenA))
                         {
-                            if (AddCardToDeck(inspected, -1)) GameUI.PlayClickSound(0);
+                            if (AddCardToDeck(inspected, -1, isFoil: stage3D.CurrentInspectFoil)) GameUI.PlayClickSound(0);
                             else GameUI.PlayClickSound(2);
                         }
                     });
@@ -1655,6 +1746,112 @@ namespace TCGPlayKyn
             }
         }
 
+        /// <summary>
+        /// Dibuja el selector contextual con los 2 botones al hacer clic en una carta que posee variantes Foil y No Foil.
+        /// - Botón 1: Estrella negra de 4 puntas (No Foil).
+        /// - Botón 2: Múltiples estrellas amarillas (Foil).
+        /// </summary>
+        void DrawVariantPopup(GameUI ui)
+        {
+            if (variantPopupCard == null) return;
+
+            float btnSize = 38f;
+            float pad = 6f;
+            float popW = btnSize + pad * 2f;
+            float popH = btnSize * 2f + pad * 3f;
+
+            float popX = variantPopupRect.xMax + 6f;
+            if (popX + popW > Screen.width - 340f)
+                popX = variantPopupRect.xMin - popW - 6f;
+
+            float popY = Mathf.Clamp(variantPopupRect.center.y - popH * 0.5f, 60f, Screen.height - popH - 40f);
+            Rect popRect = new Rect(popX, popY, popW, popH);
+
+            ui.DrawNativeBox(popRect, GameUI.sSubPanelSprite, new Color(0.06f, 0.09f, 0.16f, 0.98f));
+
+            Vector2 mp = Event.current.mousePosition;
+            string hoveredTip = null;
+            Rect tipAnchor = Rect.zero;
+
+            // Botón Superior: Estrella negra 4 puntas (No Foil)
+            Rect btnNoFoilRect = new Rect(popX + pad, popY + pad, btnSize, btnSize);
+            bool hovNoFoil = btnNoFoilRect.Contains(mp);
+            Color colNoFoilBg = hovNoFoil ? new Color(0.24f, 0.32f, 0.46f, 0.95f) : new Color(0.12f, 0.16f, 0.24f, 0.90f);
+            ui.DrawNativeBox(btnNoFoilRect, GameUI.sBtnBlueN, colNoFoilBg);
+            if (SpriteCache.IconNoFoil != null)
+            {
+                ui.DrawNativeRawTex(new Rect(btnNoFoilRect.x + 5f, btnNoFoilRect.y + 5f, btnSize - 10f, btnSize - 10f), SpriteCache.IconNoFoil, Color.white);
+            }
+            else
+            {
+                ui.DrawNativeLabel(btnNoFoilRect, "✦", 20f, TextAlignmentOptions.Center, Color.black);
+            }
+
+            if (hovNoFoil)
+            {
+                int owned = Collection.OwnedNonFoil(variantPopupCard);
+                hoveredTip = $"No Foil (x{owned})";
+                tipAnchor = btnNoFoilRect;
+            }
+
+            if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && hovNoFoil)
+            {
+                GameUI.PlayClickSound(0);
+                AddCardToDeck(variantPopupCard, variantPopupSlotIndex, isFoil: false);
+                variantPopupCard = null;
+                Event.current.Use();
+                return;
+            }
+
+            // Botón Inferior: Estrellas doradas (Foil)
+            Rect btnFoilRect = new Rect(popX + pad, popY + pad * 2f + btnSize, btnSize, btnSize);
+            bool hovFoil = btnFoilRect.Contains(mp);
+            Color colFoilBg = hovFoil ? new Color(0.42f, 0.35f, 0.16f, 0.95f) : new Color(0.18f, 0.16f, 0.12f, 0.90f);
+            ui.DrawNativeBox(btnFoilRect, GameUI.sBtnGoldN, colFoilBg);
+            if (SpriteCache.IconFoil != null)
+            {
+                ui.DrawNativeRawTex(new Rect(btnFoilRect.x + 4f, btnFoilRect.y + 4f, btnSize - 8f, btnSize - 8f), SpriteCache.IconFoil, Color.white);
+            }
+            else
+            {
+                ui.DrawNativeLabel(btnFoilRect, "★", 20f, TextAlignmentOptions.Center, new Color(1f, 0.88f, 0.2f, 1f));
+            }
+
+            if (hovFoil)
+            {
+                int owned = Collection.OwnedFoil(variantPopupCard);
+                hoveredTip = $"Foil (x{owned})";
+                tipAnchor = btnFoilRect;
+            }
+
+            if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && hovFoil)
+            {
+                GameUI.PlayClickSound(0);
+                AddCardToDeck(variantPopupCard, variantPopupSlotIndex, isFoil: true);
+                variantPopupCard = null;
+                Event.current.Use();
+                return;
+            }
+
+            // Tooltip flotante si se pasa el cursor por encima
+            if (!string.IsNullOrEmpty(hoveredTip))
+            {
+                float tw = hoveredTip.Length * 9.5f + 20f;
+                float th = 26f;
+                float tx = tipAnchor.xMax + 6f;
+                if (tx + tw > Screen.width - 10f) tx = tipAnchor.xMin - tw - 6f;
+                Rect tipR = new Rect(tx, tipAnchor.center.y - th * 0.5f, tw, th);
+                ui.DrawNativeBox(tipR, GameUI.sPanelSprite, new Color(0.04f, 0.06f, 0.10f, 0.98f));
+                ui.DrawNativeLabel(tipR, hoveredTip, 13f, TextAlignmentOptions.Center, new Color(1f, 0.92f, 0.65f, 1f));
+            }
+
+            // Cerrar si hace clic fuera del popup
+            if (Event.current.type == EventType.MouseDown && !popRect.Contains(mp) && !variantPopupRect.Contains(mp))
+            {
+                variantPopupCard = null;
+            }
+        }
+
         void ResetAllCardFilters()
         {
             ownershipMode = 0;
@@ -1944,6 +2141,8 @@ namespace TCGPlayKyn
                 var grp = groups[startG + i];
                 var c = grp.First();
                 int qty = grp.Count();
+                int foilQty = grp.Count(x => x.IsFoil);
+                string foilTag = foilQty > 0 ? $" <color=#ffe066>({foilQty}★)</color>" : "";
                 int owned = Collection.Owned(c);
                 bool missingOwned = Collection.Enforced && qty > owned;
                 string qtyCol = missingOwned ? "#ff6b6b" : "#80ed99";
@@ -1955,7 +2154,7 @@ namespace TCGPlayKyn
                 float btnsTotalW = btnW * 3f + 8f;
                 ui.DrawNativeLabel(
                     new Rect(rowRect.x + 8f, rowRect.y + 2f, rowRect.width - btnsTotalW - 16f, rowH - 4f),
-                    $"<color={qtyCol}>{qty}x</color> {c.Name} <color=#9ecbff>({c.Id})</color>",
+                    $"<color={qtyCol}>{qty}x</color> {c.Name}{foilTag} <color=#9ecbff>({c.Id})</color>",
                     13.5f,
                     TextAlignmentOptions.Left,
                     Color.white,
@@ -1974,7 +2173,8 @@ namespace TCGPlayKyn
                 }
                 if (ui.DrawNativeButton(new Rect(bx + (btnW + 4f) * 2f, rowRect.y + 3f, btnW, rowH - 6f), "+", 14f, GameUI.sBtnGreenN, GameUI.sBtnGreenH, GameUI.sBtnGreenA))
                 {
-                    if (AddCardToDeck(c, -1)) GameUI.PlayClickSound(0);
+                    bool addFoil = foilQty > 0 && Collection.OwnedFoil(c) > foilQty;
+                    if (AddCardToDeck(c, -1, isFoil: addFoil)) GameUI.PlayClickSound(0);
                     else GameUI.PlayClickSound(2);
                 }
 

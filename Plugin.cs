@@ -98,6 +98,8 @@ namespace TCGPlayKyn
         public static Texture2D GearIconTex { get; private set; }
         public static Texture2D FilterSlidersIconTex { get; private set; }
         public static Texture2D SearchLensIconTex { get; private set; }
+        public static Texture2D IconNoFoil { get; private set; }
+        public static Texture2D IconFoil { get; private set; }
         public static Texture2D ExpansionsAtlasTex { get; private set; }
         public static readonly List<ExpansionSymbolInfo> ExpansionCatalog = new List<ExpansionSymbolInfo>();
 
@@ -185,6 +187,8 @@ namespace TCGPlayKyn
             GearIconTex = MakeGearIconTex(64);
             FilterSlidersIconTex = MakeFilterSlidersIconTex(64);
             SearchLensIconTex = MakeSearchLensIconTex(64);
+            IconNoFoil = LoadPng(Path.Combine(Plugin.DataDir, "icons", "icon_nofoil.png"));
+            IconFoil = LoadPng(Path.Combine(Plugin.DataDir, "icons", "icon_foil.png"));
             foreach (var tn in AllTypeIconNames)
             {
                 var tex = LoadPng(Path.Combine(Plugin.DataDir, "icons", $"type_{tn}.png"));
