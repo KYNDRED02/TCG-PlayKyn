@@ -79,6 +79,10 @@ namespace TCGPlayKyn
                 return;
             }
 
+            string missingArt = CardDatabase.GetMissingArtNotice();
+            if (!string.IsNullOrEmpty(missingArt))
+                GameUI.Instance?.ShowToast(missingArt, 6.5f);
+
             Vector3 playerPos = ipc.m_PlayerCollider != null ? ipc.m_PlayerCollider.transform.position : ipc.transform.position;
             float d0 = Vector3.Distance(playerPos, table.GetSitLoc(0).position);
             float d1 = Vector3.Distance(playerPos, table.GetSitLoc(1).position);

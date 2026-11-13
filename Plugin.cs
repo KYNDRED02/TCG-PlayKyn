@@ -4,11 +4,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using BepInEx;
+using BepInEx.Bootstrap;
 using BepInEx.Configuration;
 using BepInEx.Logging;
-using EnhancedPrefabLoader.API;
-using EnhancedPrefabLoader.API.Models;
 using HarmonyLib;
 using Newtonsoft.Json;
 using UnityEngine;
@@ -57,6 +57,9 @@ namespace TCGPlayKyn
                 ThemeDeckRegistry.Load(DataDir);
                 DeckStore.MigrateLegacy(DataDir);
                 Log.LogInfo($"Cargadas {CardDatabase.All.Count} cartas de {CardDatabase.Sets.Count} expansiones; formatos: {string.Join(", ", FormatRegistry.Formats.Select(f => f.Name))}; mazos oficiales: {ThemeDeckRegistry.Decks.Count}; mazos guardados: {DeckStore.List().Count}");
+                string artWarning = CardDatabase.GetMissingArtNotice();
+                if (!string.IsNullOrEmpty(artWarning))
+                    Log.LogWarning(artWarning);
             }
             catch (Exception e) { Log.LogError("Error cargando datos: " + e); }
 
@@ -86,7 +89,6 @@ namespace TCGPlayKyn
         static readonly Dictionary<string, Texture2D> typeIconCache = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
         static readonly Dictionary<string, Texture2D> grayscaleCache = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
         static readonly HashSet<string> pending = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        static readonly HashSet<string> refIncremented = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         static string bundlePath;
         static bool bundlePathSearched;
         static bool eplHooked;
@@ -163,17 +165,6 @@ namespace TCGPlayKyn
             "Fire", "Water", "Grass", "Lightning", "Psychic",
             "Fighting", "Darkness", "Metal", "Dragon", "Fairy", "Colorless"
         };
-
-        static readonly MethodInfo getAsyncSpriteMethod =
-            typeof(StreamingAsset<Sprite>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        static readonly PropertyInfo assetKeySpriteProp =
-            typeof(StreamingAsset<Sprite>).GetProperty("AssetKey", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        static readonly MethodInfo getAsyncTexMethod =
-            typeof(StreamingAsset<Texture>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        static readonly PropertyInfo assetKeyTexProp =
-            typeof(StreamingAsset<Texture>).GetProperty("AssetKey", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-        static object assetRefTracker;
-        static MethodInfo incrementRefMethod;
 
         public static int Count => cache.Count;
 
@@ -408,26 +399,7 @@ namespace TCGPlayKyn
             }
         }
 
-        static void PinAssetKey(string assetKey)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(assetKey) || !refIncremented.Add(assetKey)) return;
-
-                if (assetRefTracker == null)
-                {
-                    var bridgeType = typeof(Epl).Assembly.GetType("EnhancedPrefabLoader.API.InternalBridges.StreamingAssetsBridge");
-                    var prop = bridgeType?.GetProperty("AssetRefTracker", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-                    assetRefTracker = prop?.GetValue(null, null);
-                    incrementRefMethod = assetRefTracker?.GetType().GetMethod("IncrementRef", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                }
-                incrementRefMethod?.Invoke(assetRefTracker, new object[] { assetKey });
-            }
-            catch (Exception e)
-            {
-                Plugin.Log?.LogWarning("PinAssetKey: " + e.Message);
-            }
-        }
+        static void PinAssetKey(string assetKey) => EplBridge.PinAssetKey(assetKey);
 
         public static Texture2D MakeReadableCopy(Texture2D source)
         {
@@ -565,11 +537,11 @@ namespace TCGPlayKyn
         public static void EnsureInitialized()
         {
             LoadCustomTextures();
-            if (!eplHooked && Epl.IsAvailable && Epl.Api != null)
+            if (!eplHooked && EplBridge.IsReady)
             {
                 eplHooked = true;
-                if (Epl.Api.IsBundleLoadingComplete) PreloadFromEpl();
-                else Epl.Api.Events.OnBundleLoadingComplete += PreloadFromEpl;
+                if (EplBridge.IsBundleLoadingComplete) PreloadFromEpl();
+                else EplBridge.SubscribeOnBundleLoadingComplete(PreloadFromEpl);
             }
         }
 
@@ -588,38 +560,33 @@ namespace TCGPlayKyn
         public static void PreloadFromEpl()
         {
             LoadCustomTextures();
+            if (!EplBridge.IsReady) return;
+
             var requested = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                if (Epl.IsAvailable && Epl.Api?.Assets?.CardExpansions != null)
+                bool backDone = false;
+                var allExKeys = CardDatabase.Sets.Select(s => s.MyCurioExpansion)
+                    .Concat(CardDatabase.All.Select(c => c.MyCurioExpansion))
+                    .Where(x => !string.IsNullOrEmpty(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase);
+                foreach (var exKey in allExKeys)
                 {
-                    bool backDone = false;
-                    var allExKeys = CardDatabase.Sets.Select(s => s.MyCurioExpansion)
-                        .Concat(CardDatabase.All.Select(c => c.MyCurioExpansion))
-                        .Where(x => !string.IsNullOrEmpty(x))
-                        .Distinct(StringComparer.OrdinalIgnoreCase);
-                    foreach (var exKey in allExKeys)
+                    if (!Collection.TryParseExpansion(exKey, out var expType)) continue;
+                    if (!backDone && EplBridge.TryGetExpansionCardBack(expType, out string cbBundle, out string cbAssetName, out object cbObj))
                     {
-                        if (!Collection.TryParseExpansion(exKey, out var expType)) continue;
-                        if (!backDone)
+                        if (!string.IsNullOrEmpty(cbBundle))
                         {
-                            var cb = Epl.Api.Assets.CardExpansions.GetCardExpansionCardBack(expType);
-                            if (cb != null && !string.IsNullOrEmpty(cb.BundlePath))
-                            {
-                                RequestCardBackAsset(cb);
-                                backDone = true;
-                            }
-                        }
-                        var dict = Epl.Api.Assets.CardExpansions.GetCardSprites(expType);
-                        if (dict == null) continue;
-                        foreach (var kv in dict)
-                        {
-                            var sa = kv.Value;
-                            if (sa == null || string.IsNullOrEmpty(sa.AssetName) || !CardDatabase.SpriteBundle.ContainsKey(sa.AssetName)) continue;
-                            RequestStreamingAsset(sa);
-                            requested.Add(sa.AssetName);
+                            RequestCardBackAsset(cbBundle, cbAssetName, cbObj);
+                            backDone = true;
                         }
                     }
+                    EplBridge.ForEachExpansionCardSprite(expType, (_, saBundle, saName, saObj) =>
+                    {
+                        if (string.IsNullOrEmpty(saName) || !CardDatabase.SpriteBundle.ContainsKey(saName)) return;
+                        RequestSpriteByPath(saBundle, saName, saName, saObj);
+                        requested.Add(saName);
+                    });
                 }
             }
             catch (Exception e) { Plugin.Log?.LogWarning("PreloadFromEpl: " + e.Message); }
@@ -627,57 +594,44 @@ namespace TCGPlayKyn
             // Respaldo: pedir directamente al bundle de MyCurio lo que EPL no devolvió
             string back = FindBundlePath();
             if (!string.IsNullOrEmpty(back))
-                RequestStreamingAsset(new StreamingAsset<Sprite>(back, "CardBack"), "CardBack");
+                RequestSpriteByPath(back, "CardBack", "CardBack", null);
             foreach (var kv in CardDatabase.SpriteBundle)
                 if (!requested.Contains(kv.Key))
-                    RequestStreamingAsset(new StreamingAsset<Sprite>(kv.Value, kv.Key));
+                    RequestSpriteByPath(kv.Value, kv.Key, kv.Key, null);
         }
 
-        static void RequestCardBackAsset(StreamingAsset<Texture> cbAsset)
+        static void RequestCardBackAsset(string bundle, string rawAssetName, object cbTexObj)
         {
             const string key = "CardBack";
-            if (cbAsset == null || string.IsNullOrEmpty(cbAsset.BundlePath)) return;
+            if (string.IsNullOrEmpty(bundle)) return;
             if (cache.TryGetValue(key, out var existing) && existing != null && existing.texture != null) return;
             if (!pending.Add(key)) return;
 
-            string bundle = cbAsset.BundlePath;
-            string assetName = string.IsNullOrEmpty(cbAsset.AssetName) ? "CardBack" : cbAsset.AssetName;
+            string assetName = string.IsNullOrEmpty(rawAssetName) ? "CardBack" : rawAssetName;
             try
             {
                 // Pedir primero como Sprite (tiene el rectángulo recortado exacto del reverso en los bundles de MyCurio)
-                var spriteAsset = new StreamingAsset<Sprite>(bundle, assetName);
-                Action<UnityEngine.Object> onSp = objSp =>
+                EplBridge.RequestSpriteAsync(bundle, assetName, null, (objSp, spAssetKey) =>
                 {
                     var sp = ConvertObjectToSprite(objSp, trimCardAspect: true);
                     if (sp != null)
                     {
                         pending.Remove(key);
                         cache[key] = sp;
-                        PinAssetKey(assetKeySpriteProp?.GetValue(spriteAsset, null) as string);
+                        PinAssetKey(spAssetKey);
                         return;
                     }
-                    if (getAsyncTexMethod == null)
-                    {
-                        pending.Remove(key);
-                        return;
-                    }
-                    Action<UnityEngine.Object> onTex = objTex =>
+                    EplBridge.RequestTextureAsync(bundle, assetName, cbTexObj, (objTex, texAssetKey) =>
                     {
                         pending.Remove(key);
                         var spTex = ConvertObjectToSprite(objTex, trimCardAspect: true);
                         if (spTex != null)
                         {
                             cache[key] = spTex;
-                            PinAssetKey(assetKeyTexProp?.GetValue(cbAsset, null) as string);
+                            PinAssetKey(texAssetKey);
                         }
-                    };
-                    getAsyncTexMethod.Invoke(cbAsset, new object[] { onTex });
-                };
-
-                if (getAsyncSpriteMethod != null)
-                    getAsyncSpriteMethod.Invoke(spriteAsset, new object[] { onSp });
-                else
-                    onSp(null);
+                    });
+                });
             }
             catch (Exception e)
             {
@@ -686,45 +640,42 @@ namespace TCGPlayKyn
             }
         }
 
-        static void RequestStreamingAsset(StreamingAsset<Sprite> sa, string cacheKey = null)
+        static void RequestSpriteByPath(string bundle, string assetName, string cacheKey, object existingSpriteSa)
         {
-            string key = cacheKey ?? sa?.AssetName;
-            if (sa == null || string.IsNullOrEmpty(key) || getAsyncSpriteMethod == null) return;
+            string key = string.IsNullOrEmpty(cacheKey) ? assetName : cacheKey;
+            if (string.IsNullOrEmpty(key) || (existingSpriteSa == null && string.IsNullOrEmpty(bundle)) || !EplBridge.IsReady) return;
             if (cache.TryGetValue(key, out var existing) && existing != null && existing.texture != null) return;
             if (!pending.Add(key)) return;
             bool isBack = string.Equals(key, "CardBack", StringComparison.OrdinalIgnoreCase);
             try
             {
-                Action<UnityEngine.Object> onSp = obj =>
+                EplBridge.RequestSpriteAsync(bundle, assetName, existingSpriteSa, (obj, spAssetKey) =>
                 {
                     var sp = ConvertObjectToSprite(obj, trimCardAspect: isBack);
                     if (sp != null)
                     {
                         pending.Remove(key);
                         cache[key] = sp;
-                        PinAssetKey(assetKeySpriteProp?.GetValue(sa, null) as string);
+                        PinAssetKey(spAssetKey);
                     }
-                    else if (isBack && getAsyncTexMethod != null)
+                    else if (isBack && !string.IsNullOrEmpty(bundle))
                     {
-                        var texSa = new StreamingAsset<Texture>(sa.BundlePath, sa.AssetName);
-                        Action<UnityEngine.Object> onTex = objTex =>
+                        EplBridge.RequestTextureAsync(bundle, assetName, null, (objTex, texAssetKey) =>
                         {
                             pending.Remove(key);
                             var spTex = ConvertObjectToSprite(objTex, trimCardAspect: true);
                             if (spTex != null)
                             {
                                 cache[key] = spTex;
-                                PinAssetKey(assetKeyTexProp?.GetValue(texSa, null) as string);
+                                PinAssetKey(texAssetKey);
                             }
-                        };
-                        getAsyncTexMethod.Invoke(texSa, new object[] { onTex });
+                        });
                     }
                     else
                     {
                         pending.Remove(key);
                     }
-                };
-                getAsyncSpriteMethod.Invoke(sa, new object[] { onSp });
+                });
             }
             catch (Exception e)
             {
@@ -743,13 +694,187 @@ namespace TCGPlayKyn
             }
 
             EnsureInitialized();
+            if (!EplBridge.IsReady) return null;
 
             string path = name == "CardBack" ? FindBundlePath() : (CardDatabase.SpriteBundle.TryGetValue(name, out var p) ? p : null);
             if (!string.IsNullOrEmpty(path) && !pending.Contains(name))
-                RequestStreamingAsset(new StreamingAsset<Sprite>(path, name));
+                RequestSpriteByPath(path, name, name, null);
             return null;
         }
 
         public static Sprite GetCardBack() => Get("CardBack");
+    }
+
+    /// <summary>
+    /// Puente aislado (soft-dependency) hacia EnhancedPrefabLoader.API.
+    /// Ningún método con tipos de EPL se compila en JIT si EPL no está cargado en BepInEx.
+    /// </summary>
+    internal static class EplBridge
+    {
+        static bool? sPluginPresent;
+        static readonly HashSet<string> sPinnedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        public static bool IsPluginPresent
+        {
+            get
+            {
+                if (!sPluginPresent.HasValue)
+                    sPluginPresent = Chainloader.PluginInfos.ContainsKey("EnhancedPrefabLoader.API");
+                return sPluginPresent.Value;
+            }
+        }
+
+        public static bool IsReady => IsPluginPresent && Internal.IsReady();
+        public static bool IsBundleLoadingComplete => IsPluginPresent && Internal.IsBundleLoadingComplete();
+
+        public static void SubscribeOnBundleLoadingComplete(Action cb)
+        {
+            if (IsPluginPresent && cb != null) Internal.SubscribeOnBundleLoadingComplete(cb);
+        }
+
+        public static void ForEachExpansionCardSprite(ECardExpansionType exp, Action<EMonsterType, string, string, object> visitor)
+        {
+            if (IsPluginPresent && visitor != null) Internal.ForEachExpansionCardSprite(exp, visitor);
+        }
+
+        public static bool TryGetExpansionCardBack(ECardExpansionType exp, out string bundlePath, out string assetName, out object texAssetObj)
+        {
+            bundlePath = null;
+            assetName = null;
+            texAssetObj = null;
+            return IsPluginPresent && Internal.TryGetExpansionCardBack(exp, out bundlePath, out assetName, out texAssetObj);
+        }
+
+        public static void RequestSpriteAsync(string bundlePath, string assetName, object existingSaObj, Action<UnityEngine.Object, string> onDone)
+        {
+            if (IsPluginPresent) Internal.RequestSpriteAsync(bundlePath, assetName, existingSaObj, onDone);
+            else onDone?.Invoke(null, null);
+        }
+
+        public static void RequestTextureAsync(string bundlePath, string assetName, object existingSaObj, Action<UnityEngine.Object, string> onDone)
+        {
+            if (IsPluginPresent) Internal.RequestTextureAsync(bundlePath, assetName, existingSaObj, onDone);
+            else onDone?.Invoke(null, null);
+        }
+
+        public static void PinAssetKey(string assetKey)
+        {
+            if (IsPluginPresent && !string.IsNullOrEmpty(assetKey) && sPinnedKeys.Add(assetKey))
+                Internal.PinAssetKey(assetKey);
+        }
+
+        static class Internal
+        {
+            static readonly MethodInfo getAsyncSpriteMethod =
+                typeof(EnhancedPrefabLoader.API.Models.StreamingAsset<Sprite>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            static readonly PropertyInfo assetKeySpriteProp =
+                typeof(EnhancedPrefabLoader.API.Models.StreamingAsset<Sprite>).GetProperty("AssetKey", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            static readonly MethodInfo getAsyncTexMethod =
+                typeof(EnhancedPrefabLoader.API.Models.StreamingAsset<Texture>).GetMethod("GetAsync", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            static readonly PropertyInfo assetKeyTexProp =
+                typeof(EnhancedPrefabLoader.API.Models.StreamingAsset<Texture>).GetProperty("AssetKey", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            static object assetRefTracker;
+            static MethodInfo incrementRefMethod;
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static bool IsReady()
+            {
+                return EnhancedPrefabLoader.API.Epl.IsAvailable && EnhancedPrefabLoader.API.Epl.Api != null;
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static bool IsBundleLoadingComplete()
+            {
+                return EnhancedPrefabLoader.API.Epl.IsAvailable &&
+                       EnhancedPrefabLoader.API.Epl.Api != null &&
+                       EnhancedPrefabLoader.API.Epl.Api.IsBundleLoadingComplete;
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void SubscribeOnBundleLoadingComplete(Action cb)
+            {
+                if (EnhancedPrefabLoader.API.Epl.IsAvailable && EnhancedPrefabLoader.API.Epl.Api != null)
+                    EnhancedPrefabLoader.API.Epl.Api.Events.OnBundleLoadingComplete += cb;
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void ForEachExpansionCardSprite(ECardExpansionType exp, Action<EMonsterType, string, string, object> visitor)
+            {
+                var api = EnhancedPrefabLoader.API.Epl.Api;
+                var dict = api?.Assets?.CardExpansions?.GetCardSprites(exp);
+                if (dict == null) return;
+                foreach (var kv in dict)
+                {
+                    var sa = kv.Value;
+                    if (sa != null)
+                        visitor(kv.Key, sa.BundlePath, sa.AssetName, sa);
+                }
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static bool TryGetExpansionCardBack(ECardExpansionType exp, out string bundlePath, out string assetName, out object texAssetObj)
+            {
+                bundlePath = null;
+                assetName = null;
+                texAssetObj = null;
+                var api = EnhancedPrefabLoader.API.Epl.Api;
+                var cb = api?.Assets?.CardExpansions?.GetCardExpansionCardBack(exp);
+                if (cb == null || string.IsNullOrEmpty(cb.BundlePath)) return false;
+                bundlePath = cb.BundlePath;
+                assetName = cb.AssetName;
+                texAssetObj = cb;
+                return true;
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void RequestSpriteAsync(string bundlePath, string assetName, object existingSaObj, Action<UnityEngine.Object, string> onDone)
+            {
+                var sa = existingSaObj as EnhancedPrefabLoader.API.Models.StreamingAsset<Sprite>
+                         ?? new EnhancedPrefabLoader.API.Models.StreamingAsset<Sprite>(bundlePath, assetName);
+                if (getAsyncSpriteMethod == null)
+                {
+                    onDone?.Invoke(null, null);
+                    return;
+                }
+                string key = assetKeySpriteProp?.GetValue(sa, null) as string;
+                Action<UnityEngine.Object> wrap = obj => onDone?.Invoke(obj, key);
+                getAsyncSpriteMethod.Invoke(sa, new object[] { wrap });
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void RequestTextureAsync(string bundlePath, string assetName, object existingSaObj, Action<UnityEngine.Object, string> onDone)
+            {
+                var sa = existingSaObj as EnhancedPrefabLoader.API.Models.StreamingAsset<Texture>
+                         ?? new EnhancedPrefabLoader.API.Models.StreamingAsset<Texture>(bundlePath, assetName);
+                if (getAsyncTexMethod == null)
+                {
+                    onDone?.Invoke(null, null);
+                    return;
+                }
+                string key = assetKeyTexProp?.GetValue(sa, null) as string;
+                Action<UnityEngine.Object> wrap = obj => onDone?.Invoke(obj, key);
+                getAsyncTexMethod.Invoke(sa, new object[] { wrap });
+            }
+
+            [MethodImpl(MethodImplOptions.NoInlining)]
+            public static void PinAssetKey(string assetKey)
+            {
+                try
+                {
+                    if (assetRefTracker == null)
+                    {
+                        var bridgeType = typeof(EnhancedPrefabLoader.API.Epl).Assembly.GetType("EnhancedPrefabLoader.API.InternalBridges.StreamingAssetsBridge");
+                        var prop = bridgeType?.GetProperty("AssetRefTracker", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                        assetRefTracker = prop?.GetValue(null, null);
+                        incrementRefMethod = assetRefTracker?.GetType().GetMethod("IncrementRef", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                    }
+                    incrementRefMethod?.Invoke(assetRefTracker, new object[] { assetKey });
+                }
+                catch (Exception e)
+                {
+                    Plugin.Log?.LogWarning("PinAssetKey: " + e.Message);
+                }
+            }
+        }
     }
 }

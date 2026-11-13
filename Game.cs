@@ -184,6 +184,7 @@ namespace TCGPlayKyn
         public bool IsBusyResolving { get; private set; }
         public int PlayerMulligans { get; private set; }
         public int NpcMulligans { get; private set; }
+        public bool PlayerManualMulliganUsed { get; private set; }
         public string MulliganSummary { get; private set; } = "";
         public int PlayerKOs { get; private set; }
         public int NpcKOs { get; private set; }
@@ -414,6 +415,31 @@ namespace TCGPlayKyn
             {
                 PendingAiSetup = true;
             }
+        }
+
+        /// <summary>
+        /// Permite al jugador realizar un único Mulligan voluntario al inicio de la partida (Fase Setup)
+        /// devolviendo su mano al mazo, barajando y robando 7 cartas nuevas con al menos 1 Básico.
+        /// </summary>
+        public string ManualPlayerMulligan()
+        {
+            if (Phase != Phase.Setup || Players[0].SetupDone || Players[0].Active != null)
+                return Loc.T("Solo puedes hacer Mulligan antes de comenzar el primer turno.", "You can only Mulligan before starting the first turn.");
+            if (PlayerManualMulliganUsed)
+                return Loc.T("Ya utilizaste tu Mulligan en esta partida.", "You already used your Mulligan this match.");
+
+            var p = Players[0];
+            PlayerManualMulliganUsed = true;
+            if (p.Hand.Count > 0)
+            {
+                p.Deck.AddRange(p.Hand);
+                p.Hand.Clear();
+            }
+            Shuffle(p.Deck);
+            DealOpeningHandWithMulligan(p);
+            Say(Loc.T($"{p.Name} realizó un Mulligan al inicio de la partida y robó una nueva mano de 7 cartas.",
+                      $"{p.Name} took a Mulligan at the start of the match and drew a fresh 7-card hand."));
+            return null;
         }
 
         // [ExecutePendingAiSetup se define en Game.TurnLoop.cs]

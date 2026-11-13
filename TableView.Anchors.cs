@@ -56,11 +56,11 @@ namespace TCGPlayKyn
                 indGo.transform.SetParent(go.transform, false);
                 indGo.transform.localPosition = new Vector3(0f, 0.0003f, 0f);
                 indGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-                indGo.transform.localScale = new Vector3(CardWorldWidth * indicatorScale * 1.06f, CardWorldLength * indicatorScale * 1.06f, 1f);
+                indGo.transform.localScale = new Vector3(CardWorldWidth * indicatorScale * 1.028f, CardWorldLength * indicatorScale * 1.028f, 1f);
                 var mf = indGo.AddComponent<MeshFilter>();
                 mf.sharedMesh = sharedQuadMesh;
                 var mr = indGo.AddComponent<MeshRenderer>();
-                mr.sharedMaterial = CreateMaterial(new Color(0.98f, 0.85f, 0.25f, 0.0f), null, true);
+                mr.sharedMaterial = CreateMaterial(new Color(0.14f, 0.92f, 0.72f, 0.0f), null, true);
                 mr.enabled = false;
                 slotIndicators[go.transform] = mr;
             }
@@ -178,6 +178,9 @@ namespace TCGPlayKyn
             statusCounters = new StatusCounters3D(PlaymatRoot);
             StatusCounters3D.ActivePopups.Clear();
 
+            // HUD 3D sobre el tapete (barras de PS e iconos de energía ocultables naturalmente por cartas en vuelo/zoom)
+            boardHud3D = new BoardHud3D(PlaymatRoot);
+
             // F7: Inicializar la Moneda 3D física sobre el Playmat
             Coin = new Coin3D(PlaymatRoot, CoinArenaAnchor.localPosition);
         }
@@ -291,8 +294,8 @@ namespace TCGPlayKyn
                 {
                     bool isHovered = hoveredAnchor != null && kv.Key == hoveredAnchor;
                     kv.Value.sharedMaterial.color = isHovered
-                        ? new Color(0.22f, 0.98f, 0.52f, 0.48f + 0.18f * Mathf.Sin(Time.time * 8f))
-                        : new Color(1f, 0.86f, 0.22f, pulse);
+                        ? new Color(0.20f, 0.98f, 0.76f, 0.45f + 0.16f * Mathf.Sin(Time.time * 8f))
+                        : new Color(0.14f, 0.88f, 0.68f, pulse);
                 }
             }
         }
@@ -338,7 +341,7 @@ namespace TCGPlayKyn
         }
 
         /// <summary>
-        /// Proyecta un anclaje 3D de carta sobre la mesa a su Rect correspondiente en pantalla (OnGUI).
+        /// Proyecta un anclaje 3D de carta sobre la mesa a su Rect real en pantalla (OnGUI) usando sus 4 esquinas 3D.
         /// </summary>
         public bool TryProjectSlotToGUI(Transform anchor, float scale, float baseSlotW, float baseSlotH, out Rect rect)
         {
@@ -346,14 +349,38 @@ namespace TCGPlayKyn
             var cam = GetActiveCamera();
             if (anchor == null || cam == null) return false;
 
-            Vector3 sp = cam.WorldToScreenPoint(anchor.position);
-            if (sp.z <= 0.05f) return false;
+            float hw = CardWorldWidth * 0.5f * scale;
+            float hl = CardWorldLength * 0.5f * scale;
+            Vector3 c = anchor.position;
+            Vector3 r = anchor.right * hw;
+            Vector3 f = anchor.forward * hl;
 
-            float w = baseSlotW * scale;
-            float h = baseSlotH * scale;
-            float gx = sp.x;
-            float gy = Screen.height - sp.y;
-            rect = new Rect(gx - w * 0.5f, gy - h * 0.5f, w, h);
+            float minX = float.MaxValue, maxX = float.MinValue;
+            float minY = float.MaxValue, maxY = float.MinValue;
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 corner = c + ((i & 1) == 0 ? -r : r) + ((i & 2) == 0 ? -f : f);
+                Vector3 sp = cam.WorldToScreenPoint(corner);
+                if (sp.z <= 0.05f) return false;
+                float gx = sp.x;
+                float gy = Screen.height - sp.y;
+                if (gx < minX) minX = gx;
+                if (gx > maxX) maxX = gx;
+                if (gy < minY) minY = gy;
+                if (gy > maxY) maxY = gy;
+            }
+
+            if (maxX <= minX || maxY <= minY)
+            {
+                Vector3 sp = cam.WorldToScreenPoint(c);
+                if (sp.z <= 0.05f) return false;
+                float w = baseSlotW * scale;
+                float h = baseSlotH * scale;
+                rect = new Rect(sp.x - w * 0.5f, (Screen.height - sp.y) - h * 0.5f, w, h);
+                return true;
+            }
+
+            rect = Rect.MinMaxRect(minX, minY, maxX, maxY);
             return true;
         }
 

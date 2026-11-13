@@ -34,6 +34,18 @@ namespace TCGPlayKyn
         readonly List<CardDef> pageCardsBuffer = new List<CardDef>(DeckBuilderStage3D.PageSize);
         readonly DeckBuilderStage3D stage3D = new DeckBuilderStage3D();
 
+        // Cachés ligeras para evitar escanear miles de cartas o archivos .deck.json en cada frame de OnGUI
+        readonly List<CardDef> filteredCardsCache = new List<CardDef>();
+        readonly List<DeckSummaryInfo> deckSummariesCache = new List<DeckSummaryInfo>();
+        readonly Dictionary<string, int> cachedDeckIdCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        List<string> cachedDeckErrors = new List<string>();
+        int cachedDeckBasic, cachedDeckEvo, cachedDeckTr, cachedDeckEn;
+        bool deckStatsDirty = true;
+        bool deckSummariesDirty = true;
+        bool catalogFilterDirty = true;
+        string lastCatalogFilterKey = "";
+        float lastOwnershipRefreshTime = -999f;
+
         DeckDef deckDef = new DeckDef();
         FormatDef format = new FormatDef();
         List<string> deckNames = new List<string>();
@@ -189,8 +201,103 @@ namespace TCGPlayKyn
             deckListPage = 0;
             decksViewPage = 0;
             stage3D.SetActive(true);
-            statusMsg = "Left click: add to deck  |  Right click: zoom & info  |  Wheel: change page";
+            deckSummariesDirty = true;
+            catalogFilterDirty = true;
+            MarkDeckDirty();
+            string missingArt = CardDatabase.GetMissingArtNotice();
+            statusMsg = !string.IsNullOrEmpty(missingArt)
+                ? $"<color=#ffd166>{missingArt}</color>"
+                : "Left click: add to deck  |  Right click: zoom & info  |  Wheel: change page";
             IsOpen = true;
+        }
+
+        void MarkDeckDirty()
+        {
+            deckStatsDirty = true;
+        }
+
+        void InvalidateDeckSummaries()
+        {
+            deckSummariesDirty = true;
+        }
+
+        void RefreshDeckStatsIfNeeded()
+        {
+            if (!deckStatsDirty) return;
+            deckStatsDirty = false;
+            cachedDeckIdCounts.Clear();
+            cachedDeckBasic = 0;
+            cachedDeckEvo = 0;
+            cachedDeckTr = 0;
+            cachedDeckEn = 0;
+
+            for (int i = 0; i < currentDeck.Count; i++)
+            {
+                var c = currentDeck[i];
+                if (c == null) continue;
+                cachedDeckIdCounts.TryGetValue(c.Id, out int curCount);
+                cachedDeckIdCounts[c.Id] = curCount + 1;
+
+                if (c.Supertype == Supertype.Pokemon)
+                {
+                    if (c.IsBasicPokemon) cachedDeckBasic++;
+                    else cachedDeckEvo++;
+                }
+                else if (c.Supertype == Supertype.Trainer)
+                {
+                    cachedDeckTr++;
+                }
+                else if (c.Supertype == Supertype.Energy)
+                {
+                    cachedDeckEn++;
+                }
+            }
+            cachedDeckErrors = DeckValidator.Validate(currentDeck, format);
+        }
+
+        int GetInDeckCount(string cardId)
+        {
+            RefreshDeckStatsIfNeeded();
+            return !string.IsNullOrEmpty(cardId) && cachedDeckIdCounts.TryGetValue(cardId, out int count) ? count : 0;
+        }
+
+        List<CardDef> GetFilteredCatalog()
+        {
+            string typeSig = "";
+            if (cardFilterTypes.Count > 0)
+            {
+                var sb = new System.Text.StringBuilder(32);
+                for (int i = 0; i < SpriteCache.AllTypeIconNames.Length; i++)
+                {
+                    if (cardFilterTypes.Contains(SpriteCache.AllTypeIconNames[i]))
+                        sb.Append(SpriteCache.AllTypeIconNames[i]).Append('|');
+                }
+                typeSig = sb.ToString();
+            }
+
+            string filterKey = $"{format?.Id}|{filterSetId}|{ownershipMode}|{cardCategoryFilter}|{filterStage}|{filterHpBucket}|{typeSig}|{searchQuery}";
+            bool periodicOwnershipCheck = ownershipMode != 0 && (Time.realtimeSinceStartup - lastOwnershipRefreshTime > 1.5f);
+            if (!catalogFilterDirty && !periodicOwnershipCheck && string.Equals(lastCatalogFilterKey, filterKey, StringComparison.Ordinal))
+                return filteredCardsCache;
+
+            lastCatalogFilterKey = filterKey;
+            lastOwnershipRefreshTime = Time.realtimeSinceStartup;
+            catalogFilterDirty = false;
+            filteredCardsCache.Clear();
+
+            var allCards = CardDatabase.All;
+            bool hasSetFilter = !string.IsNullOrEmpty(filterSetId);
+            for (int i = 0; i < allCards.Count; i++)
+            {
+                var c = allCards[i];
+                if (hasSetFilter ? !string.Equals(c.SetId, filterSetId, StringComparison.OrdinalIgnoreCase) : (!format.Allows(c) && c.IsPlayable))
+                    continue;
+                if (!CardMatchesOwnership(c) || !CardMatchesCategory(c) || !CardMatchesStage(c) ||
+                    !CardMatchesHpBucket(c) || !CardMatchesTypeFilter(c) || !CardMatchesSearch(c, searchQuery))
+                    continue;
+                filteredCardsCache.Add(c);
+            }
+            return filteredCardsCache;
         }
 
         void CloseBuilder()
@@ -237,6 +344,8 @@ namespace TCGPlayKyn
             var missing = new List<string>();
             currentDeck.AddRange(deckDef.Resolve(missing));
             deckListPage = 0;
+            MarkDeckDirty();
+            catalogFilterDirty = true;
             if (missing.Count > 0)
                 statusMsg = "<color=#ffd166>Unknown cards ignored: " + string.Join(", ", missing) + "</color>";
         }
@@ -273,16 +382,18 @@ namespace TCGPlayKyn
                 deckDef.Format = format.Id;
                 deckDef.SetCards(currentDeck);
                 DeckStore.Save(deckDef);
+                InvalidateDeckSummaries();
                 deckNames = DeckStore.List();
-                var errors = DeckValidator.Validate(currentDeck, format);
-                if (errors.Count == 0)
+                MarkDeckDirty();
+                RefreshDeckStatsIfNeeded();
+                if (cachedDeckErrors.Count == 0)
                 {
                     DeckStore.SetActive(deckDef.Name);
                     statusMsg = $"<color=#66ff99>Deck '{deckDef.Name}' saved and set as active.</color>";
                 }
                 else
                 {
-                    statusMsg = $"<color=#ffd166>Deck '{deckDef.Name}' saved (incomplete): {errors[0]}</color>";
+                    statusMsg = $"<color=#ffd166>Deck '{deckDef.Name}' saved (incomplete): {cachedDeckErrors[0]}</color>";
                 }
             }
             catch (Exception e)
@@ -312,6 +423,7 @@ namespace TCGPlayKyn
                 DeckStore.Delete(oldName);
                 loaded.Name = trimmed;
                 DeckStore.Save(loaded);
+                InvalidateDeckSummaries();
                 if (wasActive) DeckStore.SetActive(trimmed);
                 if (wasEditing)
                 {
@@ -368,6 +480,7 @@ namespace TCGPlayKyn
 
             var cardToAdd = c.Clone(isFoil);
             currentDeck.Add(cardToAdd);
+            MarkDeckDirty();
             stage3D.SpawnAddFlight(sourceSlotIndex, cardToAdd);
             string foilTag = isFoil ? " <color=#ffe066>[Foil]</color>" : "";
             statusMsg = $"<color=#80ed99>+ Added:</color> {c.Name}{foilTag} ({currentDeck.Count}/{format.DeckSize})";
@@ -386,6 +499,7 @@ namespace TCGPlayKyn
             {
                 var removed = currentDeck[idx];
                 currentDeck.RemoveAt(idx);
+                MarkDeckDirty();
                 stage3D.SpawnRemoveFlight(removed);
                 string foilTag = removed.IsFoil ? " [Foil]" : "";
                 statusMsg = $"<color=#ffd166>- Removed:</color> {c.Name}{foilTag} ({currentDeck.Count}/{format.DeckSize})";
@@ -615,15 +729,7 @@ namespace TCGPlayKyn
             Rect rightPanelRect = new Rect(contentX + centerW + 10f, bodyY, rightPanelW, bodyH);
             lastDeckPedestalGuiRect = new Rect(rightPanelRect.x + 10f, rightPanelRect.y + 10f, 122f, 152f);
 
-            var filtered = CardDatabase.All.Where(c =>
-                (string.IsNullOrEmpty(filterSetId) ? (format.Allows(c) || !c.IsPlayable) : string.Equals(c.SetId, filterSetId, StringComparison.OrdinalIgnoreCase)) &&
-                CardMatchesOwnership(c) &&
-                CardMatchesCategory(c) &&
-                CardMatchesStage(c) &&
-                CardMatchesHpBucket(c) &&
-                CardMatchesTypeFilter(c) &&
-                CardMatchesSearch(c, searchQuery)
-            ).ToList();
+            var filtered = GetFilteredCatalog();
 
             lastTotalPages = Mathf.Max(1, Mathf.CeilToInt(filtered.Count / (float)DeckBuilderStage3D.PageSize));
             currentPage = Mathf.Clamp(currentPage, 0, lastTotalPages - 1);
@@ -940,10 +1046,10 @@ namespace TCGPlayKyn
             Rect summaryBox = new Rect(bx, by, bw, summaryH);
             ui.DrawNativeBox(summaryBox, GameUI.sSubPanelSprite, new Color(0.11f, 0.16f, 0.25f, 0.94f));
 
-            var errs = DeckValidator.Validate(currentDeck, format);
-            string validTxt = errs.Count == 0
+            RefreshDeckStatsIfNeeded();
+            string validTxt = cachedDeckErrors.Count == 0
                 ? "<color=#80ed99>Valid deck for play</color>"
-                : $"<color=#ffd166>{errs[0]}</color>";
+                : $"<color=#ffd166>{cachedDeckErrors[0]}</color>";
 
             ui.DrawNativeLabel(
                 new Rect(summaryBox.x + 10f, summaryBox.y + 10f, summaryBox.width - 20f, summaryBox.height - 20f),
@@ -966,6 +1072,12 @@ namespace TCGPlayKyn
         // ==================== M3: 'Decks' View ====================
         List<DeckSummaryInfo> BuildUserDeckSummaries()
         {
+            if (!deckSummariesDirty)
+                return deckSummariesCache;
+
+            deckSummariesDirty = false;
+            deckSummariesCache.Clear();
+
             deckNames = DeckStore.List();
             if (deckNames.Count == 0)
             {
@@ -973,7 +1085,6 @@ namespace TCGPlayKyn
                 deckNames = DeckStore.List();
             }
 
-            var list = new List<DeckSummaryInfo>(deckNames.Count);
             foreach (var name in deckNames)
             {
                 var d = DeckStore.Load(name);
@@ -996,7 +1107,7 @@ namespace TCGPlayKyn
                     .OrderByDescending(c => c.Hp)
                     .FirstOrDefault() ?? cards.FirstOrDefault();
 
-                list.Add(new DeckSummaryInfo
+                deckSummariesCache.Add(new DeckSummaryInfo
                 {
                     Def = d,
                     Cards = cards,
@@ -1005,7 +1116,7 @@ namespace TCGPlayKyn
                     CoverCard = cover
                 });
             }
-            return list;
+            return deckSummariesCache;
         }
 
         void DrawDecksView(GameUI ui, Rect area)
@@ -1024,6 +1135,7 @@ namespace TCGPlayKyn
                 GameUI.PlayClickSound(1);
                 var fresh = new DeckDef { Name = UniqueName("New Deck"), Format = format.Id };
                 DeckStore.Save(fresh);
+                InvalidateDeckSummaries();
                 LoadDeck(fresh);
                 inDecksView = false;
                 statusMsg = $"<color=#80ed99>Deck '{fresh.Name}' created. Add cards from the collection.</color>";
@@ -1321,6 +1433,7 @@ namespace TCGPlayKyn
                 GameUI.PlayClickSound(2);
                 string delName = info.Def.Name;
                 DeckStore.Delete(delName);
+                InvalidateDeckSummaries();
                 deckNames = DeckStore.List();
                 if (string.Equals(deckDef.Name, delName, StringComparison.OrdinalIgnoreCase))
                     LoadDeck(deckNames.Count > 0 ? DeckStore.Load(deckNames[0]) : null);
@@ -1667,6 +1780,14 @@ namespace TCGPlayKyn
         // ==================== M5: 3D Grid Overlay & Large xN Counter ====================
         void DrawCatalogOverlay(GameUI ui, Rect catalogOuterRect, int totalFiltered, int startIdx)
         {
+            string missingArt = CardDatabase.GetMissingArtNotice();
+            if (!string.IsNullOrEmpty(missingArt))
+            {
+                Rect warnBanner = new Rect(catalogOuterRect.x + 12f, catalogOuterRect.y + 4f, catalogOuterRect.width - 24f, 28f);
+                ui.DrawNativeBox(warnBanner, GameUI.sSubPanelSprite, new Color(0.24f, 0.16f, 0.04f, 0.94f));
+                ui.DrawNativeLabel(warnBanner, missingArt, 12.5f, TextAlignmentOptions.Center, new Color(1f, 0.88f, 0.50f, 1f), autoSize: true, minFontSize: 9.5f);
+            }
+
             if (totalFiltered == 0)
             {
                 Rect emptyBox = new Rect(catalogOuterRect.center.x - 260f, catalogOuterRect.center.y - 54f, 520f, 108f);
@@ -1695,7 +1816,7 @@ namespace TCGPlayKyn
                     if (s.Card == null) continue;
 
                     int owned = Collection.DisplayOwnedCount(s.Card);
-                    int inDeck = currentDeck.Count(x => x.Id == s.Card.Id);
+                    int inDeck = GetInDeckCount(s.Card.Id);
 
                     Rect countBadge = new Rect(s.TopRightGui.x - 54f, s.TopRightGui.y - 6f, 60f, 32f);
                     ui.DrawNativeBox(countBadge, GameUI.sPanelSprite, new Color(0.04f, 0.06f, 0.11f, 0.94f));
@@ -2057,12 +2178,12 @@ namespace TCGPlayKyn
                 40);
             sy += 38f;
 
-            int nBasic = currentDeck.Count(c => c.IsBasicPokemon);
-            int nEvo = currentDeck.Count(c => c.Supertype == Supertype.Pokemon && !c.IsBasicPokemon);
-            int nTr = currentDeck.Count(c => c.Supertype == Supertype.Trainer);
-            int nEn = currentDeck.Count(c => c.Supertype == Supertype.Energy);
-            var errs = DeckValidator.Validate(currentDeck, format);
-            string colorCount = errs.Count == 0 ? "#80ed99" : "#ffd166";
+            RefreshDeckStatsIfNeeded();
+            int nBasic = cachedDeckBasic;
+            int nEvo = cachedDeckEvo;
+            int nTr = cachedDeckTr;
+            int nEn = cachedDeckEn;
+            string colorCount = cachedDeckErrors.Count == 0 ? "#80ed99" : "#ffd166";
 
             // Full-width centered card count box
             Rect countBox = new Rect(sx, sy, sw, 78f);
@@ -2095,6 +2216,7 @@ namespace TCGPlayKyn
             {
                 GameUI.PlayClickSound(2);
                 currentDeck.Clear();
+                MarkDeckDirty();
                 statusMsg = "Deck cleared.";
             }
 
@@ -2340,6 +2462,7 @@ namespace TCGPlayKyn
                     GameUI.PlayClickSound(1);
                     var d = td.ToDeckDef(UniqueName($"{td.Name} ({td.SetName})"));
                     DeckStore.Save(d);
+                    InvalidateDeckSummaries();
                     deckNames = DeckStore.List();
                     LoadDeck(d);
                     if (DeckValidator.Validate(currentDeck, format).Count == 0)
@@ -2620,6 +2743,8 @@ namespace TCGPlayKyn
             deckNameEdit = deckDef.Name;
             deckDef.SetCards(currentDeck);
             DeckStore.Save(deckDef);
+            InvalidateDeckSummaries();
+            MarkDeckDirty();
             deckNames = DeckStore.List();
 
             int miss = lastImportReport.MissingOrUnavailable.Sum(x => x.Missing);
@@ -2639,6 +2764,8 @@ namespace TCGPlayKyn
             deckNameEdit = deckDef.Name;
             deckDef.SetCards(currentDeck);
             DeckStore.Save(deckDef);
+            InvalidateDeckSummaries();
+            MarkDeckDirty();
             deckNames = DeckStore.List();
 
             int miss = lastImportReport.MissingOrUnavailable.Sum(x => x.Missing);
@@ -2662,6 +2789,7 @@ namespace TCGPlayKyn
             }
             currentDeck.Clear();
             currentDeck.AddRange(valid);
+            MarkDeckDirty();
             statusMsg = removed > 0
                 ? $"<color=#80ed99>Removed {removed} cards exceeding your collection or limits ({currentDeck.Count}/{format.DeckSize}).</color>"
                 : "All current deck cards are in your collection.";
@@ -2728,6 +2856,7 @@ namespace TCGPlayKyn
                     currentDeck.Add(en);
                 eIdx++;
             }
+            MarkDeckDirty();
 
             if (currentDeck.Count == format.DeckSize && currentDeck.Any(c => c.IsBasicPokemon))
                 statusMsg = "<color=#80ed99>Deck filled to 60 cards from your collection. Press 'Save Deck'.</color>";

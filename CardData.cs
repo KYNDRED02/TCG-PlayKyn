@@ -320,6 +320,18 @@ namespace TCGPlayKyn
         /// <summary>Sprite -> ruta del bundle de MyCurio (para pedirlo a EPL).</summary>
         public static readonly Dictionary<string, string> SpriteBundle = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        public static bool HasArtworkProvider => MyCurioIndex.Expansions.Count > 0 && EplBridge.IsPluginPresent;
+
+        /// <summary>Devuelve un aviso legible si faltan sets de MyCurio o EPL para mostrar las cartas.</summary>
+        public static string GetMissingArtNotice()
+        {
+            if (!EplBridge.IsPluginPresent)
+                return "EnhancedPrefabLoader.API is not installed — card artwork and binder sync are disabled until installed.";
+            if (MyCurioIndex.Expansions.Count == 0)
+                return "No MyCurio Pokémon sets detected — you can still access the Builder and Play Table, but card artwork will not appear until MyCurio sets are installed.";
+            return null;
+        }
+
         public static SetDef GetSet(string id) => Sets.FirstOrDefault(s => string.Equals(s.Id, id, StringComparison.OrdinalIgnoreCase));
 
         public static void Load(string dataDir, string pluginsDir)

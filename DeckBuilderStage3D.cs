@@ -442,6 +442,7 @@ namespace TCGPlayKyn
                 if (cv != null)
                 {
                     cv.HandIndex = i;
+                    cv.SetShadowEnabled(false);
                     cv.SetRaycastEnabled(true);
                     cv.SetHighlight(false, Color.clear);
                     spawnedSlots[i] = cv;
@@ -573,6 +574,7 @@ namespace TCGPlayKyn
                 var fcv = cardPool.Spawn(stageRoot.transform, pos, fl.Card, false, sc, false, yaw, pitch);
                 if (fcv != null)
                 {
+                    fcv.SetShadowEnabled(false);
                     fcv.SetRaycastEnabled(false);
                     fcv.SetHighlight(false, Color.clear);
                 }

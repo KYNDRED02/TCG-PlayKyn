@@ -81,6 +81,16 @@ namespace TCGPlayKyn
         CardFlight currentFlight;
         float aiTurnDelay;
 
+        class PokemonHpAnimState
+        {
+            public float DisplayHp;
+            public float BenchBarAlpha;
+            public bool WasDamagedOnBench;
+        }
+        readonly Dictionary<PokemonInPlay, PokemonHpAnimState> hpAnimStates = new Dictionary<PokemonInPlay, PokemonHpAnimState>();
+        readonly List<PokemonInPlay> activatablePowersBuffer = new List<PokemonInPlay>(6);
+        static TextMeshProUGUI sCachedRefTmp;
+
         // Geometría actual del tapete en pantalla (calculada cada frame en OnGUI)
         Rect playmatRect;
         float slotW, slotH;
@@ -221,6 +231,7 @@ namespace TCGPlayKyn
             BoardAnimator.Instance?.Clear();
             TableView.Instance?.ResetStatusTracking();
             StatusCounters3D.ActivePopups.Clear();
+            hpAnimStates.Clear();
         }
 
         void LeaveTable()
@@ -242,6 +253,7 @@ namespace TCGPlayKyn
             BoardAnimator.Instance?.Clear();
             TableView.Instance?.ResetStatusTracking();
             StatusCounters3D.ActivePopups.Clear();
+            hpAnimStates.Clear();
             PlayTableSession.StandUp(finished, won);
         }
 
@@ -660,8 +672,10 @@ namespace TCGPlayKyn
 
         // ==================== Estilos Oficiales (Estilo TCG Card Shop Simulator) ====================
         public static GUIStyle BoxBgStyle, SubBoxStyle, InputFieldStyle, HeaderStyle, SubHeaderStyle, CardLabelStyle, ZoomTextStyle,
-                               BtnStyle, BtnGreenStyle, BtnGoldStyle, BtnRedStyle, ToastStyle, BadgeStyle, DurationBadgeStyle, FloatingPopupStyle;
-        static Texture2D darkTex, panelTex, subPanelTex, inputTex, highlightTex, zoomBgTex, hpBgTex, hpFillTex, hpMidTex, hpLowTex, sleepTex, confTex, paraTex, poisTex, defTex, plusTex, countTex;
+                               BtnStyle, BtnGreenStyle, BtnGoldStyle, BtnRedStyle, ToastStyle, BadgeStyle, DurationBadgeStyle, FloatingPopupStyle,
+                               ActionHeaderStyle, AtkBtnStyle, HpTrackStyle, HpFillStyle, HpValueStyle;
+        static Texture2D darkTex, panelTex, subPanelTex, inputTex, highlightTex, zoomBgTex, hpBgTex, hpFillTex, hpMidTex, hpLowTex,
+                         hpTrackPillTex, hpWhitePillTex, sleepTex, confTex, paraTex, poisTex, defTex, plusTex, countTex;
         static Texture2D btnBlueN, btnBlueH, btnBlueA, btnGreenN, btnGreenH, btnGreenA, btnGoldN, btnGoldH, btnGoldA, btnRedN, btnRedH, btnRedA, btnDis;
 
         public static void PlayClickSound(int kind = 0)
@@ -719,12 +733,14 @@ namespace TCGPlayKyn
 
                 btnDis = MakeGameButtonTex(new Color(0.22f, 0.27f, 0.35f), new Color(0.18f, 0.22f, 0.29f), new Color(0.32f, 0.38f, 0.48f), new Color(0.10f, 0.13f, 0.18f), false);
 
-                highlightTex = MakeTex(new Color(0.98f, 0.82f, 0.20f, 0.95f));
+                highlightTex = MakeTex(new Color(0.14f, 0.92f, 0.72f, 0.95f));
                 zoomBgTex = MakeTex(new Color(0.02f, 0.03f, 0.06f, 0.84f));
                 hpBgTex = MakeTex(new Color(0.15f, 0.05f, 0.05f, 0.90f));
                 hpFillTex = MakeTex(new Color(0.18f, 0.85f, 0.38f, 0.95f));
                 hpMidTex = MakeTex(new Color(0.95f, 0.74f, 0.14f, 0.96f));
                 hpLowTex = MakeTex(new Color(0.92f, 0.22f, 0.20f, 0.96f));
+                hpTrackPillTex = MakeSolidPillTex(24, 24, 6f, new Color(0.24f, 0.27f, 0.32f, 0.66f), new Color(0.06f, 0.08f, 0.11f, 0.55f));
+                hpWhitePillTex = MakeSolidPillTex(24, 24, 6f, Color.white, new Color(0.92f, 0.92f, 0.92f, 0.85f));
                 sleepTex = MakeTex(new Color(0.20f, 0.48f, 0.92f, 0.95f));
                 confTex = MakeTex(new Color(0.92f, 0.55f, 0.12f, 0.95f));
                 paraTex = MakeTex(new Color(0.90f, 0.76f, 0.10f, 0.95f));
@@ -772,7 +788,66 @@ namespace TCGPlayKyn
                 BadgeStyle = new GUIStyle(GUI.skin.box) { fontSize = 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white } };
                 DurationBadgeStyle = new GUIStyle(GUI.skin.box) { fontSize = 10, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, normal = { textColor = Color.white, background = countTex } };
                 FloatingPopupStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, richText = true, normal = { textColor = Color.white } };
+
+                ActionHeaderStyle = new GUIStyle(HeaderStyle)
+                {
+                    fontSize = 16,
+                    alignment = TextAnchor.MiddleCenter,
+                    wordWrap = true,
+                    padding = new RectOffset(4, 4, 2, 2)
+                };
+                AtkBtnStyle = new GUIStyle(BtnGoldStyle)
+                {
+                    padding = new RectOffset(32, 10, 5, 7),
+                    alignment = TextAnchor.MiddleLeft
+                };
+                HpTrackStyle = new GUIStyle(GUI.skin.box)
+                {
+                    border = new RectOffset(6, 6, 6, 6),
+                    padding = new RectOffset(0, 0, 0, 0),
+                    margin = new RectOffset(0, 0, 0, 0),
+                    normal = { background = hpTrackPillTex }
+                };
+                HpFillStyle = new GUIStyle(GUI.skin.box)
+                {
+                    border = new RectOffset(6, 6, 6, 6),
+                    padding = new RectOffset(0, 0, 0, 0),
+                    margin = new RectOffset(0, 0, 0, 0),
+                    normal = { background = hpWhitePillTex }
+                };
+                HpValueStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 13,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter,
+                    normal = { textColor = Color.white }
+                };
             }
+        }
+
+        static Texture2D MakeSolidPillTex(int w, int h, float radius, Color fillCol, Color borderCol)
+        {
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    float dist = RoundedRectDist(x, y, w, h, radius);
+                    if (dist > 0.7f)
+                    {
+                        tex.SetPixel(x, y, Color.clear);
+                        continue;
+                    }
+                    float aa = Mathf.Clamp01(0.7f - dist);
+                    Color c = dist > -1.35f ? borderCol : fillCol;
+                    c.a *= aa;
+                    tex.SetPixel(x, y, c);
+                }
+            }
+            tex.Apply();
+            return tex;
         }
 
         static GUIStyle MakeButtonStyle(Texture2D normal, Texture2D hover, Texture2D active)
@@ -1193,39 +1268,117 @@ namespace TCGPlayKyn
                 else if (btn == 1) StartZoom(pip.Card, pip, rect);
             }
 
-            // Orbes limpios de energías unidas alineados sobre la barra de PS
-            if (eCount > 0)
+            // 2.b En modo 3D las barras de PS, texto e iconos de energía viven en el tapete 3D (BoardHud3D),
+            // para que cualquier carta que vuele por encima, se arrastre o haga zoom las cubra naturalmente.
+            if (!has3D)
             {
-                float orbSize = 16f;
-                float step = eCount > 5 ? Mathf.Max(9f, (rect.width - 10f - orbSize) / (eCount - 1)) : 17f;
-                for (int i = 0; i < eCount; i++)
+                int maxHp = Mathf.Max(1, pip.Card.Hp);
+                if (!hpAnimStates.TryGetValue(pip, out var hpState))
                 {
-                    Rect orbRect = new Rect(rect.x + 3f + i * step, rect.yMax - 35f, orbSize, orbSize);
-                    DrawEnergyOrb(orbRect, pip.Energy[i].EnergyProvides, guiAlpha);
+                    hpState = new PokemonHpAnimState
+                    {
+                        DisplayHp = pip.RemainingHp,
+                        BenchBarAlpha = (!isActive && pip.RemainingHp < maxHp) ? 1f : 0f,
+                        WasDamagedOnBench = pip.RemainingHp < maxHp
+                    };
+                    hpAnimStates[pip] = hpState;
                 }
-            }
+                if (Event.current.type == EventType.Repaint)
+                {
+                    float dt = Mathf.Min(0.05f, Time.unscaledDeltaTime);
+                    float animSpeed = Mathf.Max(42f, maxHp * 1.15f);
+                    hpState.DisplayHp = Mathf.MoveTowards(hpState.DisplayHp, pip.RemainingHp, dt * animSpeed);
 
-            // 3. Barra de PS dinámica (Verde -> Ámbar -> Roja pulsante) + Píldora de Daño Total (-Dmg)
-            float hpRatio = Mathf.Clamp01(pip.RemainingHp / (float)Math.Max(1, pip.Card.Hp));
-            Texture2D barFill = hpRatio > 0.50f ? hpFillTex : (hpRatio > 0.25f ? hpMidTex : hpLowTex);
-            Rect hpBar = new Rect(rect.x + 2f, rect.yMax - 17f, rect.width - 4f, 16f);
-            GUI.DrawTexture(hpBar, hpBgTex);
+                    if (isActive)
+                    {
+                        if (pip.RemainingHp < maxHp || hpState.DisplayHp < maxHp - 0.05f)
+                        {
+                            hpState.WasDamagedOnBench = true;
+                            hpState.BenchBarAlpha = 1f;
+                        }
+                        else
+                        {
+                            hpState.WasDamagedOnBench = false;
+                            hpState.BenchBarAlpha = 0f;
+                        }
+                    }
+                    else
+                    {
+                        if (pip.RemainingHp < maxHp || hpState.DisplayHp < maxHp - 0.05f)
+                        {
+                            hpState.WasDamagedOnBench = true;
+                            hpState.BenchBarAlpha = Mathf.MoveTowards(hpState.BenchBarAlpha, 1f, dt * 6f);
+                        }
+                        else if (hpState.WasDamagedOnBench)
+                        {
+                            hpState.BenchBarAlpha = Mathf.MoveTowards(hpState.BenchBarAlpha, 0f, dt * 1.35f);
+                            if (hpState.BenchBarAlpha <= 0.005f)
+                            {
+                                hpState.BenchBarAlpha = 0f;
+                                hpState.WasDamagedOnBench = false;
+                            }
+                        }
+                    }
+                }
 
-            Color prevCol = GUI.color;
-            if (hpRatio <= 0.25f)
-            {
-                float urgentPulse = 0.78f + 0.22f * Mathf.Sin(Time.time * 7.5f);
-                GUI.color = new Color(1f, urgentPulse, urgentPulse, guiAlpha);
-            }
-            GUI.DrawTexture(new Rect(hpBar.x, hpBar.y, hpBar.width * hpRatio, hpBar.height), barFill);
-            GUI.color = prevCol;
+                float hpRatio = Mathf.Clamp01(hpState.DisplayHp / maxHp);
+                Color hpColor = GetHpThresholdColor(hpRatio);
 
-            GUI.Label(hpBar, $"<b>{pip.RemainingHp}/{pip.Card.Hp} HP</b>", CardLabelStyle);
+                if (isActive)
+                {
+                    bool rightSide = (owner == Me);
+                    float barW = Mathf.Clamp(rect.width * 0.13f, 14f, 18f);
+                    float barH = Mathf.Clamp(rect.height * 0.78f, 68f, 126f);
+                    float cardGap = Mathf.Max(18f, rect.width * 0.17f);
+                    float barX = rightSide ? (rect.xMax + cardGap) : (rect.x - barW - cardGap);
+                    float barY = rect.yMax - barH - 2f;
+                    Rect barRect = new Rect(barX, barY, barW, barH);
 
-            if (pip.Damage > 0)
-            {
-                Rect dmgPill = new Rect(rect.xMax - 36f, rect.yMax - 35f, 34f, 16f);
-                GUI.Box(dmgPill, $"-{pip.Damage}", DurationBadgeStyle);
+                    DrawVerticalHpBar(barRect, hpRatio, hpColor, guiAlpha);
+
+                    int dispHpInt = Mathf.Clamp(Mathf.RoundToInt(hpState.DisplayHp), 0, maxHp);
+                    float labelW = 76f;
+                    float labelX = rightSide
+                        ? Mathf.Max(rect.xMax + 8f, barRect.center.x - labelW * 0.5f)
+                        : Mathf.Min(rect.x - labelW - 8f, barRect.center.x - labelW * 0.5f);
+                    Rect hpLabelRect = new Rect(labelX, barRect.y - 23f, labelW, 20f);
+                    DrawOutlinedLabel(hpLabelRect, $"{dispHpInt} / {maxHp}", HpValueStyle, guiAlpha);
+
+                    if (eCount > 0)
+                    {
+                        float iconSize = Mathf.Clamp(rect.width * 0.16f, 16f, 22f);
+                        float rowStep = iconSize + 2f;
+                        int maxRowsPerCol = Mathf.Max(3, Mathf.FloorToInt((barH + 2f) / rowStep));
+                        Color prevGui = GUI.color;
+                        GUI.color = new Color(1f, 1f, 1f, guiAlpha);
+                        for (int i = 0; i < eCount; i++)
+                        {
+                            int col = i / maxRowsPerCol;
+                            int row = i % maxRowsPerCol;
+                            float ix = rightSide
+                                ? (barRect.xMax + 8f + col * (iconSize + 3f))
+                                : (barRect.x - 8f - iconSize - col * (iconSize + 3f));
+                            float iy = barRect.y + row * rowStep;
+                            Rect iconRect = new Rect(ix, iy, iconSize, iconSize);
+                            string eType = pip.Energy[i].EnergyProvides;
+                            Texture2D eTex = SpriteCache.GetTypeIcon(eType);
+                            if (eTex != null)
+                                GUI.DrawTexture(iconRect, eTex, ScaleMode.ScaleToFit, true);
+                            else
+                                DrawEnergyOrb(iconRect, eType, guiAlpha);
+                        }
+                        GUI.color = prevGui;
+                    }
+                }
+                else if (hpState.BenchBarAlpha > 0.01f)
+                {
+                    float barAlpha = guiAlpha * hpState.BenchBarAlpha;
+                    float bw = Mathf.Clamp(rect.width * 0.94f, 52f, 118f);
+                    float bh = 10f;
+                    float bx = rect.center.x - bw * 0.5f;
+                    float by = Mathf.Min(Screen.height - bh - 4f, rect.yMax + 8f);
+                    DrawHorizontalHpBar(new Rect(bx, by, bw, bh), hpRatio, hpColor, barAlpha);
+                }
             }
 
             // 4. Iconos de Estados Alterados animados con pulso + contador de turnos encima
@@ -1260,6 +1413,88 @@ namespace TCGPlayKyn
                 int bonusStacks = pip.PlusPower > 1 ? pip.PlusPower : 0;
                 DrawStatusIcon(new Rect(iconX, iconY, 30f, 24f), "+10", plusTex, bonusStacks, phase);
             }
+        }
+
+        static Color GetHpThresholdColor(float hpRatio)
+        {
+            // 100% a 75% verde, 74% a 35% amarillo, <35% rojo
+            if (hpRatio >= 0.75f) return new Color(0.18f, 0.80f, 0.34f, 1f);
+            if (hpRatio >= 0.35f) return new Color(0.98f, 0.84f, 0.08f, 1f);
+            return new Color(0.95f, 0.16f, 0.15f, 1f);
+        }
+
+        static void DrawVerticalHpBar(Rect barRect, float ratio, Color fillColor, float alpha)
+        {
+            Color prevCol = GUI.color;
+            Color prevBg = GUI.backgroundColor;
+
+            GUI.backgroundColor = Color.white;
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.Box(barRect, GUIContent.none, HpTrackStyle);
+
+            float fillH = ratio > 0.001f ? Mathf.Clamp(barRect.height * ratio, 5f, barRect.height) : 0f;
+            if (fillH > 0.5f)
+            {
+                Rect clipRect = new Rect(barRect.x, barRect.yMax - fillH, barRect.width, fillH);
+                GUI.BeginGroup(clipRect);
+                GUI.backgroundColor = new Color(fillColor.r, fillColor.g, fillColor.b, 1f);
+                GUI.color = new Color(1f, 1f, 1f, alpha);
+                GUI.Box(new Rect(0f, -(barRect.height - fillH), barRect.width, barRect.height), GUIContent.none, HpFillStyle);
+                GUI.EndGroup();
+            }
+
+            GUI.backgroundColor = prevBg;
+            GUI.color = prevCol;
+        }
+
+        static void DrawHorizontalHpBar(Rect barRect, float ratio, Color fillColor, float alpha)
+        {
+            Color prevCol = GUI.color;
+            Color prevBg = GUI.backgroundColor;
+
+            GUI.backgroundColor = Color.white;
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.Box(barRect, GUIContent.none, HpTrackStyle);
+
+            float fillW = ratio > 0.001f ? Mathf.Clamp(barRect.width * ratio, 5f, barRect.width) : 0f;
+            if (fillW > 0.5f)
+            {
+                Rect clipRect = new Rect(barRect.x, barRect.y, fillW, barRect.height);
+                GUI.BeginGroup(clipRect);
+                GUI.backgroundColor = new Color(fillColor.r, fillColor.g, fillColor.b, 1f);
+                GUI.color = new Color(1f, 1f, 1f, alpha);
+                GUI.Box(new Rect(0f, 0f, barRect.width, barRect.height), GUIContent.none, HpFillStyle);
+                GUI.EndGroup();
+            }
+
+            GUI.backgroundColor = prevBg;
+            GUI.color = prevCol;
+        }
+
+        static void DrawOutlinedLabel(Rect rect, string text, GUIStyle style, float alpha)
+        {
+            Color prev = GUI.color;
+            GUI.color = new Color(0f, 0f, 0f, 0.85f * alpha);
+            GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, style);
+            GUI.Label(new Rect(rect.x - 1f, rect.y + 1f, rect.width, rect.height), text, style);
+            GUI.color = new Color(1f, 1f, 1f, alpha);
+            GUI.Label(rect, text, style);
+            GUI.color = prev;
+        }
+
+        static string GetPrimaryAttackEnergyType(AttackDef atk, string fallbackCardType)
+        {
+            if (atk?.Cost != null && atk.Cost.Count > 0)
+            {
+                for (int i = 0; i < atk.Cost.Count; i++)
+                {
+                    string c = atk.Cost[i];
+                    if (!string.IsNullOrEmpty(c) && !string.Equals(c, "Colorless", StringComparison.OrdinalIgnoreCase))
+                        return c;
+                }
+                return atk.Cost[0];
+            }
+            return string.IsNullOrEmpty(fallbackCardType) ? "Colorless" : fallbackCardType;
         }
 
         void DrawStatusIcon(Rect iconRect, string symbol, Texture2D bg, int remainingTurns, float phaseOffset = 0f)
@@ -1374,63 +1609,121 @@ namespace TCGPlayKyn
             if (TableView.Instance != null && TableView.Instance.IsPokedexActive)
                 return;
 
-            // Panel de acciones compacto anclado al borde derecho de la pantalla para no invadir la mesa ni el abanico 3D
+            // Panel de acciones anclado debajo del contador de dinero de la tienda ($), con márgenes interiores simétricos
             float panelW = 248f;
-            Rect rightPanel = new Rect(Screen.width - panelW - 14f, 46f, panelW, Screen.height - 96f);
+            float panelTopY = 104f;
+            float maxPanelH = Mathf.Max(140f, Screen.height - panelTopY - 44f);
+            Rect rightPanel = new Rect(Screen.width - panelW - 14f, panelTopY, panelW, maxPanelH);
             GUILayout.BeginArea(rightPanel);
 
-            if (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me)
+            if (game.Phase == Phase.Setup && !Me.SetupDone && !game.PlayerManualMulliganUsed && !IsAnimBusy())
             {
-                GUI.Box(new Rect(0, 0, panelW, 95f), "", BoxBgStyle);
+                float setupH = 124f;
+                GUI.Box(new Rect(0, 0, panelW, setupH), "", BoxBgStyle);
+                GUILayout.BeginArea(new Rect(12f, 10f, panelW - 24f, setupH - 20f));
+                GUILayout.Label($"<b>{Loc.T("Acciones", "Actions")}</b>", ActionHeaderStyle);
+                GUILayout.Space(4);
+                GUILayout.Label(Loc.T(
+                    "<color=#cde3ff>Coloca tu Básico Activo o baraja de nuevo:</color>",
+                    "<color=#cde3ff>Place your Active Basic or redraw your opening hand:</color>"), SubHeaderStyle);
+                GUILayout.Space(6);
+                if (GUILayout.Button(Loc.T("Mulligan", "Mulligan"), BtnGoldStyle, GUILayout.Height(35)))
+                {
+                    PlayClickSound(1);
+                    selHand = -1;
+                    Report(game.ManualPlayerMulligan());
+                }
+                GUILayout.EndArea();
+            }
+            else if (game.Phase == Phase.ChoosePromotion && game.PromotionPending == Me)
+            {
+                float promoH = 98f;
+                GUI.Box(new Rect(0, 0, panelW, promoH), "", BoxBgStyle);
+                GUILayout.BeginArea(new Rect(12f, 10f, panelW - 24f, promoH - 20f));
                 GUILayout.Label(Loc.T(
                     "<color=#ffd166><b>Tu Pokémon Activo cayó:</b>\nHaz clic izquierdo en un Pokémon de tu Banca para enviarlo al Campo de Batalla.</color>",
                     "<color=#ffd166><b>Your Active Pokémon was Knocked Out:</b>\nLeft-click a Benched Pokémon to promote it to the Active spot.</color>"), SubHeaderStyle);
+                GUILayout.EndArea();
             }
             else if (game.Phase == Phase.Main && game.Current == Me && Me.Active != null && !IsAnimBusy())
             {
-                float extraPowersHeight = Me.InPlay.Count(p => {
-                    var pow = p.Card.Power ?? p.Card.Abilities.FirstOrDefault();
-                    return pow != null && game.IsActivatedPower(pow.Name);
-                }) * 36f;
-                float panelH = Mathf.Min(Screen.height - 96f, 315f + extraPowersHeight);
+                var a = Me.Active;
+                activatablePowersBuffer.Clear();
+                foreach (var pInPlay in Me.InPlay)
+                {
+                    var pow = pInPlay.Card.Power ?? (pInPlay.Card.Abilities.Count > 0 ? pInPlay.Card.Abilities[0] : null);
+                    if (pow != null && game.IsActivatedPower(pow.Name))
+                        activatablePowersBuffer.Add(pInPlay);
+                }
+
+                bool showPlayBasic = false;
+                bool showPlayTrainer = false;
+                if (selHand >= 0 && selHand < Me.Hand.Count)
+                {
+                    var selC = Me.Hand[selHand];
+                    showPlayBasic = selC.IsBasicPokemon;
+                    showPlayTrainer = selC.Supertype == Supertype.Trainer;
+                }
+
+                float titleH = Mathf.Max(26f, ActionHeaderStyle.CalcHeight(new GUIContent($"<b>{Loc.T("Acciones", "Actions")} — {a.Card.Name}</b>"), panelW - 24f));
+                float contentH = 22f + titleH + 8f
+                                 + a.Card.Attacks.Count * 39f
+                                 + activatablePowersBuffer.Count * 36f
+                                 + 37f
+                                 + (showPlayBasic ? 37f : 0f)
+                                 + (showPlayTrainer ? 37f : 0f)
+                                 + 8f + 36f;
+                float panelH = Mathf.Min(maxPanelH, contentH);
+
                 GUI.Box(new Rect(0, 0, panelW, panelH), "", BoxBgStyle);
-                GUILayout.BeginVertical(GUILayout.Width(panelW - 10f));
-                GUILayout.Space(6);
-                GUILayout.Label($"<b>{Loc.T("Acciones", "Actions")} — {Me.Active.Card.Name}</b>", HeaderStyle);
+                GUILayout.BeginArea(new Rect(12f, 10f, panelW - 24f, panelH - 20f));
+                GUILayout.Label($"<b>{Loc.T("Acciones", "Actions")} — {a.Card.Name}</b>", ActionHeaderStyle);
                 GUILayout.Space(6);
 
-                var a = Me.Active;
                 for (int i = 0; i < a.Card.Attacks.Count; i++)
                 {
                     var atk = a.Card.Attacks[i];
-                    GUI.enabled = a.CanPay(atk.Cost);
-                    if (GUILayout.Button($"⚔ {atk.Name} ({atk.BaseDamage}{atk.DamageSuffix})", BtnGoldStyle, GUILayout.Height(35)))
+                    bool canPay = a.CanPay(atk.Cost);
+                    GUI.enabled = canPay;
+                    if (GUILayout.Button($"{atk.Name} ({atk.BaseDamage}{atk.DamageSuffix})", AtkBtnStyle, GUILayout.Height(35)))
                     {
                         PlayClickSound(1);
                         Report(game.Attack(Me, i));
+                    }
+                    Rect btnRect = GUILayoutUtility.GetLastRect();
+                    if (Event.current.type == EventType.Repaint)
+                    {
+                        string atkType = GetPrimaryAttackEnergyType(atk, a.Card.Type);
+                        Texture2D atkIcon = SpriteCache.GetTypeIcon(atkType);
+                        if (atkIcon != null)
+                        {
+                            Color prev = GUI.color;
+                            GUI.color = new Color(1f, 1f, 1f, canPay ? 1f : 0.45f);
+                            GUI.DrawTexture(new Rect(btnRect.x + 8f, btnRect.center.y - 9f, 18f, 18f), atkIcon, ScaleMode.ScaleToFit, true);
+                            GUI.color = prev;
+                        }
                     }
                     GUI.enabled = true;
                     GUILayout.Space(4);
                 }
 
                 // Habilidades Pokémon activables en juego (Activo y Banca)
-                foreach (var pInPlay in Me.InPlay)
+                for (int pi = 0; pi < activatablePowersBuffer.Count; pi++)
                 {
-                    var pow = pInPlay.Card.Power ?? pInPlay.Card.Abilities.FirstOrDefault();
-                    if (pow != null && game.IsActivatedPower(pow.Name))
+                    var pInPlay = activatablePowersBuffer[pi];
+                    var pow = pInPlay.Card.Power ?? (pInPlay.Card.Abilities.Count > 0 ? pInPlay.Card.Abilities[0] : null);
+                    if (pow == null) continue;
+                    bool used = pInPlay.PowersUsedThisTurn.Contains(pow.Name);
+                    bool dis = game.IsPowerDisabled(pInPlay);
+                    GUI.enabled = !used && !dis && !IsAnimBusy();
+                    string pBtnText = $"{pow.Name}" + (pInPlay != a ? $" ({pInPlay.Card.Name})" : "");
+                    if (GUILayout.Button(pBtnText, BtnGoldStyle, GUILayout.Height(32)))
                     {
-                        bool used = pInPlay.PowersUsedThisTurn.Contains(pow.Name);
-                        bool dis = game.IsPowerDisabled(pInPlay);
-                        GUI.enabled = !used && !dis && !IsAnimBusy();
-                        string pBtnText = $"★ {pow.Name}" + (pInPlay != a ? $" ({pInPlay.Card.Name})" : "");
-                        if (GUILayout.Button(pBtnText, BtnGoldStyle, GUILayout.Height(32)))
-                        {
-                            PlayClickSound(1);
-                            Report(game.UsePokemonPower(Me, pInPlay));
-                        }
-                        GUI.enabled = true;
-                        GUILayout.Space(4);
+                        PlayClickSound(1);
+                        Report(game.UsePokemonPower(Me, pInPlay));
                     }
+                    GUI.enabled = true;
+                    GUILayout.Space(4);
                 }
 
                 if (GUILayout.Button(retreatMode ? Loc.T("Cancelar Retirada", "Cancel Retreat") : $"{Loc.T("Retirarse (Coste:", "Retreat (Cost:")} {a.Card.RetreatCost})", retreatMode ? BtnRedStyle : BtnStyle, GUILayout.Height(33)))
@@ -1440,19 +1733,15 @@ namespace TCGPlayKyn
                 }
                 GUILayout.Space(4);
 
-                if (selHand >= 0 && selHand < Me.Hand.Count)
+                if (showPlayBasic && GUILayout.Button(Loc.T("Bajar a la Banca", "Play to Bench"), BtnGreenStyle, GUILayout.Height(33)))
                 {
-                    var c = Me.Hand[selHand];
-                    if (c.IsBasicPokemon && GUILayout.Button(Loc.T("Bajar a la Banca", "Play to Bench"), BtnGreenStyle, GUILayout.Height(33)))
-                    {
-                        PlayClickSound(1);
-                        Report(game.PlayBasic(Me, selHand));
-                    }
-                    if (c.Supertype == Supertype.Trainer && GUILayout.Button(Loc.T("Usar Entrenador", "Play Trainer"), BtnGreenStyle, GUILayout.Height(33)))
-                    {
-                        PlayClickSound(1);
-                        Report(game.PlayTrainer(Me, selHand, null));
-                    }
+                    PlayClickSound(1);
+                    Report(game.PlayBasic(Me, selHand));
+                }
+                if (showPlayTrainer && GUILayout.Button(Loc.T("Usar Entrenador", "Play Trainer"), BtnGreenStyle, GUILayout.Height(33)))
+                {
+                    PlayClickSound(1);
+                    Report(game.PlayTrainer(Me, selHand, null));
                 }
 
                 GUILayout.Space(8);
@@ -1461,7 +1750,7 @@ namespace TCGPlayKyn
                     PlayClickSound(1);
                     Report(game.EndTurn());
                 }
-                GUILayout.EndVertical();
+                GUILayout.EndArea();
             }
 
             GUILayout.EndArea();
@@ -1714,6 +2003,9 @@ namespace TCGPlayKyn
 
         static TextMeshProUGUI GetReferenceGameTmp()
         {
+            if (sCachedRefTmp != null && sCachedRefTmp.gameObject != null)
+                return sCachedRefTmp;
+
             try
             {
                 GameUIScreen gui = CSingleton<GameUIScreen>.InstanceExist()
@@ -1721,9 +2013,8 @@ namespace TCGPlayKyn
                     : FindFirstObjectByType<GameUIScreen>();
                 if (gui != null)
                 {
-                    if (gui.m_GoNextDayText != null) return gui.m_GoNextDayText;
-                    if (gui.m_TimeText != null) return gui.m_TimeText;
-                    if (gui.m_ShopLevelText != null) return gui.m_ShopLevelText;
+                    sCachedRefTmp = gui.m_GoNextDayText ?? gui.m_TimeText ?? gui.m_ShopLevelText;
+                    if (sCachedRefTmp != null) return sCachedRefTmp;
                 }
             }
             catch { }

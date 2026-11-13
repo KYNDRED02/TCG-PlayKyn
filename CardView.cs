@@ -45,10 +45,19 @@ namespace TCGPlayKyn
 
         static Mesh sQuadMesh;
         static Mesh sCubeMesh;
+        static Mesh sRoundedQuadMesh;
+        static Mesh sRoundedCoreMesh;
         static Material sCoreMat;
         static Material sShadowMat;
         static Texture2D sShadowTex;
         static Texture2D sFallbackFrontTex;
+        static Texture2D sFallbackBackTex;
+        static Shader sShaderSprites;
+        static Shader sShaderCutout;
+        static Shader sShaderUnlitColor;
+        static Shader sShaderUnlitTex;
+        static Shader sShaderStandard;
+        static readonly Dictionary<Color32, Texture2D> sSolidTexCache = new Dictionary<Color32, Texture2D>();
 
         public static void EnsureSharedResources()
         {
@@ -63,6 +72,16 @@ namespace TCGPlayKyn
                 var c = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 sCubeMesh = c.GetComponent<MeshFilter>().sharedMesh;
                 DestroyImmediate(c);
+            }
+            if (sRoundedQuadMesh == null)
+            {
+                // Quad unitario (-0.5..0.5) con esquinas redondeadas estándar TCG para recortar píxeles residuales
+                sRoundedQuadMesh = BuildRoundedCardQuadMesh(0.042f, 0.030f, 10);
+            }
+            if (sRoundedCoreMesh == null)
+            {
+                // Núcleo 3D redondeado a juego con la cara frontal/trasera
+                sRoundedCoreMesh = BuildRoundedCardCoreMesh(0.042f, 0.030f, 10);
             }
             if (sCoreMat == null)
             {
@@ -105,15 +124,15 @@ namespace TCGPlayKyn
             shadowRenderer.sharedMaterial = sShadowMat;
             shadowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
-            // Marco de resaltado dorado (para selección o destino válido)
+            // Marco de resaltado delgado verde aguamarina (para selección o destino válido)
             var hlGo = new GameObject("Highlight");
             hlGo.transform.SetParent(transform, false);
             hlGo.transform.localPosition = new Vector3(0f, -CardThickness * 0.35f, 0f);
             hlGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            hlGo.transform.localScale = new Vector3(w * 1.08f, l * 1.06f, 1f);
-            hlGo.AddComponent<MeshFilter>().sharedMesh = sQuadMesh;
+            hlGo.transform.localScale = new Vector3(w + 0.0016f, l + 0.0016f, 1f);
+            hlGo.AddComponent<MeshFilter>().sharedMesh = sRoundedQuadMesh;
             highlightRenderer = hlGo.AddComponent<MeshRenderer>();
-            highlightMat = CreateUnlitMaterial(new Color(1f, 0.84f, 0.18f, 0.90f), null, true);
+            highlightMat = CreateUnlitMaterial(new Color(0.14f, 0.92f, 0.72f, 0.92f), null, true);
             highlightRenderer.sharedMaterial = highlightMat;
             highlightRenderer.enabled = false;
 
@@ -127,12 +146,12 @@ namespace TCGPlayKyn
             HitCollider.size = new Vector3(w, CardThickness * 5f, l);
             HitCollider.center = Vector3.zero;
 
-            // Núcleo con grosor físico de cartulina
+            // Núcleo con grosor físico de cartulina (ligeramente remetido y con esquinas redondeadas para no sobresalir)
             var coreGo = new GameObject("CoreEdge");
             coreGo.transform.SetParent(visualRoot, false);
             coreGo.transform.localPosition = Vector3.zero;
-            coreGo.transform.localScale = new Vector3(w, CardThickness, l);
-            coreGo.AddComponent<MeshFilter>().sharedMesh = sCubeMesh;
+            coreGo.transform.localScale = new Vector3(Mathf.Max(0.01f, w - 0.00045f), CardThickness, Mathf.Max(0.01f, l - 0.00045f));
+            coreGo.AddComponent<MeshFilter>().sharedMesh = sRoundedCoreMesh;
             coreRenderer = coreGo.AddComponent<MeshRenderer>();
             coreRenderer.sharedMaterial = sCoreMat;
 
@@ -142,9 +161,9 @@ namespace TCGPlayKyn
             frontGo.transform.localPosition = new Vector3(0f, CardThickness * 0.5f + 0.00012f, 0f);
             frontGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             frontGo.transform.localScale = new Vector3(w, l, 1f);
-            frontGo.AddComponent<MeshFilter>().sharedMesh = sQuadMesh;
+            frontGo.AddComponent<MeshFilter>().sharedMesh = sRoundedQuadMesh;
             frontRenderer = frontGo.AddComponent<MeshRenderer>();
-            frontMat = CreateUnlitMaterial(Color.white, sFallbackFrontTex, false);
+            frontMat = CreateUnlitMaterial(Color.white, sFallbackFrontTex, false, alphaCutout: true);
             frontRenderer.sharedMaterial = frontMat;
 
             // Capa holográfica / Foil opcional (se activa cuando la carta es Foil y hay mods/shaders disponibles)
@@ -153,7 +172,7 @@ namespace TCGPlayKyn
             holoGo.transform.localPosition = new Vector3(0f, CardThickness * 0.5f + 0.00018f, 0f);
             holoGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             holoGo.transform.localScale = new Vector3(w, l, 1f);
-            holoGo.AddComponent<MeshFilter>().sharedMesh = sQuadMesh;
+            holoGo.AddComponent<MeshFilter>().sharedMesh = sRoundedQuadMesh;
             holoRenderer = holoGo.AddComponent<MeshRenderer>();
             holoRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             holoRenderer.enabled = false;
@@ -164,7 +183,7 @@ namespace TCGPlayKyn
             tintGo.transform.localPosition = new Vector3(0f, CardThickness * 0.5f + 0.00024f, 0f);
             tintGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
             tintGo.transform.localScale = new Vector3(w, l, 1f);
-            tintGo.AddComponent<MeshFilter>().sharedMesh = sQuadMesh;
+            tintGo.AddComponent<MeshFilter>().sharedMesh = sRoundedQuadMesh;
             tintRenderer = tintGo.AddComponent<MeshRenderer>();
             tintMat = CreateUnlitMaterial(Color.clear, null, true);
             tintRenderer.sharedMaterial = tintMat;
@@ -177,11 +196,21 @@ namespace TCGPlayKyn
             backGo.transform.localPosition = new Vector3(0f, -CardThickness * 0.5f - 0.00012f, 0f);
             backGo.transform.localRotation = Quaternion.Euler(-90f, 0f, 180f);
             backGo.transform.localScale = new Vector3(w, l, 1f);
-            backGo.AddComponent<MeshFilter>().sharedMesh = sQuadMesh;
+            backGo.AddComponent<MeshFilter>().sharedMesh = sRoundedQuadMesh;
             backRenderer = backGo.AddComponent<MeshRenderer>();
+            if (sFallbackBackTex == null)
+                sFallbackBackTex = MakeSolidTex(new Color(0.11f, 0.21f, 0.42f, 1f));
             var cbTex = SpriteCache.GetCardBack()?.texture;
-            backMat = CreateUnlitMaterial(Color.white, cbTex != null ? cbTex : sFallbackFrontTex, false);
+            backMat = CreateUnlitMaterial(Color.white, cbTex != null ? cbTex : sFallbackBackTex, false, alphaCutout: true);
             backRenderer.sharedMaterial = backMat;
+        }
+
+        void OnDestroy()
+        {
+            if (frontMat != null) Destroy(frontMat);
+            if (backMat != null) Destroy(backMat);
+            if (highlightMat != null) Destroy(highlightMat);
+            if (tintMat != null) Destroy(tintMat);
         }
 
         /// <summary>
@@ -208,12 +237,13 @@ namespace TCGPlayKyn
             {
                 shadowRenderer.enabled = true;
                 shadowRenderer.transform.localRotation = Quaternion.Euler(90f, yawDegrees, 0f);
+                UpdateShadowOffsetForTilt(faceDown ? 180f : 0f, pitchDegrees);
             }
             if (highlightRenderer != null)
             {
                 highlightRenderer.enabled = highlight;
                 if (highlightMat != null)
-                    highlightMat.color = new Color(1f, 0.84f, 0.18f, 0.90f);
+                    highlightMat.color = new Color(0.14f, 0.92f, 0.72f, 0.92f);
                 highlightRenderer.transform.localRotation = Quaternion.Euler(90f, yawDegrees, 0f);
             }
             if (tintRenderer != null)
@@ -272,6 +302,18 @@ namespace TCGPlayKyn
         {
             if (visualRoot != null)
                 visualRoot.localRotation = Quaternion.Euler(pitchDegrees, yawDegrees, flipZ);
+            UpdateShadowOffsetForTilt(flipZ, pitchDegrees);
+        }
+
+        void UpdateShadowOffsetForTilt(float flipZDegrees, float pitchDegrees)
+        {
+            if (shadowRenderer == null) return;
+            // Desplazar la sombra por debajo de la esquina más baja de CardBody para que jamás corte la carta al inclinarse o voltearse
+            float dropZ = Mathf.Abs(Mathf.Sin(flipZDegrees * Mathf.Deg2Rad)) * (TableView.CardWorldWidth * 0.52f);
+            float dropX = Mathf.Abs(Mathf.Sin(pitchDegrees * Mathf.Deg2Rad)) * (TableView.CardWorldLength * 0.52f);
+            float safeY = -CardThickness * 0.45f - dropZ - dropX;
+            if (dropZ > 0.0005f || dropX > 0.0005f) safeY -= 0.0012f;
+            shadowRenderer.transform.localPosition = new Vector3(0.002f, safeY, -0.002f);
         }
 
         public void SetGrayscale(bool grayscale)
@@ -283,17 +325,29 @@ namespace TCGPlayKyn
 
         public void RefreshTextures()
         {
-            // Reverso oficial
+            // Reverso oficial (con respaldo azul marino si MyCurio/EPL no están instalados)
             var cb = SpriteCache.GetCardBack();
-            if (cb != null && cb.texture != null && backMat != null)
+            if (backMat != null)
             {
-                ApplySpriteToMaterial(backMat, cb);
+                if (cb != null && cb.texture != null)
+                {
+                    backMat.color = Color.white;
+                    ApplySpriteToMaterial(backMat, cb);
+                }
+                else
+                {
+                    backMat.mainTexture = sFallbackBackTex != null ? sFallbackBackTex : sFallbackFrontTex;
+                    backMat.mainTextureOffset = Vector2.zero;
+                    backMat.mainTextureScale = Vector2.one;
+                    backMat.color = new Color(0.11f, 0.21f, 0.42f, 1f);
+                }
             }
 
             // Frente de la carta (MyCurio via EPL)
             if (Card != null && frontMat != null)
             {
                 var sp = SpriteCache.Get(Card.Sprite);
+                bool appliedGray = false;
                 if (sp != null && sp.texture != null)
                 {
                     if (IsGrayscale)
@@ -305,26 +359,30 @@ namespace TCGPlayKyn
                             frontMat.mainTexture = grayTex;
                             frontMat.mainTextureOffset = Vector2.zero;
                             frontMat.mainTextureScale = Vector2.one;
-                            return;
+                            appliedGray = true;
                         }
                     }
-                    frontMat.color = Color.white;
-                    ApplySpriteToMaterial(frontMat, sp);
+                    if (!appliedGray)
+                    {
+                        frontMat.color = Color.white;
+                        ApplySpriteToMaterial(frontMat, sp);
+                    }
                 }
                 else
                 {
                     frontMat.mainTexture = sFallbackFrontTex;
+                    frontMat.mainTextureOffset = Vector2.zero;
+                    frontMat.mainTextureScale = Vector2.one;
                     frontMat.color = IsGrayscale ? new Color(0.28f, 0.28f, 0.30f, 1f) : new Color(0.22f, 0.32f, 0.48f, 1f);
                 }
 
                 // Renderizado Foil / Holográfico opcional (MyCurioHolo, Holographic Overhaul o shader estándar)
-                if (IsFoil && !IsGrayscale && holoRenderer != null)
+                if (IsFoil && !IsGrayscale && holoRenderer != null && sp != null && sp.texture != null)
                 {
-                    var cardSp = sp ?? SpriteCache.Get(Card.Sprite);
-                    var holoMat = HoloHelper.GetHoloMaterial(Card, cardSp);
+                    var holoMat = HoloHelper.GetHoloMaterial(Card, sp);
                     if (holoMat != null)
                     {
-                        HoloHelper.ApplySpriteProperties(holoMat, cardSp);
+                        HoloHelper.ApplySpriteProperties(holoMat, sp);
                         holoRenderer.sharedMaterial = holoMat;
                         holoRenderer.enabled = true;
                     }
@@ -353,13 +411,39 @@ namespace TCGPlayKyn
             mat.mainTextureScale = new Vector2(tr.width / t.width, tr.height / t.height);
         }
 
-        public static Material CreateUnlitMaterial(Color color, Texture2D tex, bool transparent)
+        static Shader GetCachedShader(bool transparent, bool alphaCutout, bool hasTex)
         {
-            Shader sh = Shader.Find(transparent ? "Sprites/Default" : (tex == null ? "Unlit/Color" : "Unlit/Texture"));
-            if (sh == null) sh = Shader.Find(transparent ? "Sprites/Default" : "Unlit/Texture");
-            if (sh == null) sh = Shader.Find("Standard");
+            if (transparent)
+                return sShaderSprites ?? (sShaderSprites = Shader.Find("Sprites/Default") ?? Shader.Find("Standard"));
+
+            if (alphaCutout && hasTex)
+            {
+                if (sShaderCutout == null)
+                    sShaderCutout = Shader.Find("Unlit/Transparent Cutout");
+                if (sShaderCutout != null) return sShaderCutout;
+            }
+
+            if (!hasTex)
+            {
+                if (sShaderUnlitColor == null)
+                    sShaderUnlitColor = Shader.Find("Unlit/Color");
+                if (sShaderUnlitColor != null) return sShaderUnlitColor;
+            }
+
+            if (sShaderUnlitTex == null)
+                sShaderUnlitTex = Shader.Find("Unlit/Texture");
+            if (sShaderUnlitTex != null) return sShaderUnlitTex;
+
+            return sShaderSprites ?? (sShaderSprites = Shader.Find("Sprites/Default")) ?? (sShaderStandard ?? (sShaderStandard = Shader.Find("Standard")));
+        }
+
+        public static Material CreateUnlitMaterial(Color color, Texture2D tex, bool transparent, bool alphaCutout = false)
+        {
+            Shader sh = GetCachedShader(transparent, alphaCutout, tex != null);
             var m = new Material(sh);
             m.color = color;
+            if (alphaCutout && m.HasProperty("_Cutoff"))
+                m.SetFloat("_Cutoff", 0.35f);
             if (tex != null)
                 m.mainTexture = tex;
             else if (!transparent)
@@ -367,13 +451,140 @@ namespace TCGPlayKyn
             return m;
         }
 
+        static List<Vector2> BuildRoundedPerimeter(float rx, float ry, int arcSegments)
+        {
+            var pts = new List<Vector2>(arcSegments * 4 + 4);
+            float hw = 0.5f - rx;
+            float hh = 0.5f - ry;
+            // Sentido horario visto desde -Z (+X derecha, +Y arriba): Sup-Der, Inf-Der, Inf-Izq, Sup-Izq
+            float[] cx = { hw, hw, -hw, -hw };
+            float[] cy = { hh, -hh, -hh, hh };
+            float[] a0 = { 90f, 0f, -90f, 180f };
+            float[] a1 = { 0f, -90f, -180f, 90f };
+
+            for (int c = 0; c < 4; c++)
+            {
+                for (int s = 0; s <= arcSegments; s++)
+                {
+                    float ang = Mathf.Lerp(a0[c], a1[c], s / (float)arcSegments) * Mathf.Deg2Rad;
+                    pts.Add(new Vector2(cx[c] + Mathf.Cos(ang) * rx, cy[c] + Mathf.Sin(ang) * ry));
+                }
+            }
+            return pts;
+        }
+
+        static Mesh BuildRoundedCardQuadMesh(float rx, float ry, int arcSegments)
+        {
+            var perim = BuildRoundedPerimeter(rx, ry, arcSegments);
+            int n = perim.Count;
+            var verts = new Vector3[n + 1];
+            var uvs = new Vector2[n + 1];
+            var norms = new Vector3[n + 1];
+            var tris = new int[n * 3];
+
+            verts[0] = Vector3.zero;
+            uvs[0] = new Vector2(0.5f, 0.5f);
+            norms[0] = Vector3.back;
+
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 p = perim[i];
+                verts[i + 1] = new Vector3(p.x, p.y, 0f);
+                uvs[i + 1] = new Vector2(p.x + 0.5f, p.y + 0.5f);
+                norms[i + 1] = Vector3.back;
+
+                tris[i * 3] = 0;
+                tris[i * 3 + 1] = i + 1;
+                tris[i * 3 + 2] = ((i + 1) % n) + 1;
+            }
+
+            var mesh = new Mesh { name = "RoundedCardQuad" };
+            mesh.vertices = verts;
+            mesh.uv = uvs;
+            mesh.normals = norms;
+            mesh.triangles = tris;
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        static Mesh BuildRoundedCardCoreMesh(float rx, float ry, int arcSegments)
+        {
+            var perim = BuildRoundedPerimeter(rx, ry, arcSegments);
+            int n = perim.Count;
+            var verts = new List<Vector3>(n * 4 + 2);
+            var norms = new List<Vector3>(n * 4 + 2);
+            var tris = new List<int>(n * 12);
+
+            // Tapa superior (+Y) y tapa inferior (-Y)
+            int topCenterIdx = verts.Count;
+            verts.Add(new Vector3(0f, 0.5f, 0f));
+            norms.Add(Vector3.up);
+            for (int i = 0; i < n; i++)
+            {
+                verts.Add(new Vector3(perim[i].x, 0.5f, perim[i].y));
+                norms.Add(Vector3.up);
+            }
+            for (int i = 0; i < n; i++)
+            {
+                tris.Add(topCenterIdx);
+                tris.Add(topCenterIdx + 1 + i);
+                tris.Add(topCenterIdx + 1 + ((i + 1) % n));
+            }
+
+            int botCenterIdx = verts.Count;
+            verts.Add(new Vector3(0f, -0.5f, 0f));
+            norms.Add(Vector3.down);
+            for (int i = 0; i < n; i++)
+            {
+                verts.Add(new Vector3(perim[i].x, -0.5f, perim[i].y));
+                norms.Add(Vector3.down);
+            }
+            for (int i = 0; i < n; i++)
+            {
+                tris.Add(botCenterIdx);
+                tris.Add(botCenterIdx + 1 + ((i + 1) % n));
+                tris.Add(botCenterIdx + 1 + i);
+            }
+
+            // Cantos laterales del núcleo
+            for (int i = 0; i < n; i++)
+            {
+                Vector2 a = perim[i];
+                Vector2 b = perim[(i + 1) % n];
+                Vector2 dir = (b - a).normalized;
+                // Normal exterior perpendicular en sentido horario en XZ
+                Vector3 outN = new Vector3(-dir.y, 0f, dir.x);
+                int idx = verts.Count;
+                verts.Add(new Vector3(a.x, 0.5f, a.y));
+                verts.Add(new Vector3(b.x, 0.5f, b.y));
+                verts.Add(new Vector3(b.x, -0.5f, b.y));
+                verts.Add(new Vector3(a.x, -0.5f, a.y));
+                for (int k = 0; k < 4; k++) norms.Add(outN);
+
+                tris.Add(idx + 1); tris.Add(idx); tris.Add(idx + 3);
+                tris.Add(idx + 1); tris.Add(idx + 3); tris.Add(idx + 2);
+            }
+
+            var mesh = new Mesh { name = "RoundedCardCore" };
+            mesh.SetVertices(verts);
+            mesh.SetNormals(norms);
+            mesh.SetTriangles(tris, 0);
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
         static Texture2D MakeSolidTex(Color col)
         {
+            Color32 key = col;
+            if (sSolidTexCache.TryGetValue(key, out var cached) && cached != null)
+                return cached;
+
             var t = new Texture2D(4, 4, TextureFormat.RGBA32, false);
             var cols = new Color[16];
             for (int i = 0; i < 16; i++) cols[i] = col;
             t.SetPixels(cols);
             t.Apply();
+            sSolidTexCache[key] = t;
             return t;
         }
 

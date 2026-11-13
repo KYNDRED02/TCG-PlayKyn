@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using EnhancedPrefabLoader.API;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -77,7 +76,7 @@ namespace TCGPlayKyn
         static float cacheTime = -999f;
         static bool mapBuilt;
 
-        public static bool Enforced => Plugin.RequireOwnedCards == null || Plugin.RequireOwnedCards.Value;
+        public static bool Enforced => (Plugin.RequireOwnedCards == null || Plugin.RequireOwnedCards.Value) && CardDatabase.HasArtworkProvider;
         public static bool FreeBasicEnergy => Plugin.FreeBasicEnergy == null || Plugin.FreeBasicEnergy.Value;
 
         public static void Invalidate() { cache.Clear(); cacheTime = -999f; }
@@ -95,7 +94,7 @@ namespace TCGPlayKyn
         static void BuildMap()
         {
             if (mapBuilt) return;
-            if (!Epl.IsAvailable || Epl.Api == null || !Epl.Api.IsBundleLoadingComplete) return;
+            if (!EplBridge.IsReady || !EplBridge.IsBundleLoadingComplete) return;
             mapBuilt = true;
             var allExpKeys = CardDatabase.Sets.Select(s => s.MyCurioExpansion)
                 .Concat(MyCurioIndex.Expansions.Keys)
@@ -109,24 +108,21 @@ namespace TCGPlayKyn
                 {
                     if (!TryParseExpansion(exKey, out var exp))
                         continue;
-                    var dict = Epl.Api.Assets.CardExpansions.GetCardSprites(exp);
-                    if (dict == null) continue;
-                    foreach (var kv in dict)
+                    EplBridge.ForEachExpansionCardSprite(exp, (monsterType, _, assetName, _) =>
                     {
-                        string assetName = kv.Value?.AssetName;
-                        if (string.IsNullOrEmpty(assetName)) continue;
+                        if (string.IsNullOrEmpty(assetName)) return;
                         if (!spriteMap.TryGetValue(assetName, out var list))
                         {
                             list = new List<KeyValuePair<ECardExpansionType, EMonsterType>>(2);
                             spriteMap[assetName] = list;
                         }
-                        var pair = new KeyValuePair<ECardExpansionType, EMonsterType>(exp, kv.Key);
+                        var pair = new KeyValuePair<ECardExpansionType, EMonsterType>(exp, monsterType);
                         if (!list.Contains(pair))
                         {
                             list.Add(pair);
                             mappedSlots++;
                         }
-                    }
+                    });
                 }
                 catch (Exception e) { Plugin.Log?.LogWarning($"Colección: no se pudo mapear {exKey}: {e.Message}"); }
             }

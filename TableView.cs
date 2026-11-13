@@ -98,6 +98,7 @@ namespace TCGPlayKyn
 
         // F6: Fichas 3D de Contadores de Daño (10/50/100), Marcadores 3D de Estado, Tinte animado y Textos Flotantes
         StatusCounters3D statusCounters;
+        BoardHud3D boardHud3D;
 
         // F7: Moneda 3D cilíndrica (Pikachu / Pokéball) con curva parabólica, rebote y vibración de canto
         public Coin3D Coin { get; private set; }
@@ -560,6 +561,8 @@ namespace TCGPlayKyn
             inspectBackdropGo = null;
             inspectBackdropMat = null;
             statusCounters = null;
+            boardHud3D?.Destroy();
+            boardHud3D = null;
             StatusCounters3D.ActivePopups.Clear();
             handDeployAnim = 0f;
             handTrayLiftAnim = 0f;
@@ -615,6 +618,7 @@ namespace TCGPlayKyn
         public void ResetStatusTracking()
         {
             statusCounters?.ResetTracking();
+            boardHud3D?.ResetTracking();
             Coin?.Reset();
             PolishEffects3D.ClearAll();
             setupRevealFlipZ = 180f;
@@ -660,6 +664,7 @@ namespace TCGPlayKyn
             cardPool.BeginFrame();
             physicalBlockPool?.BeginFrame();
             statusCounters?.BeginFrame();
+            boardHud3D?.BeginFrame();
 
             if (game == null)
             {
@@ -759,10 +764,14 @@ namespace TCGPlayKyn
                     var bPip = i < ps.Bench.Count ? ps.Bench[i] : null;
                     bool hl = retreatMode && p == 0 && bPip != null;
                     SyncPokemonSlot3D(p, i, BenchAnchor[p, i], bPip, 0.94f, false, hl, zoomedPip, zoomAnim, game.Turn);
+                    if (game.Phase != Phase.Setup && bPip != null)
+                        boardHud3D?.SyncPokemonHud(PlaymatRoot, BenchAnchor[p, i], bPip, p, false, 0.94f, MatThickness + 0.0005f);
                 }
 
                 // 5) Pokémon Activo en el Campo de Batalla Central 3D
                 SyncPokemonSlot3D(p, -1, ActiveAnchor[p], ps.Active, 1.08f, true, false, zoomedPip, zoomAnim, game.Turn);
+                if (game.Phase != Phase.Setup && ps.Active != null)
+                    boardHud3D?.SyncPokemonHud(PlaymatRoot, ActiveAnchor[p], ps.Active, p, true, 1.08f, MatThickness + 0.0005f);
             }
 
             // 5.5) Estadio 3D Activo en StadiumAnchor
@@ -990,9 +999,9 @@ namespace TCGPlayKyn
                             cv.HandIndex = i;
                             cv.SetRaycastEnabled(true);
                             if (isSelected && !isHovered)
-                                cv.SetHighlight(true, new Color(0.25f, 0.96f, 0.55f, 0.96f));
+                                cv.SetHighlight(true, new Color(0.14f, 0.92f, 0.72f, 0.95f));
                             else if (isHovered)
-                                cv.SetHighlight(true, new Color(1f, 0.86f, 0.20f, 0.96f));
+                                cv.SetHighlight(true, new Color(0.24f, 0.98f, 0.78f, 0.96f));
                         }
                     }
                     else
@@ -1224,7 +1233,7 @@ namespace TCGPlayKyn
             inspectCardView.SetFlipRoll(flipAngle, 0f, 0f);
             inspectCardView.SetShadowEnabled(false);
             inspectCardView.SetRaycastEnabled(false);
-            inspectCardView.SetHighlight(true, new Color(1f, 0.88f, 0.26f, 0.88f * smooth));
+            inspectCardView.SetHighlight(true, new Color(0.14f, 0.92f, 0.72f, 0.88f * smooth));
             inspectCardView.transform.position = curPos;
             inspectCardView.transform.rotation = curRot;
         }
@@ -1273,8 +1282,8 @@ namespace TCGPlayKyn
             dragCardView.SetHighlight(
                 true,
                 isOverValidDropSlot
-                    ? new Color(0.22f, 0.98f, 0.52f, 0.96f)
-                    : new Color(1f, 0.86f, 0.20f, 0.92f));
+                    ? new Color(0.22f, 0.98f, 0.76f, 0.98f)
+                    : new Color(0.14f, 0.92f, 0.72f, 0.92f));
             dragCardView.transform.position = smoothDragWorldPos;
             dragCardView.transform.rotation = baseRot * Quaternion.Euler(pitch, 0f, roll);
         }
@@ -1423,11 +1432,21 @@ namespace TCGPlayKyn
             }
         }
 
+        static Shader sShaderSprites;
+        static Shader sShaderUnlitTex;
+        static Shader sShaderStandard;
+
         static Material CreateMaterial(Color color, Texture2D tex, bool transparent = false)
         {
-            Shader sh = Shader.Find(transparent ? "Sprites/Default" : "Unlit/Texture");
-            if (sh == null || (!transparent && tex == null))
-                sh = Shader.Find("Sprites/Default") ?? Shader.Find("Standard");
+            Shader sh;
+            if (transparent || tex == null)
+                sh = sShaderSprites ?? (sShaderSprites = Shader.Find("Sprites/Default"));
+            else
+                sh = sShaderUnlitTex ?? (sShaderUnlitTex = Shader.Find("Unlit/Texture"));
+
+            if (sh == null)
+                sh = sShaderSprites ?? (sShaderSprites = Shader.Find("Sprites/Default")) ?? (sShaderStandard ?? (sShaderStandard = Shader.Find("Standard")));
+
             var m = new Material(sh);
             m.color = color;
             if (tex != null) m.mainTexture = tex;
